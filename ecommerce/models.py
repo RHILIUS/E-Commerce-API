@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from common.models import TimeStampedModel
+from core.common.models import TimeStampedModel
 
 # --------------------------------
 # Add products to cart feature
