@@ -1,8 +1,8 @@
 asgiref==3.11.1
 Django==6.0.3
+django-environ==0.14.0
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 psycopg2-binary==2.9.11
 PyJWT==2.12.1
-python-decouple==3.8
 sqlparse==0.5.5
