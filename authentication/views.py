@@ -10,16 +10,27 @@ from ecommerce_backend.settings import DEBUG
 
 
 class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]
+
+    permission_classes = []
 
     def post(self, request):
+        refresh_token = request.COOKIES.get("refresh_token")
+
         try:
-            refresh_token = request.data['refresh']
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            return Response({'detail': 'Logged out successfully.'}, status=status.HTTP_205_RESET_CONTENT)
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
         except Exception:
-            return Response({'detail': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
+            pass
+
+        response = Response(
+            {"detail": "Logout Successful"},
+            status=status.HTTP_200_OK,
+        )
+        response.delete_cookie(
+            "refresh_token",
+        )
+        return response
 
 
 class SignupView(APIView):
