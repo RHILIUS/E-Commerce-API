@@ -2,11 +2,14 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from authentication.serializers import SignupSerializer
 from ecommerce_backend.settings import DEBUG
+
+is_secure = False if DEBUG else True
 
 
 class LogoutView(APIView):
@@ -29,6 +32,8 @@ class LogoutView(APIView):
         )
         response.delete_cookie(
             "refresh_token",
+            path="/",
+            samesite="Lax"
         )
         return response
 
@@ -55,7 +60,6 @@ class SignupView(APIView):
 class LoginView(TokenObtainPairView):
 
     def finalize_response(self, request, response, *args, **kwargs):
-        is_secure = False if DEBUG else True
 
         # Refresh token cookie
         if response.data.get("refresh"):
@@ -68,3 +72,50 @@ class LoginView(TokenObtainPairView):
             )
             del response.data["refresh"]
         return super().finalize_response(request, response, *args, **kwargs)
+
+
+class RefreshView(TokenRefreshView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.COOKIES.get(
+            "refresh_token")
+        if refresh_token is None:
+            return Response({"detail": "No refresh token found in cookie."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # mutable copy of request.data so we can inject the token
+        data = request.data.copy()
+        data["refresh"] = refresh_token
+        serializer = self.get_serializer(data=data)
+
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as e:
+            response = Response({"detail": str(e)},
+                                status=status.HTTP_401_UNAUTHORIZED)
+            response.delete_cookie(
+                key="refresh_token",
+                path="/",
+                samesite="Lax",
+            )
+            return response
+
+        access_token = serializer.validated_data.get("access")
+        response = Response({"access": access_token},
+                            status=status.HTTP_200_OK)
+
+        # if ROTATE_REFRESH_TOKENS is True, simplejwt returns a new refresh token too —
+        # set it back as an HttpOnly cookie instead of returning it in the body
+        new_refresh = serializer.validated_data.get("refresh")
+        if new_refresh:
+            response.set_cookie(
+                key="refresh_token",
+                value=str(new_refresh),
+                httponly=True,
+                secure=is_secure,
+                samesite="Lax",
+                path="/",
+            )
+
+        return response
