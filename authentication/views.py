@@ -6,7 +6,10 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from authentication.serializers import SignupSerializer
+from authentication.serializers import (
+    CustomTokenObtainPairViewSerializer,
+    SignupSerializer,
+)
 from ecommerce_backend.settings import DEBUG
 
 is_secure = False if DEBUG else True
@@ -58,6 +61,7 @@ class SignupView(APIView):
 
 
 class LoginView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairViewSerializer
 
     def finalize_response(self, request, response, *args, **kwargs):
 
