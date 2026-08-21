@@ -6,4 +6,7 @@ from rest_framework.views import APIView
 class Test(APIView):
     def get(self, request):
 
+        user = request.user
+        print(user)
+
         return Response({"message": "hello"}, status=status.HTTP_200_OK)

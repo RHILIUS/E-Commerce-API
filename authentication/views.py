@@ -3,13 +3,15 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from authentication.serializers import (
-    CustomTokenObtainPairViewSerializer,
+    CustomTokenObtainPairSerializer,
     SignupSerializer,
+    UserPublicSerializer,
 )
+from ecommerce.models import User
 from ecommerce_backend.settings import DEBUG
 
 is_secure = False if DEBUG else True
@@ -61,7 +63,7 @@ class SignupView(APIView):
 
 
 class LoginView(TokenObtainPairView):
-    serializer_class = CustomTokenObtainPairViewSerializer
+    serializer_class = CustomTokenObtainPairSerializer
 
     def finalize_response(self, request, response, *args, **kwargs):
 
@@ -105,9 +107,28 @@ class RefreshView(TokenRefreshView):
             )
             return response
 
+        # Retrieve access token and user_id
         access_token = serializer.validated_data.get("access")
-        response = Response({"access": access_token},
-                            status=status.HTTP_200_OK)
+        user_id = AccessToken(access_token)["user_id"]
+
+        # Query the user object through user_id
+        try:
+            user = User.objects.only(
+                "id", "full_name", "email").get(id=user_id)
+        except User.DoesNotExist:
+            response = Response({"detail": "User not found."},
+                                status=status.HTTP_401_UNAUTHORIZED)
+            response.delete_cookie(
+                key="refresh_token",
+                path="/",
+                samesite="Lax",
+            )
+            return response
+
+        response = Response(
+            {"access": access_token,
+             "user": UserPublicSerializer(user).data},
+            status=status.HTTP_200_OK)
 
         # if ROTATE_REFRESH_TOKENS is True, simplejwt returns a new refresh token too —
         # set it back as an HttpOnly cookie instead of returning it in the body

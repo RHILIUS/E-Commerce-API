@@ -53,11 +53,16 @@ class SignupSerializer(serializers.Serializer):
         return created_user
 
 
-class CustomTokenObtainPairViewSerializer(TokenObtainPairSerializer):
+class UserPublicSerializer(serializers.ModelSerializer):
+    fullName = serializers.CharField(source="full_name")
+
+    class Meta:
+        model = User
+        fields = ["id", "fullName", "email"]
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-
-        data["user"] = {"id": self.user.id,
-                        "full_name": self.user.full_name,
-                        "email": self.user.email}
+        data["user"] = UserPublicSerializer(self.user).data
         return data
