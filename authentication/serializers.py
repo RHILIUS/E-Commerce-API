@@ -1,4 +1,5 @@
 import re
+from csv import Error
 
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
@@ -66,3 +67,15 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data["user"] = UserPublicSerializer(self.user).data
         return data
+
+
+class SendOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+
+    def validate_email(self, email):
+
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError(
+                "This email is already registered. Please log in or use a different email")
+
+        return email

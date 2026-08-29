@@ -8,6 +8,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from authentication.serializers import (
     CustomTokenObtainPairSerializer,
+    SendOTPSerializer,
     SignupSerializer,
     UserPublicSerializer,
 )
@@ -143,3 +144,17 @@ class RefreshView(TokenRefreshView):
             )
 
         return response
+
+
+class SendOTPView(APIView):
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+
+        serializer = SendOTPSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "successful"}, status=status.HTTP_200_OK)
