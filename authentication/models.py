@@ -20,6 +20,8 @@ class OTPVerificationRecord(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     last_sent_at = models.DateTimeField()
+
+    # Represents the time when OTP validity expires
     expires_at = models.DateTimeField()
 
     failed_attempts = models.PositiveSmallIntegerField(default=0)

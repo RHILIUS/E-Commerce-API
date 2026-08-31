@@ -77,7 +77,7 @@ class SendOTPSerializer(serializers.Serializer):
         # normalize email
         email = email.strip().lower()
 
-        if User.objects.filter(email=email).exists():
+        if User.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError(
                 "This email is already registered. Please log in or use a different email")
 

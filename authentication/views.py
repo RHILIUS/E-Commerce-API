@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -12,10 +13,10 @@ from authentication.serializers import (
     SignupSerializer,
     UserPublicSerializer,
 )
+from authentication.services.otp_service import OTPRateLimitExceeded, issue_otp
 from ecommerce.models import User
-from ecommerce_backend.settings import DEBUG
 
-is_secure = False if DEBUG else True
+is_secure = not settings.DEBUG
 
 
 class LogoutView(APIView):
@@ -157,4 +158,27 @@ class SendOTPView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        # Issue OTP
+        email = serializer.validated_data["email"]
+        try:
+            otp = issue_otp(email)
+        except OTPRateLimitExceeded as error:
+            return Response(
+                {
+                    "detail": "Please wait before requesting another OTP.",
+                    "retry_after": error.retry_after,
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+                headers={"Retry-After": str(error.retry_after)},
+            )
+
+        # Include the OTP sending to email here...
+
+        return Response(
+            {
+                "email": email,
+                "message": "OTP issued successfully.",
+                "retry_after": settings.OTP_RESEND_COOLDOWN_SECONDS,
+            },
+            status=status.HTTP_200_OK,
+        )
