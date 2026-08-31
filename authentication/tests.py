@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.core import mail
 from django.contrib.auth.hashers import check_password
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -15,6 +16,8 @@ from authentication.services.otp_service import (
 
 
 @override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    DEFAULT_FROM_EMAIL="E-Commerce <noreply@example.com>",
     OTP_RESEND_COOLDOWN_SECONDS=60,
     OTP_SEND_WINDOW_SECONDS=900,
     OTP_MAX_SENDS_PER_WINDOW=5,
@@ -111,6 +114,16 @@ class SendOTPViewTests(TestCase):
         self.assertEqual(response.data["email"], "person@example.com")
         self.assertEqual(response.data["retry_after"], 60)
         self.assertNotIn("otp", response.data)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["person@example.com"])
+        self.assertEqual(
+            mail.outbox[0].subject,
+            "Your E-Commerce verification code",
+        )
+
+        record = OTPVerificationRecord.objects.get(email="person@example.com")
+        otp = mail.outbox[0].body.split("Your verification code is: ", 1)[1][:6]
+        self.assertTrue(check_password(otp, record.otp_hash))
 
     def test_throttled_response_includes_retry_after_header(self):
         self.client.post(self.url, {"email": "person@example.com"}, format="json")
@@ -126,3 +139,22 @@ class SendOTPViewTests(TestCase):
             response.headers["Retry-After"],
             str(response.data["retry_after"]),
         )
+
+    @patch(
+        "authentication.services.email_service.send_mail",
+        side_effect=OSError("SMTP unavailable"),
+    )
+    def test_delivery_failure_returns_service_unavailable_without_exposing_otp(
+        self,
+        _,
+    ):
+        response = self.client.post(
+            self.url,
+            {"email": "person@example.com"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["retry_after"], 60)
+        self.assertEqual(response.headers["Retry-After"], "60")
+        self.assertNotIn("otp", response.data)

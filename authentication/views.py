@@ -13,6 +13,10 @@ from authentication.serializers import (
     SignupSerializer,
     UserPublicSerializer,
 )
+from authentication.services.email_service import (
+    OTPDeliveryError,
+    send_otp_email,
+)
 from authentication.services.otp_service import OTPRateLimitExceeded, issue_otp
 from ecommerce.models import User
 
@@ -172,12 +176,28 @@ class SendOTPView(APIView):
                 headers={"Retry-After": str(error.retry_after)},
             )
 
-        # Include the OTP sending to email here...
+        # Send OTP to email
+        try:
+            send_otp_email(email, otp)
+        except OTPDeliveryError:
+            return Response(
+                {
+                    "detail": (
+                        "Unable to send the verification code. "
+                        "Please try again later."
+                    ),
+                    "retry_after": settings.OTP_RESEND_COOLDOWN_SECONDS,
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                headers={
+                    "Retry-After": str(settings.OTP_RESEND_COOLDOWN_SECONDS),
+                },
+            )
 
         return Response(
             {
                 "email": email,
-                "message": "OTP issued successfully.",
+                "message": "OTP sent successfully.",
                 "retry_after": settings.OTP_RESEND_COOLDOWN_SECONDS,
             },
             status=status.HTTP_200_OK,
