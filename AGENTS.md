@@ -43,6 +43,16 @@ Use serializers for request validation and response transformation. Keep URL con
 
 Preserve existing API request formats, response structures, status codes, permissions, and authentication behavior unless the task explicitly changes the contract.
 
+## Implementation Simplicity
+
+Prefer the smallest clear implementation that satisfies the verified current requirement and contract.
+
+- Inspect the local producer, consumer, types, and documented contract before adding fallbacks, alternate parsing paths, compatibility branches, or abstractions.
+- When this backend and the frontend own a stable, explicit contract together, model that contract accurately and implement it directly. Do not support speculative request or response shapes unless a real compatibility requirement exists.
+- Add defensive behavior when input crosses an untrusted or external boundary, the contract explicitly permits variation, backward compatibility requires it, or a demonstrated failure mode justifies it.
+- Introduce services, helpers, and abstractions when they isolate substantial business logic or remove meaningful duplication; avoid single-use wrappers that obscure straightforward behavior.
+- Any added complexity should correspond to a concrete case that can be explained and, where practical, tested. Simplicity must not weaken authentication, authorization, security, transaction safety, concurrency controls, data integrity, or required error handling.
+
 ## Authentication and Security
 
 The API uses Bearer access tokens and an HttpOnly refresh-token cookie. Authentication is required by default.
