@@ -82,3 +82,14 @@ class SendOTPSerializer(serializers.Serializer):
                 "This email is already registered. Please log in or use a different email")
 
         return email
+
+
+class VerifyOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    otp = serializers.CharField(required=True, max_length=6, min_length=6)
+
+    def validate_otp(self, value: str):
+        if not value.isdigit():
+            raise serializers.ValidationError("OTP must contain only digits.")
+
+        return value

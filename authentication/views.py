@@ -1,6 +1,8 @@
 from django.conf import settings
+from django.contrib.messages.api import success
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
@@ -12,6 +14,7 @@ from authentication.serializers import (
     SendOTPSerializer,
     SignupSerializer,
     UserPublicSerializer,
+    VerifyOTPSerializer,
 )
 from authentication.services.email_service import (
     OTPDeliveryError,
@@ -202,3 +205,17 @@ class SendOTPView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class VerifyOTPView(APIView):
+
+    permission_classes = [AllowAny]
+
+    def post(self, request: Request):
+
+        serializer = VerifyOTPSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "success"}, status=status.HTTP_200_OK)
