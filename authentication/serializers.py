@@ -5,6 +5,8 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from authentication.models import OTPVerificationRecord
+
 User = get_user_model()
 
 
@@ -93,3 +95,14 @@ class VerifyOTPSerializer(serializers.Serializer):
             raise serializers.ValidationError("OTP must contain only digits.")
 
         return value
+
+    def validate_email(self, email: str):
+
+        # normalize email
+        email = email.strip().lower()
+
+        if not OTPVerificationRecord.objects.filter(email=email).exists():
+            raise serializers.ValidationError(
+                "Invalid OTP or email.")
+
+        return email
