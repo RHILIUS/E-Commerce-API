@@ -2,7 +2,7 @@ import re
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -123,6 +123,11 @@ class VerifyOTPSerializer(serializers.Serializer):
                 validation_error = serializers.ValidationError(
                     {"email": "Invalid OTP or email."}
                 )
+            # A successfully verified OTP is single-use.
+            elif otp_record.is_verified:
+                validation_error = serializers.ValidationError(
+                    {"otp": "Invalid OTP"}
+                )
             # OTP Expired?
             elif timezone.now() >= otp_record.expires_at:
                 otp_record.delete()
@@ -144,6 +149,14 @@ class VerifyOTPSerializer(serializers.Serializer):
                     validation_error = serializers.ValidationError(
                         {"otp": "Invalid OTP"}
                     )
+            else:
+                otp_record.is_verified = True
+                otp_record.verified_at = timezone.now()
+                # Invalidate/consume the OTP record
+                otp_record.otp_hash = make_password(None)
+                otp_record.save(
+                    update_fields=["is_verified", "verified_at", "otp_hash"]
+                )
 
         # Raise after leaving the atomic block so intentional updates/deletions
         # are committed rather than rolled back with the exception.

@@ -1,9 +1,11 @@
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.conf import settings
 from django.core import mail
 from django.contrib.auth.hashers import check_password, make_password
-from django.test import TestCase, override_settings
+from django.core import signing
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -13,6 +15,47 @@ from authentication.services.otp_service import (
     OTPRateLimitExceeded,
     issue_otp,
 )
+from authentication.services.registration_token_service import (
+    REGISTRATION_TOKEN_COOKIE_NAME,
+    REGISTRATION_TOKEN_SALT,
+    InvalidRegistrationToken,
+    issue_registration_token,
+    validate_registration_token,
+)
+
+
+@override_settings(REGISTRATION_TOKEN_EXPIRATION_SECONDS=900)
+class RegistrationTokenServiceTests(SimpleTestCase):
+    def test_issued_token_round_trip_returns_normalized_email(self):
+        token = issue_registration_token(" Person@Example.com ")
+
+        self.assertEqual(
+            validate_registration_token(token),
+            "person@example.com",
+        )
+
+    def test_tampered_token_is_rejected(self):
+        token = issue_registration_token("person@example.com")
+        tampered_token = f"{token}tampered"
+
+        with self.assertRaises(InvalidRegistrationToken):
+            validate_registration_token(tampered_token)
+
+    @patch("django.core.signing.time.time", side_effect=[1000, 1901])
+    def test_expired_token_is_rejected(self, _):
+        token = issue_registration_token("person@example.com")
+
+        with self.assertRaises(InvalidRegistrationToken):
+            validate_registration_token(token)
+
+    def test_invalid_purpose_is_rejected(self):
+        token = signing.dumps(
+            {"email": "person@example.com", "purpose": "password-reset"},
+            salt=REGISTRATION_TOKEN_SALT,
+        )
+
+        with self.assertRaises(InvalidRegistrationToken):
+            validate_registration_token(token)
 
 
 @override_settings(
@@ -160,7 +203,10 @@ class SendOTPViewTests(TestCase):
         self.assertNotIn("otp", response.data)
 
 
-@override_settings(OTP_MAX_VERIFICATION_ATTEMPTS=3)
+@override_settings(
+    OTP_MAX_VERIFICATION_ATTEMPTS=3,
+    REGISTRATION_TOKEN_EXPIRATION_SECONDS=900,
+)
 class VerifyOTPViewTests(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -177,7 +223,7 @@ class VerifyOTPViewTests(TestCase):
             failed_attempts=failed_attempts,
         )
 
-    def test_unexpired_record_remains_available(self):
+    def test_correct_otp_marks_record_verified_and_consumes_otp(self):
         record = self.create_record(
             expires_at=timezone.now() + timedelta(minutes=10),
         )
@@ -189,9 +235,45 @@ class VerifyOTPViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(
-            OTPVerificationRecord.objects.filter(pk=record.pk).exists()
+        self.assertEqual(
+            response.data,
+            {"message": "Email verified successfully."},
         )
+
+        cookie = response.cookies[REGISTRATION_TOKEN_COOKIE_NAME]
+        self.assertTrue(cookie["httponly"])
+        self.assertEqual(bool(cookie["secure"]), not settings.DEBUG)
+        self.assertEqual(cookie["samesite"], "Lax")
+        self.assertEqual(cookie["path"], "/api/auth/")
+        self.assertEqual(int(cookie["max-age"]), 900)
+        self.assertEqual(
+            validate_registration_token(cookie.value),
+            "person@example.com",
+        )
+        self.assertNotIn(REGISTRATION_TOKEN_COOKIE_NAME, response.data)
+
+        record.refresh_from_db()
+        self.assertTrue(record.is_verified)
+        self.assertIsNotNone(record.verified_at)
+        self.assertFalse(check_password("123456", record.otp_hash))
+
+    def test_consumed_otp_cannot_be_verified_again(self):
+        record = self.create_record(
+            expires_at=timezone.now() + timedelta(minutes=10),
+        )
+        payload = {"email": "person@example.com", "otp": "123456"}
+
+        first_response = self.client.post(self.url, payload, format="json")
+        second_response = self.client.post(self.url, payload, format="json")
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            second_response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(second_response.data["otp"], ["Invalid OTP"])
+        record.refresh_from_db()
+        self.assertTrue(record.is_verified)
 
     def test_expired_record_is_deleted_and_returns_gone(self):
         record = self.create_record(

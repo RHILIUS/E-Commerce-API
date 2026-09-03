@@ -21,6 +21,10 @@ from authentication.services.email_service import (
     send_otp_email,
 )
 from authentication.services.otp_service import OTPRateLimitExceeded, issue_otp
+from authentication.services.registration_token_service import (
+    REGISTRATION_TOKEN_COOKIE_NAME,
+    issue_registration_token,
+)
 from ecommerce.models import User
 
 is_secure = not settings.DEBUG
@@ -217,4 +221,20 @@ class VerifyOTPView(APIView):
 
         serializer.is_valid(raise_exception=True)
 
-        return Response({"message": "success"}, status=status.HTTP_200_OK)
+        registration_token = issue_registration_token(
+            serializer.validated_data["email"]
+        )
+        response = Response(
+            {"message": "Email verified successfully."},
+            status=status.HTTP_200_OK,
+        )
+        response.set_cookie(
+            key=REGISTRATION_TOKEN_COOKIE_NAME,
+            value=registration_token,
+            httponly=True,
+            secure=is_secure,
+            samesite="Lax",
+            max_age=settings.REGISTRATION_TOKEN_EXPIRATION_SECONDS,
+            path="/api/auth/",
+        )
+        return response
