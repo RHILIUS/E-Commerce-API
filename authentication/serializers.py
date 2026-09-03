@@ -1,12 +1,14 @@
 import re
-from csv import Error
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import check_password
+from django.db import transaction
 from django.utils import timezone
-from rest_framework import serializers, status
-from rest_framework.exceptions import APIException
+from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from authentication.exceptions import ExpiredOTPError, MaxAttemptError
 from authentication.models import OTPVerificationRecord
 
 User = get_user_model()
@@ -88,12 +90,6 @@ class SendOTPSerializer(serializers.Serializer):
         return email
 
 
-class ExpiredOTPError(APIException):
-    status_code = status.HTTP_410_GONE
-    default_detail = {"email": ["Expired or invalid OTP"]}
-    default_code = "otp_expired"
-
-
 class VerifyOTPSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     otp = serializers.CharField(required=True, max_length=6, min_length=6)
@@ -105,22 +101,53 @@ class VerifyOTPSerializer(serializers.Serializer):
         return value
 
     def validate_email(self, email: str):
+        return email.strip().lower()
 
-        # normalize email
-        email = email.strip().lower()
+    def validate(self, attrs):
+        email = attrs["email"]
+        otp = attrs["otp"]
+        validation_error = None
 
-        otp_record = OTPVerificationRecord.objects.filter(email=email).first()
+        # Lock the record so concurrent failures cannot overwrite each other's
+        # failed-attempt increments and bypass the attempt limit.
+        with transaction.atomic():
+            otp_record = (
+                OTPVerificationRecord.objects
+                .select_for_update()
+                .filter(email=email)
+                .first()
+            )
 
-        if otp_record is None:
-            raise serializers.ValidationError(
-                "Invalid OTP or email.")
+            # Does OTP verification record exist?
+            if otp_record is None:
+                validation_error = serializers.ValidationError(
+                    {"email": "Invalid OTP or email."}
+                )
+            # OTP Expired?
+            elif timezone.now() >= otp_record.expires_at:
+                otp_record.delete()
+                validation_error = ExpiredOTPError()
+            # OTP Match?
+            elif not check_password(otp, otp_record.otp_hash):
+                otp_record.failed_attempts += 1
 
-        # Check OTP Expiration
-        now = timezone.now()
+                # Too many attempts?
+                if (
+                    otp_record.failed_attempts
+                    >= settings.OTP_MAX_VERIFICATION_ATTEMPTS
+                ):
+                    otp_record.delete()
+                    validation_error = MaxAttemptError()
 
-        # Invalidate the record and raise error if the record has already expired
-        if now >= otp_record.expires_at:
-            otp_record.delete()
-            raise ExpiredOTPError()
+                else:
+                    otp_record.save(update_fields=["failed_attempts"])
+                    validation_error = serializers.ValidationError(
+                        {"otp": "Invalid OTP"}
+                    )
 
-        return email
+        # Raise after leaving the atomic block so intentional updates/deletions
+        # are committed rather than rolled back with the exception.
+        if validation_error is not None:
+            raise validation_error
+
+        return attrs

@@ -2,7 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.core import mail
-from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import check_password, make_password
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
@@ -160,19 +160,21 @@ class SendOTPViewTests(TestCase):
         self.assertNotIn("otp", response.data)
 
 
+@override_settings(OTP_MAX_VERIFICATION_ATTEMPTS=3)
 class VerifyOTPViewTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.url = "/api/auth/verify-otp/"
 
-    def create_record(self, *, expires_at):
+    def create_record(self, *, expires_at, otp="123456", failed_attempts=0):
         now = timezone.now()
         return OTPVerificationRecord.objects.create(
             email="person@example.com",
-            otp_hash="unused-by-current-verification-step",
+            otp_hash=make_password(otp),
             last_sent_at=now,
             expires_at=expires_at,
             send_window_started_at=now,
+            failed_attempts=failed_attempts,
         )
 
     def test_unexpired_record_remains_available(self):
@@ -217,3 +219,40 @@ class VerifyOTPViewTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["email"], ["Invalid OTP or email."])
+
+    def test_invalid_otp_increments_failed_attempts(self):
+        record = self.create_record(
+            expires_at=timezone.now() + timedelta(minutes=10),
+        )
+
+        response = self.client.post(
+            self.url,
+            {"email": "person@example.com", "otp": "000000"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["otp"], ["Invalid OTP"])
+        record.refresh_from_db()
+        self.assertEqual(record.failed_attempts, 1)
+
+    def test_maximum_failed_attempt_deletes_record_and_returns_too_many_requests(self):
+        record = self.create_record(
+            expires_at=timezone.now() + timedelta(minutes=10),
+            failed_attempts=2,
+        )
+
+        response = self.client.post(
+            self.url,
+            {"email": "person@example.com", "otp": "000000"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(
+            response.data["otp"],
+            ["You have exceeded the maximum attempts. Please request a new OTP"],
+        )
+        self.assertFalse(
+            OTPVerificationRecord.objects.filter(pk=record.pk).exists()
+        )
