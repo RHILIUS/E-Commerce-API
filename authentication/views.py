@@ -1,5 +1,8 @@
+from django.conf import settings
+from django.contrib.messages.api import success
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
@@ -8,13 +11,23 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from authentication.serializers import (
     CustomTokenObtainPairSerializer,
+    SendOTPSerializer,
     SignupSerializer,
     UserPublicSerializer,
+    VerifyOTPSerializer,
+)
+from authentication.services.email_service import (
+    OTPDeliveryError,
+    send_otp_email,
+)
+from authentication.services.otp_service import OTPRateLimitExceeded, issue_otp
+from authentication.services.registration_token_service import (
+    REGISTRATION_TOKEN_COOKIE_NAME,
+    issue_registration_token,
 )
 from ecommerce.models import User
-from ecommerce_backend.settings import DEBUG
 
-is_secure = False if DEBUG else True
+is_secure = not settings.DEBUG
 
 
 class LogoutView(APIView):
@@ -142,4 +155,86 @@ class RefreshView(TokenRefreshView):
                 path="/",
             )
 
+        return response
+
+
+class SendOTPView(APIView):
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+
+        serializer = SendOTPSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # Issue OTP
+        email = serializer.validated_data["email"]
+        try:
+            otp = issue_otp(email)
+        except OTPRateLimitExceeded as error:
+            return Response(
+                {
+                    "detail": "Please wait before requesting another OTP.",
+                    "retry_after": error.retry_after,
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+                headers={"Retry-After": str(error.retry_after)},
+            )
+
+        # Send OTP to email
+        try:
+            send_otp_email(email, otp)
+        except OTPDeliveryError:
+            return Response(
+                {
+                    "detail": (
+                        "Unable to send the verification code. "
+                        "Please try again later."
+                    ),
+                    "retry_after": settings.OTP_RESEND_COOLDOWN_SECONDS,
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                headers={
+                    "Retry-After": str(settings.OTP_RESEND_COOLDOWN_SECONDS),
+                },
+            )
+
+        return Response(
+            {
+                "email": email,
+                "message": "OTP sent successfully.",
+                "retry_after": settings.OTP_RESEND_COOLDOWN_SECONDS,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class VerifyOTPView(APIView):
+
+    permission_classes = [AllowAny]
+
+    def post(self, request: Request):
+
+        serializer = VerifyOTPSerializer(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+
+        registration_token = issue_registration_token(
+            serializer.validated_data["email"]
+        )
+        response = Response(
+            {"message": "Email verified successfully."},
+            status=status.HTTP_200_OK,
+        )
+        response.set_cookie(
+            key=REGISTRATION_TOKEN_COOKIE_NAME,
+            value=registration_token,
+            httponly=True,
+            secure=is_secure,
+            samesite="Lax",
+            max_age=settings.REGISTRATION_TOKEN_EXPIRATION_SECONDS,
+            path="/api/auth/",
+        )
         return response

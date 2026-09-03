@@ -160,3 +160,27 @@ CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
 CORS_ALLOW_CREDENTIALS = True
 
 AUTH_USER_MODEL = "authentication.User"
+
+# Email
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
+DEFAULT_FROM_EMAIL = env(
+    "DEFAULT_FROM_EMAIL",
+    default="E-Commerce <noreply@example.com>",
+)
+
+# OTP Policy
+OTP_RESEND_COOLDOWN_SECONDS = 60
+OTP_SEND_WINDOW_SECONDS = 900  # 15 minutes
+OTP_MAX_SENDS_PER_WINDOW = 5
+OTP_EXPIRATION_SECONDS = 600  # 10 minutes
+OTP_MAX_VERIFICATION_ATTEMPTS = 5
+REGISTRATION_TOKEN_EXPIRATION_SECONDS = 900  # 15 minutes

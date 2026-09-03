@@ -43,6 +43,16 @@ Use serializers for request validation and response transformation. Keep URL con
 
 Preserve existing API request formats, response structures, status codes, permissions, and authentication behavior unless the task explicitly changes the contract.
 
+## Implementation Simplicity
+
+Prefer the smallest clear implementation that satisfies the verified current requirement and contract.
+
+- Inspect the local producer, consumer, types, and documented contract before adding fallbacks, alternate parsing paths, compatibility branches, or abstractions.
+- When this backend and the frontend own a stable, explicit contract together, model that contract accurately and implement it directly. Do not support speculative request or response shapes unless a real compatibility requirement exists.
+- Add defensive behavior when input crosses an untrusted or external boundary, the contract explicitly permits variation, backward compatibility requires it, or a demonstrated failure mode justifies it.
+- Introduce services, helpers, and abstractions when they isolate substantial business logic or remove meaningful duplication; avoid single-use wrappers that obscure straightforward behavior.
+- Any added complexity should correspond to a concrete case that can be explained and, where practical, tested. Simplicity must not weaken authentication, authorization, security, transaction safety, concurrency controls, data integrity, or required error handling.
+
 ## Authentication and Security
 
 The API uses Bearer access tokens and an HttpOnly refresh-token cookie. Authentication is required by default.
@@ -80,6 +90,39 @@ python manage.py migrate --plan
 ```
 
 Add focused tests for new behavior and bug fixes. Report any checks that could not run because required environment variables, PostgreSQL, or another service was unavailable.
+
+## Pull Request Documentation
+
+When asked to prepare a PR comment or PR description, use the following format and base every statement on the actual branch diff, tests, and documented contract. Omit sections that do not apply.
+
+```markdown
+## Summary
+
+<Briefly explain the user-facing or system-level outcome and why the change is needed.>
+
+## Changes
+
+- <Group related implementation changes by behavior rather than listing commits.>
+- <Call out database migrations, API contract changes, and security-sensitive behavior explicitly.>
+
+## API Contract
+
+- **Endpoint:** `<method and path>`
+- **Success:** `<status and response shape>`
+- **Errors:** `<relevant status codes and response shapes>`
+- **Cookies/authentication:** `<cookie or token behavior, if applicable>`
+
+## Testing
+
+- [x] `<check that passed>`
+- [ ] `<check that could not run and the reason>`
+
+## Follow-up / Out of Scope
+
+- <Known follow-up work, documented inconsistency, or intentionally excluded behavior.>
+```
+
+Keep the documentation reviewer-focused: describe observable behavior, important implementation and security decisions, verification performed, and unresolved risks. Do not claim that a check passed unless it was run successfully. Never include secrets, credentials, plaintext OTPs, complete tokens, cookies, or `.env` values.
 
 ## Working Practices
 
