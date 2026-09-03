@@ -2,7 +2,9 @@ import re
 from csv import Error
 
 from django.contrib.auth import get_user_model
-from rest_framework import serializers
+from django.utils import timezone
+from rest_framework import serializers, status
+from rest_framework.exceptions import APIException
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from authentication.models import OTPVerificationRecord
@@ -86,6 +88,12 @@ class SendOTPSerializer(serializers.Serializer):
         return email
 
 
+class ExpiredOTPError(APIException):
+    status_code = status.HTTP_410_GONE
+    default_detail = {"email": ["Expired or invalid OTP"]}
+    default_code = "otp_expired"
+
+
 class VerifyOTPSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     otp = serializers.CharField(required=True, max_length=6, min_length=6)
@@ -101,8 +109,18 @@ class VerifyOTPSerializer(serializers.Serializer):
         # normalize email
         email = email.strip().lower()
 
-        if not OTPVerificationRecord.objects.filter(email=email).exists():
+        otp_record = OTPVerificationRecord.objects.filter(email=email).first()
+
+        if otp_record is None:
             raise serializers.ValidationError(
                 "Invalid OTP or email.")
+
+        # Check OTP Expiration
+        now = timezone.now()
+
+        # Invalidate the record and raise error if the record has already expired
+        if now >= otp_record.expires_at:
+            otp_record.delete()
+            raise ExpiredOTPError()
 
         return email

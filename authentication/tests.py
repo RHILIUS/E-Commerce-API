@@ -158,3 +158,62 @@ class SendOTPViewTests(TestCase):
         self.assertEqual(response.data["retry_after"], 60)
         self.assertEqual(response.headers["Retry-After"], "60")
         self.assertNotIn("otp", response.data)
+
+
+class VerifyOTPViewTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.url = "/api/auth/verify-otp/"
+
+    def create_record(self, *, expires_at):
+        now = timezone.now()
+        return OTPVerificationRecord.objects.create(
+            email="person@example.com",
+            otp_hash="unused-by-current-verification-step",
+            last_sent_at=now,
+            expires_at=expires_at,
+            send_window_started_at=now,
+        )
+
+    def test_unexpired_record_remains_available(self):
+        record = self.create_record(
+            expires_at=timezone.now() + timedelta(minutes=10),
+        )
+
+        response = self.client.post(
+            self.url,
+            {"email": " Person@Example.com ", "otp": "123456"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            OTPVerificationRecord.objects.filter(pk=record.pk).exists()
+        )
+
+    def test_expired_record_is_deleted_and_returns_gone(self):
+        record = self.create_record(
+            expires_at=timezone.now() - timedelta(seconds=1),
+        )
+
+        response = self.client.post(
+            self.url,
+            {"email": "person@example.com", "otp": "123456"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_410_GONE)
+        self.assertEqual(response.data["email"], ["Expired or invalid OTP"])
+        self.assertFalse(
+            OTPVerificationRecord.objects.filter(pk=record.pk).exists()
+        )
+
+    def test_missing_record_returns_bad_request(self):
+        response = self.client.post(
+            self.url,
+            {"email": "missing@example.com", "otp": "123456"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["email"], ["Invalid OTP or email."])
