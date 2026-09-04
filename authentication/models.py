@@ -6,9 +6,11 @@ class User(AbstractUser):
 
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=100)
+    phone_number = models.CharField(
+        max_length=20, unique=True, blank=True, null=True)
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["username", "full_name"]
+    REQUIRED_FIELDS = ["username", "full_name", "phone_number"]
 
     def __str__(self):
         return self.full_name or self.email
