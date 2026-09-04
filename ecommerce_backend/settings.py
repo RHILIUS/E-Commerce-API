@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'ecommerce',
     'authentication',
+    'account',
 ]
 
 MIDDLEWARE = [
