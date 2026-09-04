@@ -1,5 +1,4 @@
 from django.conf import settings
-from django.contrib.messages.api import success
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -12,7 +11,6 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from authentication.serializers import (
     CustomTokenObtainPairSerializer,
     SendOTPSerializer,
-    SignupSerializer,
     UserPublicSerializer,
     VerifyOTPSerializer,
 )
@@ -53,25 +51,6 @@ class LogoutView(APIView):
             samesite="Lax"
         )
         return response
-
-
-class SignupView(APIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-
-        # serialize
-        serializer = SignupSerializer(data=request.data)
-
-        # Validate fields
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        # Save user
-        user = serializer.save()
-        return Response(
-            {**serializer.data, "message": "Account created successfully"}, status=status.HTTP_201_CREATED
-        )
 
 
 class LoginView(TokenObtainPairView):

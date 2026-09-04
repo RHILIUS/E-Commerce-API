@@ -8,7 +8,6 @@ urlpatterns = [
     path('refresh/',    views.RefreshView.as_view(),    name='token_refresh'),
     path('verify/',     TokenVerifyView.as_view(),      name='token_verify'),
     path('logout/',     views.LogoutView.as_view(),     name='logout'),
-    path('signup/',     views.SignupView.as_view(),     name='register'),
     path('send-otp/',   views.SendOTPView.as_view(),    name='send_otp'),
-    path('verify-otp/',  views.VerifyOTPView.as_view(),  name='verify_otp'),
+    path('verify-otp/', views.VerifyOTPView.as_view(),  name='verify_otp'),
 ]
