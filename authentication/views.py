@@ -10,6 +10,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from authentication.serializers import (
     CustomTokenObtainPairSerializer,
+    RegisterSerializer,
     SendOTPSerializer,
     UserPublicSerializer,
     VerifyOTPSerializer,
@@ -225,6 +226,9 @@ class RegisterView(APIView):
 
     def post(self, request: Request):
 
-        print(request.COOKIES.get("registration_token"))
+        serializer = RegisterSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
 
         return Response({"message": "Account successfully created"}, status=status.HTTP_200_OK)

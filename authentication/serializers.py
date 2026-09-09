@@ -8,10 +8,33 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from authentication.exceptions import ExpiredOTPError, MaxAttemptError
+from authentication.exceptions import (
+    ExpiredOTPError,
+    InvalidRegistrationTokenError,
+    MaxAttemptError,
+)
 from authentication.models import OTPVerificationRecord
+from authentication.services.registration_token_service import (
+    REGISTRATION_TOKEN_COOKIE_NAME,
+    InvalidRegistrationToken,
+    validate_registration_token,
+)
 
 User = get_user_model()
+
+
+class RegisterSerializer(serializers.Serializer):
+    def validate(self, attrs):
+        token = self.context["request"].COOKIES.get(REGISTRATION_TOKEN_COOKIE_NAME)
+        if not token:
+            raise InvalidRegistrationTokenError()
+
+        try:
+            attrs["email"] = validate_registration_token(token)
+        except InvalidRegistrationToken as error:
+            raise InvalidRegistrationTokenError() from error
+
+        return attrs
 
 
 class UserPublicSerializer(serializers.ModelSerializer):

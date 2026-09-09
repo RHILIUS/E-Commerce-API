@@ -2,6 +2,12 @@ from rest_framework import status
 from rest_framework.exceptions import APIException
 
 
+class InvalidRegistrationTokenError(APIException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    default_detail = "Registration token is not valid"
+    default_code = "invalid_registration_token"
+
+
 class ExpiredOTPError(APIException):
     status_code = status.HTTP_410_GONE
     default_detail = {"email": ["Expired or invalid OTP"]}

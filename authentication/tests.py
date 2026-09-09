@@ -7,9 +7,10 @@ from django.core import mail, signing
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APIRequestFactory
 
 from authentication.models import OTPVerificationRecord
+from authentication.serializers import RegisterSerializer
 from authentication.services.otp_service import (
     OTPRateLimitExceeded,
     issue_otp,
@@ -55,6 +56,82 @@ class RegistrationTokenServiceTests(SimpleTestCase):
 
         with self.assertRaises(InvalidRegistrationToken):
             validate_registration_token(token)
+
+
+@override_settings(REGISTRATION_TOKEN_EXPIRATION_SECONDS=900)
+class RegisterViewTests(SimpleTestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.url = "/api/auth/register/"
+
+    def assert_invalid_token(self, response):
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(
+            response.data,
+            {"detail": "Registration token is not valid"},
+        )
+
+    def test_missing_or_empty_cookie_is_rejected(self):
+        self.assert_invalid_token(self.client.post(self.url, {}, format="json"))
+        self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = ""
+        self.assert_invalid_token(self.client.post(self.url, {}, format="json"))
+
+    def test_body_token_cannot_replace_cookie(self):
+        response = self.client.post(
+            self.url,
+            {REGISTRATION_TOKEN_COOKIE_NAME: issue_registration_token("person@example.com")},
+            format="json",
+        )
+        self.assert_invalid_token(response)
+
+    def test_malformed_and_tampered_tokens_are_rejected(self):
+        for token in ("malformed", issue_registration_token("person@example.com") + "tampered"):
+            self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = token
+            self.assert_invalid_token(self.client.post(self.url, {}, format="json"))
+
+    def test_expired_token_is_rejected(self):
+        with patch("django.core.signing.time.time", return_value=1000):
+            token = issue_registration_token("person@example.com")
+        self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = token
+
+        with patch("django.core.signing.time.time", return_value=1901):
+            response = self.client.post(self.url, {}, format="json")
+
+        self.assert_invalid_token(response)
+
+    def test_invalid_payloads_are_rejected(self):
+        for payload in (
+            {"email": "person@example.com", "purpose": "password-reset"},
+            {"purpose": "registration"},
+            {"email": 123, "purpose": "registration"},
+            ["person@example.com"],
+        ):
+            self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = signing.dumps(
+                payload, salt=REGISTRATION_TOKEN_SALT,
+            )
+            self.assert_invalid_token(self.client.post(self.url, {}, format="json"))
+
+    def test_valid_cookie_passes_validation_without_exposing_token(self):
+        self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = issue_registration_token(
+            "person@example.com"
+        )
+
+        response = self.client.post(self.url, {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {"message": "Account successfully created"})
+
+    def test_verified_email_comes_from_cookie_instead_of_request_body(self):
+        request = APIRequestFactory().post(self.url)
+        request.COOKIES[REGISTRATION_TOKEN_COOKIE_NAME] = issue_registration_token(
+            " Person@Example.com "
+        )
+        serializer = RegisterSerializer(
+            data={"email": "unverified@example.com"}, context={"request": request},
+        )
+
+        self.assertTrue(serializer.is_valid())
+        self.assertEqual(serializer.validated_data["email"], "person@example.com")
 
 
 @override_settings(
@@ -254,6 +331,11 @@ class VerifyOTPViewTests(TestCase):
             "person@example.com",
         )
         self.assertNotIn(REGISTRATION_TOKEN_COOKIE_NAME, response.data)
+
+        registration_response = self.client.post(
+            "/api/auth/register/", {}, format="json",
+        )
+        self.assertEqual(registration_response.status_code, status.HTTP_200_OK)
 
         record.refresh_from_db()
         self.assertTrue(record.is_verified)
