@@ -51,6 +51,7 @@ Prefer the smallest clear implementation that satisfies the verified current req
 - When this backend and the frontend own a stable, explicit contract together, model that contract accurately and implement it directly. Do not support speculative request or response shapes unless a real compatibility requirement exists.
 - Add defensive behavior when input crosses an untrusted or external boundary, the contract explicitly permits variation, backward compatibility requires it, or a demonstrated failure mode justifies it.
 - Introduce services, helpers, and abstractions when they isolate substantial business logic or remove meaningful duplication; avoid single-use wrappers that obscure straightforward behavior.
+- Add concise purpose docstrings to helper and service functions so reviewers can understand why they exist without tracing the implementation. Explain relevant input/output behavior, assumptions, side effects, or raised exceptions. Use short inline comments for non-obvious decisions; avoid narrating each line or merely repeating the function name. Update comments and docstrings when behavior changes.
 - Any added complexity should correspond to a concrete case that can be explained and, where practical, tested. Simplicity must not weaken authentication, authorization, security, transaction safety, concurrency controls, data integrity, or required error handling.
 
 ## Authentication and Security
