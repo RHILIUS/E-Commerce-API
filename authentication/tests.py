@@ -24,6 +24,23 @@ from authentication.services.registration_token_service import (
 )
 
 
+def registration_payload(**overrides):
+    payload = {
+        "username": "person.one",
+        "full_name": "Person One",
+        "phone_number": "+639171234567",
+        "country_code": "PH",
+        "address_line1": "123 Example Street",
+        "address_line2": "",
+        "city": "Manila",
+        "region": "Metro Manila",
+        "postal_code": "1000",
+        "password": "StrongPass1",
+    }
+    payload.update(overrides)
+    return payload
+
+
 @override_settings(REGISTRATION_TOKEN_EXPIRATION_SECONDS=900)
 class RegistrationTokenServiceTests(SimpleTestCase):
     def test_issued_token_round_trip_returns_normalized_email(self):
@@ -116,7 +133,9 @@ class RegisterViewTests(SimpleTestCase):
             "person@example.com"
         )
 
-        response = self.client.post(self.url, {}, format="json")
+        response = self.client.post(
+            self.url, registration_payload(), format="json"
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {"message": "Account successfully created"})
@@ -127,11 +146,180 @@ class RegisterViewTests(SimpleTestCase):
             " Person@Example.com "
         )
         serializer = RegisterSerializer(
-            data={"email": "unverified@example.com"}, context={"request": request},
+            data=registration_payload(email="unverified@example.com"),
+            context={"request": request},
         )
 
         self.assertTrue(serializer.is_valid())
         self.assertEqual(serializer.validated_data["email"], "person@example.com")
+
+    def test_required_registration_fields_are_rejected_when_missing(self):
+        self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = issue_registration_token(
+            "person@example.com"
+        )
+
+        response = self.client.post(self.url, {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            set(response.data),
+            {
+                "username",
+                "full_name",
+                "phone_number",
+                "country_code",
+                "address_line1",
+                "city",
+                "password",
+            },
+        )
+
+    def test_optional_address_fields_may_be_omitted(self):
+        self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = issue_registration_token(
+            "person@example.com"
+        )
+        payload = registration_payload()
+        del payload["address_line2"]
+        del payload["region"]
+        del payload["postal_code"]
+
+        response = self.client.post(self.url, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_username_is_trimmed(self):
+        request = APIRequestFactory().post(self.url)
+        request.COOKIES[REGISTRATION_TOKEN_COOKIE_NAME] = issue_registration_token(
+            "person@example.com"
+        )
+        serializer = RegisterSerializer(
+            data=registration_payload(username="  person.one  "),
+            context={"request": request},
+        )
+
+        self.assertTrue(serializer.is_valid())
+        self.assertEqual(serializer.validated_data["username"], "person.one")
+
+    def test_invalid_usernames_are_rejected(self):
+        invalid_usernames = {
+            "ab": "minimum length",
+            "a" * 31: "maximum length",
+            "person name": "spaces",
+            "person@name": "allowed characters",
+            "_person": "start with a letter or number",
+            "person_.name": "consecutive special characters",
+        }
+
+        for username, case in invalid_usernames.items():
+            with self.subTest(case=case):
+                request = APIRequestFactory().post(self.url)
+                request.COOKIES[REGISTRATION_TOKEN_COOKIE_NAME] = (
+                    issue_registration_token("person@example.com")
+                )
+                serializer = RegisterSerializer(
+                    data=registration_payload(username=username),
+                    context={"request": request},
+                )
+
+                self.assertFalse(serializer.is_valid())
+                self.assertEqual(set(serializer.errors), {"username"})
+
+    def test_valid_username_special_characters_are_accepted(self):
+        request = APIRequestFactory().post(self.url)
+        request.COOKIES[REGISTRATION_TOKEN_COOKIE_NAME] = issue_registration_token(
+            "person@example.com"
+        )
+        serializer = RegisterSerializer(
+            data=registration_payload(username="person_one-two.three"),
+            context={"request": request},
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_phone_number_must_be_a_valid_e164_number(self):
+        invalid_phone_numbers = (
+            "09171234567",
+            "+999123456789",
+            "+63917",
+        )
+
+        for phone_number in invalid_phone_numbers:
+            with self.subTest(phone_number=phone_number):
+                request = APIRequestFactory().post(self.url)
+                request.COOKIES[REGISTRATION_TOKEN_COOKIE_NAME] = (
+                    issue_registration_token("person@example.com")
+                )
+                serializer = RegisterSerializer(
+                    data=registration_payload(phone_number=phone_number),
+                    context={"request": request},
+                )
+
+                self.assertFalse(serializer.is_valid())
+                self.assertEqual(set(serializer.errors), {"phone_number"})
+
+    def test_country_code_is_validated_and_normalized(self):
+        request = APIRequestFactory().post(self.url)
+        request.COOKIES[REGISTRATION_TOKEN_COOKIE_NAME] = issue_registration_token(
+            "person@example.com"
+        )
+        serializer = RegisterSerializer(
+            data=registration_payload(country_code="ph"),
+            context={"request": request},
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data["country_code"], "PH")
+
+    def test_unknown_country_code_is_rejected(self):
+        request = APIRequestFactory().post(self.url)
+        request.COOKIES[REGISTRATION_TOKEN_COOKIE_NAME] = issue_registration_token(
+            "person@example.com"
+        )
+        serializer = RegisterSerializer(
+            data=registration_payload(country_code="ZZ"),
+            context={"request": request},
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertEqual(set(serializer.errors), {"country_code"})
+
+    def test_phone_and_address_countries_may_differ(self):
+        request = APIRequestFactory().post(self.url)
+        request.COOKIES[REGISTRATION_TOKEN_COOKIE_NAME] = issue_registration_token(
+            "person@example.com"
+        )
+        serializer = RegisterSerializer(
+            data=registration_payload(
+                phone_number="+16502532222",
+                country_code="PH",
+            ),
+            context={"request": request},
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_invalid_passwords_are_rejected(self):
+        invalid_passwords = {
+            "Short1": "minimum length",
+            "A" * 64 + "1a": "maximum length",
+            "lowercase1": "uppercase letter",
+            "UPPERCASE1": "lowercase letter",
+            "NoNumberHere": "number",
+        }
+
+        for password, case in invalid_passwords.items():
+            with self.subTest(case=case):
+                request = APIRequestFactory().post(self.url)
+                request.COOKIES[REGISTRATION_TOKEN_COOKIE_NAME] = (
+                    issue_registration_token("person@example.com")
+                )
+                serializer = RegisterSerializer(
+                    data=registration_payload(password=password),
+                    context={"request": request},
+                )
+
+                self.assertFalse(serializer.is_valid())
+                self.assertEqual(set(serializer.errors), {"password"})
 
 
 @override_settings(
@@ -333,7 +521,7 @@ class VerifyOTPViewTests(TestCase):
         self.assertNotIn(REGISTRATION_TOKEN_COOKIE_NAME, response.data)
 
         registration_response = self.client.post(
-            "/api/auth/register/", {}, format="json",
+            "/api/auth/register/", registration_payload(), format="json",
         )
         self.assertEqual(registration_response.status_code, status.HTTP_200_OK)
 
