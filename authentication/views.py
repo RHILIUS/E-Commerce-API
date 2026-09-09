@@ -214,6 +214,17 @@ class VerifyOTPView(APIView):
             secure=is_secure,
             samesite="Lax",
             max_age=settings.REGISTRATION_TOKEN_EXPIRATION_SECONDS,
-            path="/api/auth/",
+            path="/api/auth/register/",
         )
         return response
+
+
+class RegisterView(APIView):
+
+    permission_classes = [AllowAny]
+
+    def post(self, request: Request):
+
+        print(request.COOKIES.get("registration_token"))
+
+        return Response({"message": "Account successfully created"}, status=status.HTTP_200_OK)

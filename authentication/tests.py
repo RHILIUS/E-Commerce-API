@@ -2,9 +2,8 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings
-from django.core import mail
 from django.contrib.auth.hashers import check_password, make_password
-from django.core import signing
+from django.core import mail, signing
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
@@ -165,11 +164,13 @@ class SendOTPViewTests(TestCase):
         )
 
         record = OTPVerificationRecord.objects.get(email="person@example.com")
-        otp = mail.outbox[0].body.split("Your verification code is: ", 1)[1][:6]
+        otp = mail.outbox[0].body.split(
+            "Your verification code is: ", 1)[1][:6]
         self.assertTrue(check_password(otp, record.otp_hash))
 
     def test_throttled_response_includes_retry_after_header(self):
-        self.client.post(self.url, {"email": "person@example.com"}, format="json")
+        self.client.post(
+            self.url, {"email": "person@example.com"}, format="json")
 
         response = self.client.post(
             self.url,
@@ -177,7 +178,8 @@ class SendOTPViewTests(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(response.status_code,
+                         status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertEqual(
             response.headers["Retry-After"],
             str(response.data["retry_after"]),
@@ -197,7 +199,8 @@ class SendOTPViewTests(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.status_code,
+                         status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertEqual(response.data["retry_after"], 60)
         self.assertEqual(response.headers["Retry-After"], "60")
         self.assertNotIn("otp", response.data)
@@ -244,7 +247,7 @@ class VerifyOTPViewTests(TestCase):
         self.assertTrue(cookie["httponly"])
         self.assertEqual(bool(cookie["secure"]), not settings.DEBUG)
         self.assertEqual(cookie["samesite"], "Lax")
-        self.assertEqual(cookie["path"], "/api/auth/")
+        self.assertEqual(cookie["path"], "/api/auth/register/")
         self.assertEqual(int(cookie["max-age"]), 900)
         self.assertEqual(
             validate_registration_token(cookie.value),
@@ -330,7 +333,8 @@ class VerifyOTPViewTests(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(response.status_code,
+                         status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertEqual(
             response.data["otp"],
             ["You have exceeded the maximum attempts. Please request a new OTP"],
