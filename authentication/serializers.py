@@ -10,6 +10,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from authentication.exceptions import (
+    EmailAlreadyTakenError,
     ExpiredOTPError,
     InvalidRegistrationTokenError,
     MaxAttemptError,
@@ -128,6 +129,18 @@ class RegisterSerializer(serializers.Serializer):
             )
 
         return value
+
+    def validate(self, attrs):
+
+        # Get and extract email from the token
+        request = self.context["request"]
+        token = request.COOKIES.get(REGISTRATION_TOKEN_COOKIE_NAME)
+        email = validate_registration_token(token)
+
+        # Check email uniqueness again
+        if User.objects.filter(email=email).exists():
+            raise EmailAlreadyTakenError()
+        return attrs
 
 
 class UserPublicSerializer(serializers.ModelSerializer):

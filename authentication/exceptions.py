@@ -19,3 +19,9 @@ class MaxAttemptError(APIException):
     default_detail = {
         "otp": ["You have exceeded the maximum attempts. Please request a new OTP"]}
     default_code = "max_attempts_exceeded"
+
+
+class EmailAlreadyTakenError(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {"email": ["Email is already taken"]}
+    default_code = "email_already_taken"
