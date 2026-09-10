@@ -5,11 +5,13 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
 from django.core import mail, signing
+from django.db import IntegrityError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APIRequestFactory
 
+from account.models import RecipientInfo
 from authentication.models import OTPVerificationRecord
 from authentication.serializers import RegisterSerializer
 from authentication.services.otp_service import (
@@ -125,14 +127,14 @@ class RegisterViewTests(TestCase):
 
         response = self.post_registration()
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_username_uniqueness_is_case_sensitive(self):
         self.create_existing_user(username="Person.One")
 
         response = self.post_registration(username="person.one")
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_existing_verified_email_is_rejected_regardless_of_body_email(self):
         self.create_existing_user(email="person@example.com")
@@ -157,7 +159,7 @@ class RegisterViewTests(TestCase):
         ) as validate_token:
             response = self.post_registration()
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         validate_token.assert_called_once()
 
     def test_missing_or_empty_cookie_is_rejected(self):
@@ -209,8 +211,58 @@ class RegisterViewTests(TestCase):
             self.url, registration_payload(), format="json"
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data, {"message": "Account successfully created"})
+
+    def test_registration_creates_user_and_default_recipient(self):
+        response = self.post_registration()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = get_user_model().objects.get(email="person@example.com")
+        self.assertEqual(user.username, "person.one")
+        self.assertEqual(user.full_name, "Person One")
+        self.assertEqual(user.phone_number, "+639171234567")
+        self.assertTrue(user.check_password("StrongPass1"))
+
+        recipient = RecipientInfo.objects.get(user=user)
+        self.assertEqual(recipient.name, "Person One")
+        self.assertEqual(recipient.phone_number, "+639171234567")
+        self.assertTrue(recipient.is_default)
+        self.assertEqual(recipient.country_code, "PH")
+        self.assertEqual(recipient.address_line1, "123 Example Street")
+        self.assertEqual(recipient.address_line2, "")
+        self.assertEqual(recipient.city, "Manila")
+        self.assertEqual(recipient.region, "Metro Manila")
+        self.assertEqual(recipient.postal_code, "1000")
+
+    @patch(
+        "authentication.serializers.RecipientInfo.objects.create",
+        side_effect=IntegrityError("recipient creation failed"),
+    )
+    def test_recipient_failure_rolls_back_user_creation(self, _):
+        with self.assertRaises(IntegrityError):
+            self.post_registration()
+
+        self.assertFalse(
+            get_user_model().objects.filter(email="person@example.com").exists()
+        )
+
+    @patch(
+        "authentication.serializers._registration_conflict_errors",
+        return_value={"phone_number": ["Phone number is already taken"]},
+    )
+    @patch(
+        "authentication.serializers.User.objects.create_user",
+        side_effect=IntegrityError("unique constraint conflict"),
+    )
+    def test_unique_constraint_race_returns_validation_error(self, _, __):
+        response = self.post_registration()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data,
+            {"phone_number": ["Phone number is already taken"]},
+        )
 
     def test_verified_email_comes_from_cookie_instead_of_request_body(self):
         request = APIRequestFactory().post(self.url)
@@ -257,7 +309,11 @@ class RegisterViewTests(TestCase):
 
         response = self.client.post(self.url, payload, format="json")
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        recipient = RecipientInfo.objects.get(user__email="person@example.com")
+        self.assertEqual(recipient.address_line2, "")
+        self.assertEqual(recipient.region, "")
+        self.assertEqual(recipient.postal_code, "")
 
     def test_username_is_trimmed(self):
         request = APIRequestFactory().post(self.url)
@@ -595,7 +651,10 @@ class VerifyOTPViewTests(TestCase):
         registration_response = self.client.post(
             "/api/auth/register/", registration_payload(), format="json",
         )
-        self.assertEqual(registration_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            registration_response.status_code,
+            status.HTTP_201_CREATED,
+        )
 
         record.refresh_from_db()
         self.assertTrue(record.is_verified)

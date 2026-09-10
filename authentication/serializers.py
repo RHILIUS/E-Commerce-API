@@ -4,11 +4,12 @@ import phonenumbers
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from account.models import RecipientInfo
 from authentication.exceptions import (
     EmailAlreadyTakenError,
     ExpiredOTPError,
@@ -25,27 +26,46 @@ from authentication.services.registration_token_service import (
 User = get_user_model()
 
 
+def _registration_conflict_errors(validated_data):
+    """Return field errors for identifiers claimed during registration."""
+    conflicts = {}
+
+    if User.objects.filter(username=validated_data["username"]).exists():
+        conflicts["username"] = ["Username is already taken"]
+    if User.objects.filter(email__iexact=validated_data["email"]).exists():
+        conflicts["email"] = ["Email is already taken"]
+    if User.objects.filter(
+        phone_number=validated_data["phone_number"]
+    ).exists():
+        conflicts["phone_number"] = ["Phone number is already taken"]
+
+    return conflicts
+
+
 class RegisterSerializer(serializers.Serializer):
     username = serializers.CharField(min_length=3, max_length=30)
     full_name = serializers.CharField(max_length=100)
-    phone_number = serializers.CharField(max_length=20)
-    country_code = serializers.CharField(min_length=2, max_length=2)
-    address_line1 = serializers.CharField(max_length=150)
-    address_line2 = serializers.CharField(
-        required=False, allow_blank=True, max_length=150
-    )
-    city = serializers.CharField(max_length=100)
-    region = serializers.CharField(
-        required=False, allow_blank=True, max_length=100
-    )
-    postal_code = serializers.CharField(
-        required=False, allow_blank=True, max_length=20
-    )
     password = serializers.CharField(
         min_length=8,
         max_length=64,
         trim_whitespace=False,
         write_only=True,
+    )
+    phone_number = serializers.CharField(max_length=20)
+
+    country_code = serializers.CharField(
+        min_length=2, max_length=2, write_only=True
+    )
+    address_line1 = serializers.CharField(max_length=150, write_only=True)
+    address_line2 = serializers.CharField(
+        required=False, allow_blank=True, max_length=150, write_only=True
+    )
+    city = serializers.CharField(max_length=100, write_only=True)
+    region = serializers.CharField(
+        required=False, allow_blank=True, max_length=100, write_only=True
+    )
+    postal_code = serializers.CharField(
+        required=False, allow_blank=True, max_length=20, write_only=True
     )
 
     def to_internal_value(self, data):
@@ -105,6 +125,10 @@ class RegisterSerializer(serializers.Serializer):
         if not phonenumbers.is_valid_number(phone_number):
             raise serializers.ValidationError("Enter a valid phone number.")
 
+        # Check uniqueness
+        if User.objects.filter(phone_number=value).exists():
+            raise serializers.ValidationError("Phone number is already taken")
+
         return phonenumbers.format_number(
             phone_number, phonenumbers.PhoneNumberFormat.E164
         )
@@ -140,6 +164,40 @@ class RegisterSerializer(serializers.Serializer):
         if User.objects.filter(email__iexact=attrs["email"]).exists():
             raise EmailAlreadyTakenError()
         return attrs
+
+    def create(self, validated_data):
+        """Create an account and its default recipient as one transaction."""
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=validated_data["username"],
+                    email=validated_data["email"],
+                    full_name=validated_data["full_name"],
+                    password=validated_data["password"],
+                    phone_number=validated_data["phone_number"],
+                )
+
+                RecipientInfo.objects.create(
+                    user=user,
+                    name=validated_data["full_name"],
+                    phone_number=validated_data["phone_number"],
+                    is_default=True,
+                    country_code=validated_data["country_code"],
+                    address_line1=validated_data["address_line1"],
+                    address_line2=validated_data.get("address_line2", ""),
+                    city=validated_data["city"],
+                    region=validated_data.get("region", ""),
+                    postal_code=validated_data.get("postal_code", ""),
+                )
+        except IntegrityError as error:
+            # Query only after the atomic block rolls back, leaving the
+            # connection usable and exposing any concurrently committed row.
+            conflicts = _registration_conflict_errors(validated_data)
+            if conflicts:
+                raise serializers.ValidationError(conflicts) from error
+            raise
+
+        return user
 
 
 class UserPublicSerializer(serializers.ModelSerializer):

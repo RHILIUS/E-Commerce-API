@@ -230,5 +230,9 @@ class RegisterView(APIView):
             data=request.data, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
+        serializer.save()
 
-        return Response({"message": "Account successfully created"}, status=status.HTTP_200_OK)
+        return Response(
+            {"message": "Account successfully created"},
+            status=status.HTTP_201_CREATED,
+        )
