@@ -232,7 +232,13 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        return Response(
+        response = Response(
             {"message": "Account successfully created"},
             status=status.HTTP_201_CREATED,
         )
+        # Clean-up registration_token
+        response.delete_cookie(
+            key=REGISTRATION_TOKEN_COOKIE_NAME,
+            path="/api/auth/register/",
+        )
+        return response

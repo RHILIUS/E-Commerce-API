@@ -214,6 +214,33 @@ class RegisterViewTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data, {"message": "Account successfully created"})
 
+    def test_successful_registration_clears_registration_cookie(self):
+        response = self.post_registration()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        cookie = response.cookies[REGISTRATION_TOKEN_COOKIE_NAME]
+        self.assertEqual(cookie.value, "")
+        self.assertEqual(cookie["max-age"], 0)
+        self.assertEqual(cookie["path"], "/api/auth/register/")
+        self.assertEqual(cookie["domain"], "")
+
+    def test_validation_failure_preserves_cookie_for_retry(self):
+        response = self.post_registration(username="ab")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn(REGISTRATION_TOKEN_COOKIE_NAME, response.cookies)
+
+        # Retry with the existing cookie, without issuing a fresh token.
+        retry_response = self.client.post(
+            self.url, registration_payload(), format="json"
+        )
+
+        self.assertEqual(retry_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            retry_response.cookies[REGISTRATION_TOKEN_COOKIE_NAME]["max-age"],
+            0,
+        )
+
     def test_registration_creates_user_and_default_recipient(self):
         response = self.post_registration()
 
