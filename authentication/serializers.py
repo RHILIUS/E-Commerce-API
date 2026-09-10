@@ -83,6 +83,10 @@ class RegisterSerializer(serializers.Serializer):
                 "Username must not contain consecutive special characters."
             )
 
+        # Check the uniqueness of the username
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("Username is already taken")
+
         return value
 
     def validate_phone_number(self, value):
@@ -131,14 +135,9 @@ class RegisterSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-
-        # Get and extract email from the token
-        request = self.context["request"]
-        token = request.COOKIES.get(REGISTRATION_TOKEN_COOKIE_NAME)
-        email = validate_registration_token(token)
-
-        # Check email uniqueness again
-        if User.objects.filter(email=email).exists():
+        """Recheck the verified email's availability after field validation."""
+        # to_internal_value already validated the cookie and supplied this email.
+        if User.objects.filter(email__iexact=attrs["email"]).exists():
             raise EmailAlreadyTakenError()
         return attrs
 

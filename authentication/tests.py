@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
 from django.core import mail, signing
 from django.test import SimpleTestCase, TestCase, override_settings
@@ -76,7 +77,7 @@ class RegistrationTokenServiceTests(SimpleTestCase):
 
 
 @override_settings(REGISTRATION_TOKEN_EXPIRATION_SECONDS=900)
-class RegisterViewTests(SimpleTestCase):
+class RegisterViewTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.url = "/api/auth/register/"
@@ -87,6 +88,77 @@ class RegisterViewTests(SimpleTestCase):
             response.data,
             {"detail": "Registration token is not valid"},
         )
+
+    def create_existing_user(self, **overrides):
+        """Create an account whose identifiers can conflict with registration."""
+        fields = {
+            "username": "existing.user",
+            "email": "existing@example.com",
+            "full_name": "Existing User",
+            "phone_number": "+16502532222",
+        }
+        fields.update(overrides)
+        return get_user_model().objects.create_user(**fields)
+
+    def post_registration(self, **overrides):
+        """Submit account details with a cookie verifying person@example.com."""
+        self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = (
+            issue_registration_token("person@example.com")
+        )
+        return self.client.post(
+            self.url, registration_payload(**overrides), format="json"
+        )
+
+    def test_existing_username_is_rejected_after_trimming(self):
+        self.create_existing_user(username="person.one")
+
+        for username in ("person.one", "  person.one  "):
+            with self.subTest(username=username):
+                response = self.post_registration(username=username)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(
+                    response.data, {"username": ["Username is already taken"]}
+                )
+
+    def test_available_username_is_accepted(self):
+        self.create_existing_user()
+
+        response = self.post_registration()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_username_uniqueness_is_case_sensitive(self):
+        self.create_existing_user(username="Person.One")
+
+        response = self.post_registration(username="person.one")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_existing_verified_email_is_rejected_regardless_of_body_email(self):
+        self.create_existing_user(email="person@example.com")
+
+        response = self.post_registration(email="different@example.com")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, {"email": ["Email is already taken"]})
+
+    def test_existing_email_is_rejected_case_insensitively(self):
+        self.create_existing_user(email="Person@Example.com")
+
+        response = self.post_registration()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, {"email": ["Email is already taken"]})
+
+    def test_registration_token_is_validated_only_once(self):
+        with patch(
+            "authentication.serializers.validate_registration_token",
+            wraps=validate_registration_token,
+        ) as validate_token:
+            response = self.post_registration()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        validate_token.assert_called_once()
 
     def test_missing_or_empty_cookie_is_rejected(self):
         self.assert_invalid_token(self.client.post(self.url, {}, format="json"))
