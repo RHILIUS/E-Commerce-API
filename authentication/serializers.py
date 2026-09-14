@@ -205,7 +205,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "fullName", "email"]
+        fields = ["id", "fullName", "email", "country_code"]
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

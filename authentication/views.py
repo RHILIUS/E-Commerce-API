@@ -106,7 +106,7 @@ class RefreshView(TokenRefreshView):
         # Query the user object through user_id
         try:
             user = User.objects.only(
-                "id", "full_name", "email").get(id=user_id)
+                "id", "full_name", "email", "country_code").get(id=user_id)
         except User.DoesNotExist:
             response = Response({"detail": "User not found."},
                                 status=status.HTTP_401_UNAUTHORIZED)
