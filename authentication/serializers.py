@@ -175,6 +175,7 @@ class RegisterSerializer(serializers.Serializer):
                     full_name=validated_data["full_name"],
                     password=validated_data["password"],
                     phone_number=validated_data["phone_number"],
+                    country_code=validated_data["country_code"]
                 )
 
                 RecipientInfo.objects.create(
