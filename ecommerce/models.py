@@ -5,24 +5,32 @@ from core.common.models import TimeStampedModel
 
 User = get_user_model()
 
-# --------------------------------
-# Add products to cart feature
-# --------------------------------
+
+class Product(TimeStampedModel):
+    name = models.CharField(max_length=100)
+    short_description = models.CharField(max_length=50, blank=True, default="")
+    description = models.TextField(null=True, blank=True)
+    stock = models.PositiveIntegerField(default=0)
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+    # Used only for UI and rankings, don't use for accounting and financial calculations
+    sold_count = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return self.name
+
+
+class ProductImage(TimeStampedModel):
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name='images')
+    image_url = models.URLField()
+    is_default = models.BooleanField(default=False)
+    order = models.PositiveIntegerField(default=0)
+    alt_text = models.CharField(max_length=255, blank=True)
 
 
 class Cart(TimeStampedModel):
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name='cart')
-
-
-class Product(TimeStampedModel):
-    name = models.CharField(max_length=100)
-    description = models.TextField(null=True, blank=True)
-    stock = models.PositiveIntegerField(default=0)
-    price = models.DecimalField(max_digits=12, decimal_places=2)
-
-    def __str__(self):
-        return self.name
 
 
 class CartItem(TimeStampedModel):
