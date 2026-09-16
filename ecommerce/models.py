@@ -26,6 +26,7 @@ class ProductImage(TimeStampedModel):
     is_default = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
     alt_text = models.CharField(max_length=255, blank=True)
+    crop = models.JSONField(default=dict, blank=True)
 
 
 class Cart(TimeStampedModel):
