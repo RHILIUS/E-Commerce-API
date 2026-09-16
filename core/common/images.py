@@ -1,6 +1,7 @@
 from io import BytesIO
 
 from django.core.files.base import ContentFile
+from django.db import transaction
 from PIL import Image, ImageOps
 
 
@@ -47,3 +48,15 @@ def compress_uploaded_image(uploaded_file):
         return uploaded_file
 
     return ContentFile(compressed_content, name=uploaded_file.name)
+
+
+def delete_file_after_commit(storage, name, is_referenced):
+    """Delete a stored file after commit unless another database row references it."""
+    if not name:
+        return
+
+    def delete_if_unreferenced():
+        if not is_referenced():
+            storage.delete(name)
+
+    transaction.on_commit(delete_if_unreferenced, robust=True)
