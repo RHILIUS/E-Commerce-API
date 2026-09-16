@@ -71,6 +71,8 @@ Before modifying models, review the relevant documentation, relationships, seria
 
 Create and review a new migration for intentional model changes. Do not rewrite existing migrations unless explicitly requested.
 
+Review the affected Django admin configuration when models or relationships change. Update model registration, fields, list displays, filters, search, autocomplete fields, or inlines when the change affects admin usability or manual testing; do not modify the admin when the model change has no meaningful admin impact.
+
 Protect data integrity for carts, orders, inventory, and prices. Do not trust client-provided ownership, totals, prices, or stock values when they can be determined by the backend.
 
 ## Testing
@@ -90,7 +92,7 @@ python manage.py makemigrations --check
 python manage.py migrate --plan
 ```
 
-Add focused tests for new behavior and bug fixes. Report any checks that could not run because required environment variables, PostgreSQL, or another service was unavailable.
+Add focused tests for new behavior and bug fixes. Report any checks that could not run because required environment variables, PostgreSQL, or another service was unavailable. Don't add test that is not necessary.
 
 ## Pull Request Documentation
 

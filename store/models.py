@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 
+from core.common.images import compress_uploaded_image
 from core.common.models import TimeStampedModel
 
 
@@ -30,6 +31,13 @@ class Store(TimeStampedModel):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        for field_name in ("profile_image", "banner_image"):
+            image = getattr(self, field_name)
+            if image and not image._committed:
+                setattr(self, field_name, compress_uploaded_image(image))
+        return super().save(*args, **kwargs)
 
 
 class StoreMemberRole(models.TextChoices):

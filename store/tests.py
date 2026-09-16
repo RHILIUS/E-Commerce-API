@@ -1,8 +1,18 @@
 from django.contrib.auth import get_user_model
+from django.forms import Select
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
+from store.admin import StoreAdminForm
 from store.models import Store, StoreMember
+
+
+class StoreAdminFormTests(SimpleTestCase):
+    def test_country_code_uses_phonenumbers_region_choices(self):
+        field = StoreAdminForm().fields["country_code"]
+
+        self.assertIsInstance(field.widget, Select)
+        self.assertIn(("PH", "Philippines (PH)"), list(field.choices))
 
 
 class StoreMemberTests(TestCase):

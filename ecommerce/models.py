@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db import models
 
+from core.common.images import compress_uploaded_image
 from core.common.models import TimeStampedModel
 from store.models import Store
 
@@ -41,6 +42,11 @@ class ProductImage(TimeStampedModel):
     order = models.PositiveIntegerField(default=0)
     alt_text = models.CharField(max_length=255, blank=True)
     crop = models.JSONField(default=dict, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.image and not self.image._committed:
+            self.image = compress_uploaded_image(self.image)
+        return super().save(*args, **kwargs)
 
 
 class Cart(TimeStampedModel):
