@@ -2,11 +2,17 @@ from django.contrib.auth import get_user_model
 from django.db import models
 
 from core.common.models import TimeStampedModel
+from store.models import Store
 
 User = get_user_model()
 
 
 class Product(TimeStampedModel):
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        ACTIVE = "active", "Active"
+        ARCHIVED = "archived", "Archived"
+
     name = models.CharField(max_length=100)
     short_description = models.CharField(max_length=50, blank=True, default="")
     description = models.TextField(null=True, blank=True)
@@ -14,6 +20,14 @@ class Product(TimeStampedModel):
     price = models.DecimalField(max_digits=12, decimal_places=2)
     # Used only for UI and rankings, don't use for accounting and financial calculations
     sold_count = models.PositiveIntegerField(default=0)
+    store = models.ForeignKey(
+        Store, related_name="products", on_delete=models.PROTECT)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT
+    )
+    archived_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.name
