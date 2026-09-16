@@ -186,3 +186,23 @@ OTP_MAX_SENDS_PER_WINDOW = 5
 OTP_EXPIRATION_SECONDS = 600  # 10 minutes
 OTP_MAX_VERIFICATION_ATTEMPTS = 5
 REGISTRATION_TOKEN_EXPIRATION_SECONDS = 900  # 15 minutes
+
+# Storage config
+USE_AZURE_STORAGE = env.bool("USE_AZURE_STORAGE", default=False)
+if USE_AZURE_STORAGE:
+    STORAGES = {
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+        "default": {
+            "BACKEND": "storages.backends.azure_storage.AzureStorage",
+            "OPTIONS": {
+                "account_name": env("AZURE_ACCOUNT_NAME"),
+                "account_key": env("AZURE_ACCOUNT_KEY"),
+                "azure_container": env("AZURE_CONTAINER"),
+            },
+        },
+    }
+else:
+    MEDIA_URL = "/media/"
+    MEDIA_ROOT = BASE_DIR / "media"
