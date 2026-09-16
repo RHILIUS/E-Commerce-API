@@ -10,10 +10,16 @@ class Store(TimeStampedModel):
 
     country_code = models.CharField(max_length=2)
 
-    profile_image_url = models.URLField(blank=True)
+    profile_image = models.ImageField(
+        upload_to="stores/profile/",
+        blank=True,
+    )
     profile_image_crop = models.JSONField(default=dict, blank=True)
 
-    banner_image_url = models.URLField(blank=True)
+    banner_image = models.ImageField(
+        upload_to="stores/banner/",
+        blank=True,
+    )
     banner_image_crop = models.JSONField(default=dict, blank=True)
 
     members = models.ManyToManyField(

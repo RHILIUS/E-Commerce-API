@@ -4,8 +4,9 @@ django-cors-headers==4.9.0
 django-environ==0.14.0
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
+phonenumbers==9.0.38
+pillow==12.3.0
 psycopg2-binary==2.9.11
 PyJWT==2.12.1
-phonenumbers==9.0.38
 sqlparse==0.5.5
 typing_extensions==4.16.0
