@@ -8,6 +8,8 @@ class User(AbstractUser):
     full_name = models.CharField(max_length=100)
     phone_number = models.CharField(max_length=20, unique=True)
     country_code = models.CharField(max_length=2)
+    profile_image = models.ImageField(upload_to="users/profile/", blank=True)
+    profile_image_crop = models.JSONField(default=dict, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username", "full_name", "phone_number", "country_code"]
