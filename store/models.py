@@ -80,3 +80,20 @@ class StoreMember(TimeStampedModel):
 
     def __str__(self):
         return f"User {self.user_id} - Store {self.store_id} ({self.role})"
+
+
+class StoreAddress(models.Model):
+
+    store = models.OneToOneField(
+        Store, on_delete=models.CASCADE, related_name="address")
+
+    country_code = models.CharField(max_length=2)
+    address_line1 = models.CharField(max_length=150)
+    address_line2 = models.CharField(max_length=150, blank=True)
+
+    city = models.CharField(max_length=100)
+    region = models.CharField(max_length=100, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+
+    def __str__(self):
+        return f"{self.address_line1}, {self.city}"
