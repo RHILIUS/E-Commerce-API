@@ -1,0 +1,357 @@
+import re
+from decimal import Decimal
+from pathlib import Path
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.files import File
+from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
+
+from account.models import RecipientInfo
+from ecommerce.models import Product, ProductImage
+from core.seed_data import (
+    PRODUCT_DATA,
+    RECIPIENT_DATA,
+    STORE_ADDRESS_DATA,
+    STORE_DATA,
+    STORE_MEMBER_DATA,
+    USER_DATA,
+)
+from store.models import Store, StoreAddress, StoreMember
+
+
+PRODUCT_IMAGE_ROOT = (
+    Path(settings.BASE_DIR) / "static" / "seed_images" / "products" / "image"
+)
+SUPPORTED_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
+NUMBERED_IMAGE_PATTERN = re.compile(r"_(\d+)$")
+
+
+def source_path(value):
+    """Resolve a seed image path and ensure that the source file exists."""
+    path = Path(value)
+    if not path.is_absolute():
+        path = Path(settings.BASE_DIR) / path
+    if not path.is_file():
+        raise CommandError(f"Seed image does not exist: {path}")
+    return path
+
+
+def discover_product_images():
+    """Build image records from product folders and their filename conventions."""
+    if not PRODUCT_IMAGE_ROOT.is_dir():
+        raise CommandError(
+            f"Product image directory does not exist: {PRODUCT_IMAGE_ROOT}"
+        )
+
+    product_names = [product["name"] for product in PRODUCT_DATA]
+    folders = {
+        folder.name: folder
+        for folder in PRODUCT_IMAGE_ROOT.iterdir()
+        if folder.is_dir()
+    }
+    missing = set(product_names) - folders.keys()
+    unexpected = folders.keys() - set(product_names)
+    if missing or unexpected:
+        raise CommandError(
+            "Product image folders do not match the seed products. "
+            f"Missing: {sorted(missing)}; unexpected: {sorted(unexpected)}"
+        )
+
+    image_records = []
+    for product_name in product_names:
+        files = sorted(
+            path
+            for path in folders[product_name].iterdir()
+            if path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_SUFFIXES
+        )
+        default_files = [path for path in files if path.stem.endswith("_default")]
+        if len(default_files) != 1:
+            raise CommandError(
+                f"{product_name} must contain exactly one *_default image."
+            )
+
+        numbered_files = {}
+        for path in files:
+            if path in default_files:
+                continue
+            match = NUMBERED_IMAGE_PATTERN.search(path.stem)
+            if match is None:
+                raise CommandError(
+                    f"Image must end in _default or _<order>: {path}"
+                )
+            order = int(match.group(1))
+            if order in numbered_files:
+                raise CommandError(
+                    f"{product_name} contains duplicate image order {order}."
+                )
+            numbered_files[order] = path
+
+        expected_orders = list(range(1, len(numbered_files) + 1))
+        if sorted(numbered_files) != expected_orders:
+            raise CommandError(
+                f"{product_name} numbered images must start at 1 without gaps."
+            )
+
+        image_records.append(
+            {
+                "product_name": product_name,
+                "is_default": True,
+                "order": 0,
+                "alt_text": f"{product_name} default product image",
+                "source": default_files[0],
+            }
+        )
+        image_records.extend(
+            {
+                "product_name": product_name,
+                "is_default": False,
+                "order": order,
+                "alt_text": f"{product_name} product image {order}",
+                "source": numbered_files[order],
+            }
+            for order in expected_orders
+        )
+
+    return image_records
+
+
+def validate_seed_data():
+    """Validate model limits, choices, source assets, and image conventions."""
+    names = [product["name"] for product in PRODUCT_DATA]
+    if len(names) != len(set(names)):
+        raise CommandError("Product seed names must be unique.")
+
+    name_limit = Product._meta.get_field("name").max_length
+    short_description_limit = Product._meta.get_field(
+        "short_description"
+    ).max_length
+    for product in PRODUCT_DATA:
+        if len(product["name"]) > name_limit:
+            raise CommandError(f"Product name is too long: {product['name']}")
+        if len(product["short_description"]) > short_description_limit:
+            raise CommandError(
+                f"Product short description is too long: {product['name']}"
+            )
+        if product["status"] not in Product.Status.values:
+            raise CommandError(f"Invalid product status: {product['status']}")
+        try:
+            int(product["stock"])
+            int(product["sold_count"])
+            Decimal(product["price"])
+        except (ValueError, TypeError) as error:
+            raise CommandError(
+                f"Invalid numeric product value: {product['name']}"
+            ) from error
+
+    source_path(USER_DATA["profile_image"])
+    source_path(STORE_DATA["profile_image"])
+    source_path(STORE_DATA["banner_image"])
+    return discover_product_images()
+
+
+def attach_image_if_missing(instance, field_name, path, uploaded_files):
+    """Upload a source image only when the model's image field is empty."""
+    if getattr(instance, field_name).name:
+        return
+    with path.open("rb") as image_file:
+        setattr(instance, field_name, File(image_file, name=path.name))
+        if instance.pk:
+            instance.save(update_fields=[field_name])
+        else:
+            instance.save()
+    saved_image = getattr(instance, field_name)
+    uploaded_files.append((saved_image.storage, saved_image.name))
+
+
+class Command(BaseCommand):
+    help = "Create or update the initial development data."
+
+    def handle(self, *args, **options):
+        self.stdout.write("Validating seed data and image folders...")
+        product_images = validate_seed_data()
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Validation complete: {len(PRODUCT_DATA)} products and "
+                f"{len(product_images)} product images."
+            )
+        )
+        uploaded_files = []
+
+        try:
+            with transaction.atomic():
+                self._seed(product_images, uploaded_files)
+        except Exception:
+            for storage, name in reversed(uploaded_files):
+                storage.delete(name)
+            raise
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                "Seed complete: 1 user, 1 store, "
+                f"{len(PRODUCT_DATA)} products, and "
+                f"{len(product_images)} product images. "
+                f"New files uploaded: {len(uploaded_files)}."
+            )
+        )
+
+    def _seed(self, product_images, uploaded_files):
+        """Upsert the validated seed records in dependency order."""
+        self.stdout.write("Seeding user and default recipient...")
+        user = self._seed_user(uploaded_files)
+        self._seed_recipient(user)
+
+        self.stdout.write("Seeding store, address, and membership...")
+        store = self._seed_store(uploaded_files)
+        self._seed_store_address(store)
+        self._seed_store_member(store, user)
+
+        self.stdout.write(f"Seeding {len(PRODUCT_DATA)} products...")
+        products = self._seed_products(store)
+
+        self.stdout.write(f"Seeding {len(product_images)} product images...")
+        self._seed_product_images(product_images, products, uploaded_files)
+
+    def _seed_user(self, uploaded_files):
+        """Create the seed owner with a hashed password or refresh its profile."""
+        User = get_user_model()
+        user = User.objects.filter(email__iexact=USER_DATA["email"]).first()
+        if user is None:
+            user = User.objects.create_user(
+                username=USER_DATA["username"],
+                email=USER_DATA["email"],
+                full_name=USER_DATA["full_name"],
+                password=USER_DATA["password"],
+                phone_number=USER_DATA["phone_number"],
+                country_code=USER_DATA["country_code"],
+            )
+        else:
+            for field_name in (
+                "username",
+                "full_name",
+                "phone_number",
+                "country_code",
+            ):
+                setattr(user, field_name, USER_DATA[field_name])
+            user.save(
+                update_fields=[
+                    "username",
+                    "full_name",
+                    "phone_number",
+                    "country_code",
+                ]
+            )
+        attach_image_if_missing(
+            user,
+            "profile_image",
+            source_path(USER_DATA["profile_image"]),
+            uploaded_files,
+        )
+        return user
+
+    def _seed_recipient(self, user):
+        """Upsert the seed owner's default delivery recipient."""
+        RecipientInfo.objects.update_or_create(
+            user=user,
+            is_default=RECIPIENT_DATA["is_default"],
+            defaults={
+                key: value
+                for key, value in RECIPIENT_DATA.items()
+                if key != "is_default"
+            },
+        )
+
+    def _seed_store(self, uploaded_files):
+        """Upsert the store and upload its images when they are missing."""
+        store, _ = Store.objects.update_or_create(
+            name=STORE_DATA["name"],
+            defaults={
+                "description": STORE_DATA["description"],
+                "country_code": STORE_DATA["country_code"],
+            },
+        )
+        for field_name in ("profile_image", "banner_image"):
+            attach_image_if_missing(
+                store,
+                field_name,
+                source_path(STORE_DATA[field_name]),
+                uploaded_files,
+            )
+        return store
+
+    def _seed_store_address(self, store):
+        """Upsert the store's one-to-one address."""
+        StoreAddress.objects.update_or_create(
+            store=store,
+            defaults=STORE_ADDRESS_DATA,
+        )
+
+    def _seed_store_member(self, store, user):
+        """Ensure that the seed owner has the configured store role."""
+        StoreMember.objects.update_or_create(
+            store=store,
+            user=user,
+            defaults=STORE_MEMBER_DATA,
+        )
+
+    def _seed_products(self, store):
+        """Upsert products and return them keyed by their names."""
+        products = {}
+        for data in PRODUCT_DATA:
+            product, _ = Product.objects.update_or_create(
+                store=store,
+                name=data["name"],
+                defaults={
+                    "short_description": data["short_description"],
+                    "description": data["description"],
+                    "stock": int(data["stock"]),
+                    "price": Decimal(data["price"]),
+                    "sold_count": int(data["sold_count"]),
+                    "status": data["status"],
+                },
+            )
+            products[product.name] = product
+        return products
+
+    def _seed_product_images(self, rows, products, uploaded_files):
+        """Upsert image metadata by product and order without replacing uploads."""
+        rows_by_product = {
+            product_name: [
+                row for row in rows if row["product_name"] == product_name
+            ]
+            for product_name in products
+        }
+        product_count = len(rows_by_product)
+
+        for product_number, (product_name, image_rows) in enumerate(
+            rows_by_product.items(),
+            start=1,
+        ):
+            self.stdout.write(
+                f"  [{product_number}/{product_count}] {product_name}: "
+                f"{len(image_rows)} images"
+            )
+            product = products[product_name]
+            for data in image_rows:
+                order = data["order"]
+                matches = ProductImage.objects.filter(product=product, order=order)
+                if matches.count() > 1:
+                    raise CommandError(
+                        f"Multiple images already use order {order} for "
+                        f"{product.name}."
+                    )
+                image = matches.first()
+                if image is None:
+                    image = ProductImage(product=product, order=order)
+
+                image.is_default = data["is_default"]
+                image.alt_text = data["alt_text"]
+                if image.pk:
+                    image.save(update_fields=["is_default", "alt_text"])
+                attach_image_if_missing(
+                    image,
+                    "image",
+                    data["source"],
+                    uploaded_files,
+                )
