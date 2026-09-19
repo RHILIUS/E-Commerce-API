@@ -9,7 +9,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from account.models import RecipientInfo
+from apps.account.models import RecipientInfo
 from authentication.exceptions import (
     EmailAlreadyTakenError,
     ExpiredOTPError,

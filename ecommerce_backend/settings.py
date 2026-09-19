@@ -52,7 +52,7 @@ INSTALLED_APPS = [
     'core',
     'ecommerce',
     'authentication',
-    'account',
+    'apps.account',
     'store',
 ]
 

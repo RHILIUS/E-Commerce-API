@@ -8,8 +8,7 @@ from django.core.files import File
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from account.models import RecipientInfo
-from ecommerce.models import Product, ProductImage
+from apps.account.models import RecipientInfo
 from core.seed_data import (
     PRODUCT_DATA,
     RECIPIENT_DATA,
@@ -18,8 +17,8 @@ from core.seed_data import (
     STORE_MEMBER_DATA,
     USER_DATA,
 )
+from ecommerce.models import Product, ProductImage
 from store.models import Store, StoreAddress, StoreMember
-
 
 PRODUCT_IMAGE_ROOT = (
     Path(settings.BASE_DIR) / "static" / "seed_images" / "products" / "image"
@@ -66,7 +65,8 @@ def discover_product_images():
             for path in folders[product_name].iterdir()
             if path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_SUFFIXES
         )
-        default_files = [path for path in files if path.stem.endswith("_default")]
+        default_files = [
+            path for path in files if path.stem.endswith("_default")]
         if len(default_files) != 1:
             raise CommandError(
                 f"{product_name} must contain exactly one *_default image."
@@ -335,7 +335,8 @@ class Command(BaseCommand):
             product = products[product_name]
             for data in image_rows:
                 order = data["order"]
-                matches = ProductImage.objects.filter(product=product, order=order)
+                matches = ProductImage.objects.filter(
+                    product=product, order=order)
                 if matches.count() > 1:
                     raise CommandError(
                         f"Multiple images already use order {order} for "

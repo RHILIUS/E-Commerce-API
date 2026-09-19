@@ -11,7 +11,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APIRequestFactory
 
-from account.models import RecipientInfo
+from apps.account.models import RecipientInfo
 from authentication.models import OTPVerificationRecord
 from authentication.serializers import RegisterSerializer
 from authentication.services.otp_service import (
@@ -117,7 +117,8 @@ class RegisterViewTests(TestCase):
         for username in ("person.one", "  person.one  "):
             with self.subTest(username=username):
                 response = self.post_registration(username=username)
-                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(response.status_code,
+                                 status.HTTP_400_BAD_REQUEST)
                 self.assertEqual(
                     response.data, {"username": ["Username is already taken"]}
                 )
@@ -163,14 +164,17 @@ class RegisterViewTests(TestCase):
         validate_token.assert_called_once()
 
     def test_missing_or_empty_cookie_is_rejected(self):
-        self.assert_invalid_token(self.client.post(self.url, {}, format="json"))
+        self.assert_invalid_token(
+            self.client.post(self.url, {}, format="json"))
         self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = ""
-        self.assert_invalid_token(self.client.post(self.url, {}, format="json"))
+        self.assert_invalid_token(
+            self.client.post(self.url, {}, format="json"))
 
     def test_body_token_cannot_replace_cookie(self):
         response = self.client.post(
             self.url,
-            {REGISTRATION_TOKEN_COOKIE_NAME: issue_registration_token("person@example.com")},
+            {REGISTRATION_TOKEN_COOKIE_NAME: issue_registration_token(
+                "person@example.com")},
             format="json",
         )
         self.assert_invalid_token(response)
@@ -178,7 +182,8 @@ class RegisterViewTests(TestCase):
     def test_malformed_and_tampered_tokens_are_rejected(self):
         for token in ("malformed", issue_registration_token("person@example.com") + "tampered"):
             self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = token
-            self.assert_invalid_token(self.client.post(self.url, {}, format="json"))
+            self.assert_invalid_token(
+                self.client.post(self.url, {}, format="json"))
 
     def test_expired_token_is_rejected(self):
         with patch("django.core.signing.time.time", return_value=1000):
@@ -200,7 +205,8 @@ class RegisterViewTests(TestCase):
             self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = signing.dumps(
                 payload, salt=REGISTRATION_TOKEN_SALT,
             )
-            self.assert_invalid_token(self.client.post(self.url, {}, format="json"))
+            self.assert_invalid_token(
+                self.client.post(self.url, {}, format="json"))
 
     def test_valid_cookie_passes_validation_without_exposing_token(self):
         self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = issue_registration_token(
@@ -212,7 +218,8 @@ class RegisterViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data, {"message": "Account successfully created"})
+        self.assertEqual(
+            response.data, {"message": "Account successfully created"})
 
     def test_successful_registration_clears_registration_cookie(self):
         response = self.post_registration()
@@ -302,7 +309,8 @@ class RegisterViewTests(TestCase):
         )
 
         self.assertTrue(serializer.is_valid())
-        self.assertEqual(serializer.validated_data["email"], "person@example.com")
+        self.assertEqual(
+            serializer.validated_data["email"], "person@example.com")
 
     def test_required_registration_fields_are_rejected_when_missing(self):
         self.client.cookies[REGISTRATION_TOKEN_COOKIE_NAME] = issue_registration_token(
