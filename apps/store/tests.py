@@ -1,10 +1,10 @@
 from django.contrib.auth import get_user_model
-from django.forms import Select
 from django.db import IntegrityError, transaction
+from django.forms import Select
 from django.test import SimpleTestCase, TestCase
 
-from store.admin import StoreAdminForm
-from store.models import Store, StoreMember
+from apps.store.admin import StoreAdminForm
+from apps.store.models import Store, StoreMember
 
 
 class StoreAdminFormTests(SimpleTestCase):
@@ -28,7 +28,8 @@ class StoreMemberTests(TestCase):
         cls.store = Store.objects.create(name="Test Store", country_code="PH")
 
     def test_membership_defaults_to_staff(self):
-        membership = StoreMember.objects.create(user=self.user, store=self.store)
+        membership = StoreMember.objects.create(
+            user=self.user, store=self.store)
 
         self.assertEqual(membership.role, StoreMember.Role.STAFF)
         self.assertEqual(list(self.store.members.all()), [self.user])
@@ -47,13 +48,15 @@ class StoreMemberTests(TestCase):
             StoreMember.objects.create(user=self.user, store=self.store)
 
     def test_invalid_role_is_rejected_by_database(self):
-        membership = StoreMember.objects.create(user=self.user, store=self.store)
+        membership = StoreMember.objects.create(
+            user=self.user, store=self.store)
 
         with self.assertRaises(IntegrityError), transaction.atomic():
             StoreMember.objects.filter(pk=membership.pk).update(role="owner")
 
     def test_string_representation_does_not_query_related_objects(self):
-        membership = StoreMember.objects.create(user=self.user, store=self.store)
+        membership = StoreMember.objects.create(
+            user=self.user, store=self.store)
         membership = StoreMember.objects.get(pk=membership.pk)
 
         with self.assertNumQueries(0):

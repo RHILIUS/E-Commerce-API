@@ -10,6 +10,7 @@ from django.db import transaction
 
 from apps.account.models import RecipientInfo
 from apps.ecommerce.models import Product, ProductImage
+from apps.store.models import Store, StoreAddress, StoreMember
 from core.seed_data import (
     PRODUCT_DATA,
     RECIPIENT_DATA,
@@ -18,7 +19,6 @@ from core.seed_data import (
     STORE_MEMBER_DATA,
     USER_DATA,
 )
-from store.models import Store, StoreAddress, StoreMember
 
 PRODUCT_IMAGE_ROOT = (
     Path(settings.BASE_DIR) / "static" / "seed_images" / "products" / "image"

@@ -53,7 +53,7 @@ INSTALLED_APPS = [
     'apps.ecommerce',
     'apps.authentication',
     'apps.account',
-    'store',
+    'apps.store',
 ]
 
 MIDDLEWARE = [

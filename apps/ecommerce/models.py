@@ -1,9 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.db import models
 
+from apps.store.models import Store
 from core.common.images import compress_uploaded_image
 from core.common.models import TimeStampedModel
-from store.models import Store
 
 User = get_user_model()
 
