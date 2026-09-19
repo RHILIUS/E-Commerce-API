@@ -1,8 +1,49 @@
-# Seed values
+# Seeding development data
+
+## How to seed
+
+Run these commands from the backend repository root with the project dependencies installed and PostgreSQL running:
+
+```bash
+source venv/bin/activate
+python manage.py migrate
+python manage.py seed
+```
+
+The command uses the database and storage configured in your environment. With `USE_AZURE_STORAGE=False`, images are saved under `media/`. With `USE_AZURE_STORAGE=True`, configure `AZURE_ACCOUNT_NAME`, `AZURE_ACCOUNT_KEY`, and `AZURE_CONTAINER`; the command uploads images to that container.
+
+Keep the source images under `static/seed_images/` available even when rerunning the command: all source assets are validated before seeding begins. Paths in `core/seed_data.py` are relative to the backend root unless explicitly absolute.
+
+## What the command creates
+
+The command creates or updates a user, their default delivery recipient, a store, its address and membership, products, and product images. Seed values come from `core/seed_data.py`; the tables below document those values. Editing this Markdown file alone does not change what gets seeded.
+
+The store membership grants the seeded user the store's configured role; it does not grant Django staff or superuser access.
+
+On success, the command prints `Seed complete` with the product, product image, and newly uploaded file counts.
+
+## Running it again
+
+Run `python manage.py seed` again to update matching records. The command matches the user by email, the store by name, products by store and name, and product images by product and order.
+
+- Seeded fields, including product stock, prices, and sold counts, are restored to their seed values. Use this command against your intended development database.
+- An existing user's password is preserved.
+- Images are uploaded only when their model field is empty; existing image references are not replaced or checked for missing storage files.
+- Records removed from the seed data are not automatically deleted. Renaming seed products or the store can create new records.
+
+## Adding or changing seed images
+
+Update `core/seed_data.py` for user and store image paths. For products, use one folder per product under `static/seed_images/products/image/`, with each folder name exactly matching its product name. Extra or missing product folders cause validation to fail.
+
+Each product folder must contain exactly one image ending in `_default` before its extension. Additional images must end in `_1`, `_2`, and so on, without gaps or duplicate numbers. Supported extensions are `.jpg`, `.jpeg`, `.png`, and `.webp`.
+
+If seeding fails, check the reported source path or naming error, database connectivity, or storage configuration. Database writes run in one transaction; on failure, the command rolls back those writes and attempts to delete newly uploaded files.
 
 ---
 
-### User
+# Seed values
+
+## User
 
 > The owner of the store
 
@@ -10,31 +51,31 @@
 | -------- | ---------------- | --------------------- | ---------- | -------------------------------------------------- | ------------------ | ------------- | ------------ |
 | rhilius  | rhilius@test.com | Rhian Jolius Baldomar | rhilius123 | static/seed_images/users/profile/rhian_profile.jpg |                    | +639123456789 | PH           |
 
-### RecipientInfo
+## RecipientInfo
 
 | name                  | phone_number  | is_default | country_code | address_line1                     | address_line2 | city       | region       | postal_code | user_id              |
 | --------------------- | ------------- | ---------- | ------------ | --------------------------------- | ------------- | ---------- | ------------ | ----------- | -------------------- |
 | Rhian Jolius Baldomar | +639123456789 | true       | PH           | 200 Magsaysay St. Brgy. Makabayan |               | Luzon City | Metro Hirang | 1234        | _references rhilius_ |
 
-### Store
+## Store
 
 | name               | description                                                                                                           | country_code | profile_image                                                     | profile_image_crop | banner_image                                                    | banner_image_crop |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------- | ------------------ | --------------------------------------------------------------- | ----------------- |
 | RhiLius Tech Store | We sell gadgets like tablets, mobile phones, laptops, and computers. Make sure to check us out and have fun shopping! | PH           | /static/seed_images/stores/profile/rhilius_tech_store_profile.jpg | N/A                | /static/seed_images/stores/banner/rhilius_tech_store_banner.jpg | N/A               |
 
-### StoreAddress
+## StoreAddress
 
 | country_code | address_line1                     | address_line2 | city       | region       | postal_code | store_id                        |
 | ------------ | --------------------------------- | ------------- | ---------- | ------------ | ----------- | ------------------------------- |
 | PH           | 200 Magsaysay St. Brgy. Makabayan | N/A           | Luzon City | Metro Hirang | 1234        | _references RhiLius Tech Store_ |
 
-### StoreMember
+## StoreMember
 
 | role  | store_id                        | user_id              |
 | ----- | ------------------------------- | -------------------- |
 | admin | _references RhiLius Tech Store_ | _references rhilius_ |
 
-### Product
+## Product
 
 > All products reference the RhiLius Tech Store defined above and use the `active` status.
 
@@ -67,77 +108,77 @@
 
 ### ProductImage
 
-| is_default | order | alt_text | product_id | crop | image |
-| ---------- | ----- | -------- | ---------- | ---- | ----- |
-| true | 0 | Rhilius NovaPhone X1 default product image | _references Rhilius NovaPhone X1_ |  | static/seed_images/products/image/Rhilius NovaPhone X1/rhiliusnovaphonex1_default.jpg |
-| false | 1 | Rhilius NovaPhone X1 product image 1 | _references Rhilius NovaPhone X1_ |  | static/seed_images/products/image/Rhilius NovaPhone X1/rhiliusnovaphonex1_1.jpg |
-| false | 2 | Rhilius NovaPhone X1 product image 2 | _references Rhilius NovaPhone X1_ |  | static/seed_images/products/image/Rhilius NovaPhone X1/rhiliusnovaphonex1_2.jpg |
-| true | 0 | Rhilius PulsePhone 5G default product image | _references Rhilius PulsePhone 5G_ |  | static/seed_images/products/image/Rhilius PulsePhone 5G/rhiliuspulsephone5g_default.jpg |
-| false | 1 | Rhilius PulsePhone 5G product image 1 | _references Rhilius PulsePhone 5G_ |  | static/seed_images/products/image/Rhilius PulsePhone 5G/rhiliuspulsephone5g_1.jpg |
-| false | 2 | Rhilius PulsePhone 5G product image 2 | _references Rhilius PulsePhone 5G_ |  | static/seed_images/products/image/Rhilius PulsePhone 5G/rhiliuspulsephone5g_2.jpg |
-| true | 0 | Rhilius TitanPhone Pro default product image | _references Rhilius TitanPhone Pro_ |  | static/seed_images/products/image/Rhilius TitanPhone Pro/rhiliustitanphonepro_default.jpg |
-| false | 1 | Rhilius TitanPhone Pro product image 1 | _references Rhilius TitanPhone Pro_ |  | static/seed_images/products/image/Rhilius TitanPhone Pro/rhiliustitanphonepro_1.jpg |
-| false | 2 | Rhilius TitanPhone Pro product image 2 | _references Rhilius TitanPhone Pro_ |  | static/seed_images/products/image/Rhilius TitanPhone Pro/rhiliustitanphonepro_2.jpg |
-| true | 0 | Rhilius AeroPhone Mini default product image | _references Rhilius AeroPhone Mini_ |  | static/seed_images/products/image/Rhilius AeroPhone Mini/rhiliusaerophonemini_default.jpg |
-| false | 1 | Rhilius AeroPhone Mini product image 1 | _references Rhilius AeroPhone Mini_ |  | static/seed_images/products/image/Rhilius AeroPhone Mini/rhiliusaerophonemini_1.jpg |
-| false | 2 | Rhilius AeroPhone Mini product image 2 | _references Rhilius AeroPhone Mini_ |  | static/seed_images/products/image/Rhilius AeroPhone Mini/rhiliusaerophonemini_2.jpg |
-| true | 0 | Rhilius VisionPhone Fold default product image | _references Rhilius VisionPhone Fold_ |  | static/seed_images/products/image/Rhilius VisionPhone Fold/rhiliusvisionphonefold_default.jpg |
-| false | 1 | Rhilius VisionPhone Fold product image 1 | _references Rhilius VisionPhone Fold_ |  | static/seed_images/products/image/Rhilius VisionPhone Fold/rhiliusvisionphonefold_1.jpg |
-| false | 2 | Rhilius VisionPhone Fold product image 2 | _references Rhilius VisionPhone Fold_ |  | static/seed_images/products/image/Rhilius VisionPhone Fold/rhiliusvisionphonefold_2.jpg |
-| true | 0 | Rhilius LitePhone A5 default product image | _references Rhilius LitePhone A5_ |  | static/seed_images/products/image/Rhilius LitePhone A5/rhiliuslitephonea5_default.jpg |
-| false | 1 | Rhilius LitePhone A5 product image 1 | _references Rhilius LitePhone A5_ |  | static/seed_images/products/image/Rhilius LitePhone A5/rhiliuslitephonea5_1.jpg |
-| false | 2 | Rhilius LitePhone A5 product image 2 | _references Rhilius LitePhone A5_ |  | static/seed_images/products/image/Rhilius LitePhone A5/rhiliuslitephonea5_2.jpg |
-| true | 0 | Rhilius TechPad 10 default product image | _references Rhilius TechPad 10_ |  | static/seed_images/products/image/Rhilius TechPad 10/rhiliustechpad10_default.jpg |
-| false | 1 | Rhilius TechPad 10 product image 1 | _references Rhilius TechPad 10_ |  | static/seed_images/products/image/Rhilius TechPad 10/rhiliustechpad10_1.jpg |
-| true | 0 | Rhilius TechPad Pro 13 default product image | _references Rhilius TechPad Pro 13_ |  | static/seed_images/products/image/Rhilius TechPad Pro 13/rhiliustechpadpro13_default.jpg |
-| false | 1 | Rhilius TechPad Pro 13 product image 1 | _references Rhilius TechPad Pro 13_ |  | static/seed_images/products/image/Rhilius TechPad Pro 13/rhiliustechpadpro13_1.jpg |
-| false | 2 | Rhilius TechPad Pro 13 product image 2 | _references Rhilius TechPad Pro 13_ |  | static/seed_images/products/image/Rhilius TechPad Pro 13/rhiliustechpadpro13_2.jpg |
-| true | 0 | Rhilius TechPad Mini 8 default product image | _references Rhilius TechPad Mini 8_ |  | static/seed_images/products/image/Rhilius TechPad Mini 8/rhiliustechpadmini8_default.png |
-| false | 1 | Rhilius TechPad Mini 8 product image 1 | _references Rhilius TechPad Mini 8_ |  | static/seed_images/products/image/Rhilius TechPad Mini 8/rhiliustechpadmini8_1.png |
-| false | 2 | Rhilius TechPad Mini 8 product image 2 | _references Rhilius TechPad Mini 8_ |  | static/seed_images/products/image/Rhilius TechPad Mini 8/rhiliustechpadmini8_2.png |
-| true | 0 | Rhilius SketchPad 12 default product image | _references Rhilius SketchPad 12_ |  | static/seed_images/products/image/Rhilius SketchPad 12/rhiliussketchpad12_default.png |
-| false | 1 | Rhilius SketchPad 12 product image 1 | _references Rhilius SketchPad 12_ |  | static/seed_images/products/image/Rhilius SketchPad 12/rhiliussketchpad12_1.png |
-| false | 2 | Rhilius SketchPad 12 product image 2 | _references Rhilius SketchPad 12_ |  | static/seed_images/products/image/Rhilius SketchPad 12/rhiliussketchpad12_2.png |
-| true | 0 | Rhilius StudyPad 11 default product image | _references Rhilius StudyPad 11_ |  | static/seed_images/products/image/Rhilius StudyPad 11/rhiliusstudypad11_default.png |
-| false | 1 | Rhilius StudyPad 11 product image 1 | _references Rhilius StudyPad 11_ |  | static/seed_images/products/image/Rhilius StudyPad 11/rhiliusstudypad11_1.png |
-| false | 2 | Rhilius StudyPad 11 product image 2 | _references Rhilius StudyPad 11_ |  | static/seed_images/products/image/Rhilius StudyPad 11/rhiliusstudypad11_2.png |
-| true | 0 | Rhilius GamePad X default product image | _references Rhilius GamePad X_ |  | static/seed_images/products/image/Rhilius GamePad X/rhiliusgamepadx_default.png |
-| false | 1 | Rhilius GamePad X product image 1 | _references Rhilius GamePad X_ |  | static/seed_images/products/image/Rhilius GamePad X/rhiliusgamepadx_1.png |
-| false | 2 | Rhilius GamePad X product image 2 | _references Rhilius GamePad X_ |  | static/seed_images/products/image/Rhilius GamePad X/rhiliusgamepadx_2.png |
-| true | 0 | Rhilius AeroBook 13 default product image | _references Rhilius AeroBook 13_ |  | static/seed_images/products/image/Rhilius AeroBook 13/rhiliusaerobook13_default.png |
-| false | 1 | Rhilius AeroBook 13 product image 1 | _references Rhilius AeroBook 13_ |  | static/seed_images/products/image/Rhilius AeroBook 13/rhiliusaerobook13_1.png |
-| false | 2 | Rhilius AeroBook 13 product image 2 | _references Rhilius AeroBook 13_ |  | static/seed_images/products/image/Rhilius AeroBook 13/rhiliusaerobook13_2.png |
-| true | 0 | Rhilius WorkBook 15 default product image | _references Rhilius WorkBook 15_ |  | static/seed_images/products/image/Rhilius WorkBook 15/rhiliusworkbook15_default.png |
-| false | 1 | Rhilius WorkBook 15 product image 1 | _references Rhilius WorkBook 15_ |  | static/seed_images/products/image/Rhilius WorkBook 15/rhiliusworkbook15_1.png |
-| false | 2 | Rhilius WorkBook 15 product image 2 | _references Rhilius WorkBook 15_ |  | static/seed_images/products/image/Rhilius WorkBook 15/rhiliusworkbook15_2.png |
-| true | 0 | Rhilius CreatorBook Pro 16 default product image | _references Rhilius CreatorBook Pro 16_ |  | static/seed_images/products/image/Rhilius CreatorBook Pro 16/rhiliuscreatorbookpro16_default.png |
-| false | 1 | Rhilius CreatorBook Pro 16 product image 1 | _references Rhilius CreatorBook Pro 16_ |  | static/seed_images/products/image/Rhilius CreatorBook Pro 16/rhiliuscreatorbookpro16_1.png |
-| false | 2 | Rhilius CreatorBook Pro 16 product image 2 | _references Rhilius CreatorBook Pro 16_ |  | static/seed_images/products/image/Rhilius CreatorBook Pro 16/rhiliuscreatorbookpro16_2.png |
-| true | 0 | Rhilius GameBook RX 15 default product image | _references Rhilius GameBook RX 15_ |  | static/seed_images/products/image/Rhilius GameBook RX 15/rhiliusgamebookrx15_default.png |
-| false | 1 | Rhilius GameBook RX 15 product image 1 | _references Rhilius GameBook RX 15_ |  | static/seed_images/products/image/Rhilius GameBook RX 15/rhiliusgamebookrx15_1.png |
-| false | 2 | Rhilius GameBook RX 15 product image 2 | _references Rhilius GameBook RX 15_ |  | static/seed_images/products/image/Rhilius GameBook RX 15/rhiliusgamebookrx15_2.png |
-| true | 0 | Rhilius FlexBook 14 default product image | _references Rhilius FlexBook 14_ |  | static/seed_images/products/image/Rhilius FlexBook 14/rhiliusflexbook14_default.png |
-| false | 1 | Rhilius FlexBook 14 product image 1 | _references Rhilius FlexBook 14_ |  | static/seed_images/products/image/Rhilius FlexBook 14/rhiliusflexbook14_1.png |
-| false | 2 | Rhilius FlexBook 14 product image 2 | _references Rhilius FlexBook 14_ |  | static/seed_images/products/image/Rhilius FlexBook 14/rhiliusflexbook14_2.png |
-| true | 0 | Rhilius CloudBook Lite default product image | _references Rhilius CloudBook Lite_ |  | static/seed_images/products/image/Rhilius CloudBook Lite/rhiliuscloudbooklite_default.png |
-| false | 1 | Rhilius CloudBook Lite product image 1 | _references Rhilius CloudBook Lite_ |  | static/seed_images/products/image/Rhilius CloudBook Lite/rhiliuscloudbooklite_1.png |
-| false | 2 | Rhilius CloudBook Lite product image 2 | _references Rhilius CloudBook Lite_ |  | static/seed_images/products/image/Rhilius CloudBook Lite/rhiliuscloudbooklite_2.png |
-| true | 0 | Rhilius CoreBox Mini default product image | _references Rhilius CoreBox Mini_ |  | static/seed_images/products/image/Rhilius CoreBox Mini/rhiliuscoreboxmini_default.png |
-| false | 1 | Rhilius CoreBox Mini product image 1 | _references Rhilius CoreBox Mini_ |  | static/seed_images/products/image/Rhilius CoreBox Mini/rhiliuscoreboxmini_1.png |
-| false | 2 | Rhilius CoreBox Mini product image 2 | _references Rhilius CoreBox Mini_ |  | static/seed_images/products/image/Rhilius CoreBox Mini/rhiliuscoreboxmini_2.png |
-| true | 0 | Rhilius VisionDesk 24 default product image | _references Rhilius VisionDesk 24_ |  | static/seed_images/products/image/Rhilius VisionDesk 24/rhiliusvisiondesk24_default.png |
-| false | 1 | Rhilius VisionDesk 24 product image 1 | _references Rhilius VisionDesk 24_ |  | static/seed_images/products/image/Rhilius VisionDesk 24/rhiliusvisiondesk24_1.png |
-| false | 2 | Rhilius VisionDesk 24 product image 2 | _references Rhilius VisionDesk 24_ |  | static/seed_images/products/image/Rhilius VisionDesk 24/rhiliusvisiondesk24_2.png |
-| true | 0 | Rhilius TitanTower X default product image | _references Rhilius TitanTower X_ |  | static/seed_images/products/image/Rhilius TitanTower X/rhiliustitantowerx_default.png |
-| false | 1 | Rhilius TitanTower X product image 1 | _references Rhilius TitanTower X_ |  | static/seed_images/products/image/Rhilius TitanTower X/rhiliustitantowerx_1.png |
-| false | 2 | Rhilius TitanTower X product image 2 | _references Rhilius TitanTower X_ |  | static/seed_images/products/image/Rhilius TitanTower X/rhiliustitantowerx_2.png |
-| true | 0 | Rhilius CreatorStation Pro default product image | _references Rhilius CreatorStation Pro_ |  | static/seed_images/products/image/Rhilius CreatorStation Pro/rhiliuscreatorstationpro_default.png |
-| false | 1 | Rhilius CreatorStation Pro product image 1 | _references Rhilius CreatorStation Pro_ |  | static/seed_images/products/image/Rhilius CreatorStation Pro/rhiliuscreatorstationpro_1.png |
-| false | 2 | Rhilius CreatorStation Pro product image 2 | _references Rhilius CreatorStation Pro_ |  | static/seed_images/products/image/Rhilius CreatorStation Pro/rhiliuscreatorstationpro_2.png |
-| true | 0 | Rhilius GameStation R7 default product image | _references Rhilius GameStation R7_ |  | static/seed_images/products/image/Rhilius GameStation R7/rhiliusgamestationr7_default.png |
-| false | 1 | Rhilius GameStation R7 product image 1 | _references Rhilius GameStation R7_ |  | static/seed_images/products/image/Rhilius GameStation R7/rhiliusgamestationr7_1.png |
-| false | 2 | Rhilius GameStation R7 product image 2 | _references Rhilius GameStation R7_ |  | static/seed_images/products/image/Rhilius GameStation R7/rhiliusgamestationr7_2.png |
-| true | 0 | Rhilius OfficeBox S default product image | _references Rhilius OfficeBox S_ |  | static/seed_images/products/image/Rhilius OfficeBox S/rhiliusofficeboxs_default.png |
-| false | 1 | Rhilius OfficeBox S product image 1 | _references Rhilius OfficeBox S_ |  | static/seed_images/products/image/Rhilius OfficeBox S/rhiliusofficeboxs_1.png |
-| false | 2 | Rhilius OfficeBox S product image 2 | _references Rhilius OfficeBox S_ |  | static/seed_images/products/image/Rhilius OfficeBox S/rhiliusofficeboxs_2.png |
-| false | 3 | Rhilius OfficeBox S product image 3 | _references Rhilius OfficeBox S_ |  | static/seed_images/products/image/Rhilius OfficeBox S/rhiliusofficeboxs_3.png |
+| is_default | order | alt_text                                         | product_id                              | crop | image                                                                                             |
+| ---------- | ----- | ------------------------------------------------ | --------------------------------------- | ---- | ------------------------------------------------------------------------------------------------- |
+| true       | 0     | Rhilius NovaPhone X1 default product image       | _references Rhilius NovaPhone X1_       |      | static/seed_images/products/image/Rhilius NovaPhone X1/rhiliusnovaphonex1_default.jpg             |
+| false      | 1     | Rhilius NovaPhone X1 product image 1             | _references Rhilius NovaPhone X1_       |      | static/seed_images/products/image/Rhilius NovaPhone X1/rhiliusnovaphonex1_1.jpg                   |
+| false      | 2     | Rhilius NovaPhone X1 product image 2             | _references Rhilius NovaPhone X1_       |      | static/seed_images/products/image/Rhilius NovaPhone X1/rhiliusnovaphonex1_2.jpg                   |
+| true       | 0     | Rhilius PulsePhone 5G default product image      | _references Rhilius PulsePhone 5G_      |      | static/seed_images/products/image/Rhilius PulsePhone 5G/rhiliuspulsephone5g_default.jpg           |
+| false      | 1     | Rhilius PulsePhone 5G product image 1            | _references Rhilius PulsePhone 5G_      |      | static/seed_images/products/image/Rhilius PulsePhone 5G/rhiliuspulsephone5g_1.jpg                 |
+| false      | 2     | Rhilius PulsePhone 5G product image 2            | _references Rhilius PulsePhone 5G_      |      | static/seed_images/products/image/Rhilius PulsePhone 5G/rhiliuspulsephone5g_2.jpg                 |
+| true       | 0     | Rhilius TitanPhone Pro default product image     | _references Rhilius TitanPhone Pro_     |      | static/seed_images/products/image/Rhilius TitanPhone Pro/rhiliustitanphonepro_default.jpg         |
+| false      | 1     | Rhilius TitanPhone Pro product image 1           | _references Rhilius TitanPhone Pro_     |      | static/seed_images/products/image/Rhilius TitanPhone Pro/rhiliustitanphonepro_1.jpg               |
+| false      | 2     | Rhilius TitanPhone Pro product image 2           | _references Rhilius TitanPhone Pro_     |      | static/seed_images/products/image/Rhilius TitanPhone Pro/rhiliustitanphonepro_2.jpg               |
+| true       | 0     | Rhilius AeroPhone Mini default product image     | _references Rhilius AeroPhone Mini_     |      | static/seed_images/products/image/Rhilius AeroPhone Mini/rhiliusaerophonemini_default.jpg         |
+| false      | 1     | Rhilius AeroPhone Mini product image 1           | _references Rhilius AeroPhone Mini_     |      | static/seed_images/products/image/Rhilius AeroPhone Mini/rhiliusaerophonemini_1.jpg               |
+| false      | 2     | Rhilius AeroPhone Mini product image 2           | _references Rhilius AeroPhone Mini_     |      | static/seed_images/products/image/Rhilius AeroPhone Mini/rhiliusaerophonemini_2.jpg               |
+| true       | 0     | Rhilius VisionPhone Fold default product image   | _references Rhilius VisionPhone Fold_   |      | static/seed_images/products/image/Rhilius VisionPhone Fold/rhiliusvisionphonefold_default.jpg     |
+| false      | 1     | Rhilius VisionPhone Fold product image 1         | _references Rhilius VisionPhone Fold_   |      | static/seed_images/products/image/Rhilius VisionPhone Fold/rhiliusvisionphonefold_1.jpg           |
+| false      | 2     | Rhilius VisionPhone Fold product image 2         | _references Rhilius VisionPhone Fold_   |      | static/seed_images/products/image/Rhilius VisionPhone Fold/rhiliusvisionphonefold_2.jpg           |
+| true       | 0     | Rhilius LitePhone A5 default product image       | _references Rhilius LitePhone A5_       |      | static/seed_images/products/image/Rhilius LitePhone A5/rhiliuslitephonea5_default.jpg             |
+| false      | 1     | Rhilius LitePhone A5 product image 1             | _references Rhilius LitePhone A5_       |      | static/seed_images/products/image/Rhilius LitePhone A5/rhiliuslitephonea5_1.jpg                   |
+| false      | 2     | Rhilius LitePhone A5 product image 2             | _references Rhilius LitePhone A5_       |      | static/seed_images/products/image/Rhilius LitePhone A5/rhiliuslitephonea5_2.jpg                   |
+| true       | 0     | Rhilius TechPad 10 default product image         | _references Rhilius TechPad 10_         |      | static/seed_images/products/image/Rhilius TechPad 10/rhiliustechpad10_default.jpg                 |
+| false      | 1     | Rhilius TechPad 10 product image 1               | _references Rhilius TechPad 10_         |      | static/seed_images/products/image/Rhilius TechPad 10/rhiliustechpad10_1.jpg                       |
+| true       | 0     | Rhilius TechPad Pro 13 default product image     | _references Rhilius TechPad Pro 13_     |      | static/seed_images/products/image/Rhilius TechPad Pro 13/rhiliustechpadpro13_default.jpg          |
+| false      | 1     | Rhilius TechPad Pro 13 product image 1           | _references Rhilius TechPad Pro 13_     |      | static/seed_images/products/image/Rhilius TechPad Pro 13/rhiliustechpadpro13_1.jpg                |
+| false      | 2     | Rhilius TechPad Pro 13 product image 2           | _references Rhilius TechPad Pro 13_     |      | static/seed_images/products/image/Rhilius TechPad Pro 13/rhiliustechpadpro13_2.jpg                |
+| true       | 0     | Rhilius TechPad Mini 8 default product image     | _references Rhilius TechPad Mini 8_     |      | static/seed_images/products/image/Rhilius TechPad Mini 8/rhiliustechpadmini8_default.png          |
+| false      | 1     | Rhilius TechPad Mini 8 product image 1           | _references Rhilius TechPad Mini 8_     |      | static/seed_images/products/image/Rhilius TechPad Mini 8/rhiliustechpadmini8_1.png                |
+| false      | 2     | Rhilius TechPad Mini 8 product image 2           | _references Rhilius TechPad Mini 8_     |      | static/seed_images/products/image/Rhilius TechPad Mini 8/rhiliustechpadmini8_2.png                |
+| true       | 0     | Rhilius SketchPad 12 default product image       | _references Rhilius SketchPad 12_       |      | static/seed_images/products/image/Rhilius SketchPad 12/rhiliussketchpad12_default.png             |
+| false      | 1     | Rhilius SketchPad 12 product image 1             | _references Rhilius SketchPad 12_       |      | static/seed_images/products/image/Rhilius SketchPad 12/rhiliussketchpad12_1.png                   |
+| false      | 2     | Rhilius SketchPad 12 product image 2             | _references Rhilius SketchPad 12_       |      | static/seed_images/products/image/Rhilius SketchPad 12/rhiliussketchpad12_2.png                   |
+| true       | 0     | Rhilius StudyPad 11 default product image        | _references Rhilius StudyPad 11_        |      | static/seed_images/products/image/Rhilius StudyPad 11/rhiliusstudypad11_default.png               |
+| false      | 1     | Rhilius StudyPad 11 product image 1              | _references Rhilius StudyPad 11_        |      | static/seed_images/products/image/Rhilius StudyPad 11/rhiliusstudypad11_1.png                     |
+| false      | 2     | Rhilius StudyPad 11 product image 2              | _references Rhilius StudyPad 11_        |      | static/seed_images/products/image/Rhilius StudyPad 11/rhiliusstudypad11_2.png                     |
+| true       | 0     | Rhilius GamePad X default product image          | _references Rhilius GamePad X_          |      | static/seed_images/products/image/Rhilius GamePad X/rhiliusgamepadx_default.png                   |
+| false      | 1     | Rhilius GamePad X product image 1                | _references Rhilius GamePad X_          |      | static/seed_images/products/image/Rhilius GamePad X/rhiliusgamepadx_1.png                         |
+| false      | 2     | Rhilius GamePad X product image 2                | _references Rhilius GamePad X_          |      | static/seed_images/products/image/Rhilius GamePad X/rhiliusgamepadx_2.png                         |
+| true       | 0     | Rhilius AeroBook 13 default product image        | _references Rhilius AeroBook 13_        |      | static/seed_images/products/image/Rhilius AeroBook 13/rhiliusaerobook13_default.png               |
+| false      | 1     | Rhilius AeroBook 13 product image 1              | _references Rhilius AeroBook 13_        |      | static/seed_images/products/image/Rhilius AeroBook 13/rhiliusaerobook13_1.png                     |
+| false      | 2     | Rhilius AeroBook 13 product image 2              | _references Rhilius AeroBook 13_        |      | static/seed_images/products/image/Rhilius AeroBook 13/rhiliusaerobook13_2.png                     |
+| true       | 0     | Rhilius WorkBook 15 default product image        | _references Rhilius WorkBook 15_        |      | static/seed_images/products/image/Rhilius WorkBook 15/rhiliusworkbook15_default.png               |
+| false      | 1     | Rhilius WorkBook 15 product image 1              | _references Rhilius WorkBook 15_        |      | static/seed_images/products/image/Rhilius WorkBook 15/rhiliusworkbook15_1.png                     |
+| false      | 2     | Rhilius WorkBook 15 product image 2              | _references Rhilius WorkBook 15_        |      | static/seed_images/products/image/Rhilius WorkBook 15/rhiliusworkbook15_2.png                     |
+| true       | 0     | Rhilius CreatorBook Pro 16 default product image | _references Rhilius CreatorBook Pro 16_ |      | static/seed_images/products/image/Rhilius CreatorBook Pro 16/rhiliuscreatorbookpro16_default.png  |
+| false      | 1     | Rhilius CreatorBook Pro 16 product image 1       | _references Rhilius CreatorBook Pro 16_ |      | static/seed_images/products/image/Rhilius CreatorBook Pro 16/rhiliuscreatorbookpro16_1.png        |
+| false      | 2     | Rhilius CreatorBook Pro 16 product image 2       | _references Rhilius CreatorBook Pro 16_ |      | static/seed_images/products/image/Rhilius CreatorBook Pro 16/rhiliuscreatorbookpro16_2.png        |
+| true       | 0     | Rhilius GameBook RX 15 default product image     | _references Rhilius GameBook RX 15_     |      | static/seed_images/products/image/Rhilius GameBook RX 15/rhiliusgamebookrx15_default.png          |
+| false      | 1     | Rhilius GameBook RX 15 product image 1           | _references Rhilius GameBook RX 15_     |      | static/seed_images/products/image/Rhilius GameBook RX 15/rhiliusgamebookrx15_1.png                |
+| false      | 2     | Rhilius GameBook RX 15 product image 2           | _references Rhilius GameBook RX 15_     |      | static/seed_images/products/image/Rhilius GameBook RX 15/rhiliusgamebookrx15_2.png                |
+| true       | 0     | Rhilius FlexBook 14 default product image        | _references Rhilius FlexBook 14_        |      | static/seed_images/products/image/Rhilius FlexBook 14/rhiliusflexbook14_default.png               |
+| false      | 1     | Rhilius FlexBook 14 product image 1              | _references Rhilius FlexBook 14_        |      | static/seed_images/products/image/Rhilius FlexBook 14/rhiliusflexbook14_1.png                     |
+| false      | 2     | Rhilius FlexBook 14 product image 2              | _references Rhilius FlexBook 14_        |      | static/seed_images/products/image/Rhilius FlexBook 14/rhiliusflexbook14_2.png                     |
+| true       | 0     | Rhilius CloudBook Lite default product image     | _references Rhilius CloudBook Lite_     |      | static/seed_images/products/image/Rhilius CloudBook Lite/rhiliuscloudbooklite_default.png         |
+| false      | 1     | Rhilius CloudBook Lite product image 1           | _references Rhilius CloudBook Lite_     |      | static/seed_images/products/image/Rhilius CloudBook Lite/rhiliuscloudbooklite_1.png               |
+| false      | 2     | Rhilius CloudBook Lite product image 2           | _references Rhilius CloudBook Lite_     |      | static/seed_images/products/image/Rhilius CloudBook Lite/rhiliuscloudbooklite_2.png               |
+| true       | 0     | Rhilius CoreBox Mini default product image       | _references Rhilius CoreBox Mini_       |      | static/seed_images/products/image/Rhilius CoreBox Mini/rhiliuscoreboxmini_default.png             |
+| false      | 1     | Rhilius CoreBox Mini product image 1             | _references Rhilius CoreBox Mini_       |      | static/seed_images/products/image/Rhilius CoreBox Mini/rhiliuscoreboxmini_1.png                   |
+| false      | 2     | Rhilius CoreBox Mini product image 2             | _references Rhilius CoreBox Mini_       |      | static/seed_images/products/image/Rhilius CoreBox Mini/rhiliuscoreboxmini_2.png                   |
+| true       | 0     | Rhilius VisionDesk 24 default product image      | _references Rhilius VisionDesk 24_      |      | static/seed_images/products/image/Rhilius VisionDesk 24/rhiliusvisiondesk24_default.png           |
+| false      | 1     | Rhilius VisionDesk 24 product image 1            | _references Rhilius VisionDesk 24_      |      | static/seed_images/products/image/Rhilius VisionDesk 24/rhiliusvisiondesk24_1.png                 |
+| false      | 2     | Rhilius VisionDesk 24 product image 2            | _references Rhilius VisionDesk 24_      |      | static/seed_images/products/image/Rhilius VisionDesk 24/rhiliusvisiondesk24_2.png                 |
+| true       | 0     | Rhilius TitanTower X default product image       | _references Rhilius TitanTower X_       |      | static/seed_images/products/image/Rhilius TitanTower X/rhiliustitantowerx_default.png             |
+| false      | 1     | Rhilius TitanTower X product image 1             | _references Rhilius TitanTower X_       |      | static/seed_images/products/image/Rhilius TitanTower X/rhiliustitantowerx_1.png                   |
+| false      | 2     | Rhilius TitanTower X product image 2             | _references Rhilius TitanTower X_       |      | static/seed_images/products/image/Rhilius TitanTower X/rhiliustitantowerx_2.png                   |
+| true       | 0     | Rhilius CreatorStation Pro default product image | _references Rhilius CreatorStation Pro_ |      | static/seed_images/products/image/Rhilius CreatorStation Pro/rhiliuscreatorstationpro_default.png |
+| false      | 1     | Rhilius CreatorStation Pro product image 1       | _references Rhilius CreatorStation Pro_ |      | static/seed_images/products/image/Rhilius CreatorStation Pro/rhiliuscreatorstationpro_1.png       |
+| false      | 2     | Rhilius CreatorStation Pro product image 2       | _references Rhilius CreatorStation Pro_ |      | static/seed_images/products/image/Rhilius CreatorStation Pro/rhiliuscreatorstationpro_2.png       |
+| true       | 0     | Rhilius GameStation R7 default product image     | _references Rhilius GameStation R7_     |      | static/seed_images/products/image/Rhilius GameStation R7/rhiliusgamestationr7_default.png         |
+| false      | 1     | Rhilius GameStation R7 product image 1           | _references Rhilius GameStation R7_     |      | static/seed_images/products/image/Rhilius GameStation R7/rhiliusgamestationr7_1.png               |
+| false      | 2     | Rhilius GameStation R7 product image 2           | _references Rhilius GameStation R7_     |      | static/seed_images/products/image/Rhilius GameStation R7/rhiliusgamestationr7_2.png               |
+| true       | 0     | Rhilius OfficeBox S default product image        | _references Rhilius OfficeBox S_        |      | static/seed_images/products/image/Rhilius OfficeBox S/rhiliusofficeboxs_default.png               |
+| false      | 1     | Rhilius OfficeBox S product image 1              | _references Rhilius OfficeBox S_        |      | static/seed_images/products/image/Rhilius OfficeBox S/rhiliusofficeboxs_1.png                     |
+| false      | 2     | Rhilius OfficeBox S product image 2              | _references Rhilius OfficeBox S_        |      | static/seed_images/products/image/Rhilius OfficeBox S/rhiliusofficeboxs_2.png                     |
+| false      | 3     | Rhilius OfficeBox S product image 3              | _references Rhilius OfficeBox S_        |      | static/seed_images/products/image/Rhilius OfficeBox S/rhiliusofficeboxs_3.png                     |
