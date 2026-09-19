@@ -49,6 +49,23 @@ class ProductImage(TimeStampedModel):
         return super().save(*args, **kwargs)
 
 
+class Category(models.Model):
+    taxonomy_id = models.CharField(
+        max_length=50,
+        unique=True,
+    )
+
+    name = models.CharField(max_length=150)
+
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="children",
+    )
+
+
 class Cart(TimeStampedModel):
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name='cart')
