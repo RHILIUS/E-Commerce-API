@@ -22,7 +22,9 @@ Related repositories should be available at:
 - Frontend: `../frontend`
 - Documentation: `../docs`
 
-Before changing database design, API contracts, authentication, architecture, or cross-application workflows, review the relevant documentation in `../docs` and inspect frontend usage in `../frontend`.
+Backend-specific documentation is maintained in this repository's `docs/` folder:
+
+Before changing database design, API contracts, authentication, architecture, or cross-application workflows, review the relevant local documentation in `docs/`, the shared project documentation in `../docs`, and frontend usage in `../frontend`. The local `docs/` folder is distinct from the sibling documentation repository.
 
 Do not assume the code, frontend, and documentation are synchronized. Report inconsistencies before changing an established contract.
 
