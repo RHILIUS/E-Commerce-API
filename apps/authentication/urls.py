@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenVerifyView
 
-from authentication import views
+from apps.authentication import views
 
 urlpatterns = [
     path('login/',      views.LoginView.as_view(),      name='login'),

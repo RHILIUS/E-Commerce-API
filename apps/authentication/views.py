@@ -8,19 +8,19 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from authentication.serializers import (
+from apps.authentication.serializers import (
     CustomTokenObtainPairSerializer,
     RegisterSerializer,
     SendOTPSerializer,
     UserPublicSerializer,
     VerifyOTPSerializer,
 )
-from authentication.services.email_service import (
+from apps.authentication.services.email_service import (
     OTPDeliveryError,
     send_otp_email,
 )
-from authentication.services.otp_service import OTPRateLimitExceeded, issue_otp
-from authentication.services.registration_token_service import (
+from apps.authentication.services.otp_service import OTPRateLimitExceeded, issue_otp
+from apps.authentication.services.registration_token_service import (
     REGISTRATION_TOKEN_COOKIE_NAME,
     issue_registration_token,
 )

@@ -10,14 +10,14 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.account.models import RecipientInfo
-from authentication.exceptions import (
+from apps.authentication.exceptions import (
     EmailAlreadyTakenError,
     ExpiredOTPError,
     InvalidRegistrationTokenError,
     MaxAttemptError,
 )
-from authentication.models import OTPVerificationRecord
-from authentication.services.registration_token_service import (
+from apps.authentication.models import OTPVerificationRecord
+from apps.authentication.services.registration_token_service import (
     REGISTRATION_TOKEN_COOKIE_NAME,
     InvalidRegistrationToken,
     validate_registration_token,

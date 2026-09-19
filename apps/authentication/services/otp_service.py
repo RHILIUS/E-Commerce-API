@@ -6,7 +6,7 @@ from django.contrib.auth.hashers import make_password
 from django.db import transaction
 from django.utils import timezone
 
-from authentication.models import OTPVerificationRecord
+from apps.authentication.models import OTPVerificationRecord
 
 
 class OTPRateLimitExceeded(Exception):

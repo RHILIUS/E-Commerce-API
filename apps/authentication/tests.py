@@ -12,13 +12,13 @@ from rest_framework import status
 from rest_framework.test import APIClient, APIRequestFactory
 
 from apps.account.models import RecipientInfo
-from authentication.models import OTPVerificationRecord
-from authentication.serializers import RegisterSerializer
-from authentication.services.otp_service import (
+from apps.authentication.models import OTPVerificationRecord
+from apps.authentication.serializers import RegisterSerializer
+from apps.authentication.services.otp_service import (
     OTPRateLimitExceeded,
     issue_otp,
 )
-from authentication.services.registration_token_service import (
+from apps.authentication.services.registration_token_service import (
     REGISTRATION_TOKEN_COOKIE_NAME,
     REGISTRATION_TOKEN_SALT,
     InvalidRegistrationToken,
@@ -155,7 +155,7 @@ class RegisterViewTests(TestCase):
 
     def test_registration_token_is_validated_only_once(self):
         with patch(
-            "authentication.serializers.validate_registration_token",
+            "apps.authentication.serializers.validate_registration_token",
             wraps=validate_registration_token,
         ) as validate_token:
             response = self.post_registration()
@@ -270,7 +270,7 @@ class RegisterViewTests(TestCase):
         self.assertEqual(recipient.postal_code, "1000")
 
     @patch(
-        "authentication.serializers.RecipientInfo.objects.create",
+        "apps.authentication.serializers.RecipientInfo.objects.create",
         side_effect=IntegrityError("recipient creation failed"),
     )
     def test_recipient_failure_rolls_back_user_creation(self, _):
@@ -282,11 +282,11 @@ class RegisterViewTests(TestCase):
         )
 
     @patch(
-        "authentication.serializers._registration_conflict_errors",
+        "apps.authentication.serializers._registration_conflict_errors",
         return_value={"phone_number": ["Phone number is already taken"]},
     )
     @patch(
-        "authentication.serializers.User.objects.create_user",
+        "apps.authentication.serializers.User.objects.create_user",
         side_effect=IntegrityError("unique constraint conflict"),
     )
     def test_unique_constraint_race_returns_validation_error(self, _, __):
@@ -496,7 +496,7 @@ class RegisterViewTests(TestCase):
 class IssueOTPServiceTests(TestCase):
     email = "person@example.com"
 
-    @patch("authentication.services.otp_service.secrets.randbelow", return_value=42)
+    @patch("apps.authentication.services.otp_service.secrets.randbelow", return_value=42)
     def test_first_request_normalizes_email_and_stores_only_hash(self, _):
         otp = issue_otp(" Person@Example.com ")
 
@@ -614,7 +614,7 @@ class SendOTPViewTests(TestCase):
         )
 
     @patch(
-        "authentication.services.email_service.send_mail",
+        "apps.authentication.services.email_service.send_mail",
         side_effect=OSError("SMTP unavailable"),
     )
     def test_delivery_failure_returns_service_unavailable_without_exposing_otp(
