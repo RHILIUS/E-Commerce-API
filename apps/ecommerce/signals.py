@@ -1,9 +1,20 @@
-from django.db.models.signals import post_delete, post_save, pre_save
+from django.core.exceptions import ValidationError
+from django.db.models.deletion import ProtectedError
+from django.db.models.signals import post_delete, post_save, pre_delete, pre_save
 from django.dispatch import receiver
 
 from core.common.images import delete_file_after_commit
 
-from .models import ProductImage
+from .models import CategoryAttribute, ProductImage
+
+
+@receiver(pre_delete, sender=CategoryAttribute)
+def protect_used_category_attribute(sender, instance, **kwargs):
+    """Guard association removal through instance and queryset deletion."""
+    try:
+        instance.validate_removal()
+    except ValidationError as error:
+        raise ProtectedError(error.messages[0], {instance}) from error
 
 
 def _schedule_product_image_deletion(image):
