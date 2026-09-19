@@ -5,17 +5,23 @@ from django.test import TestCase
 
 from apps.store.models import Store
 
-from .models import (
-    Attribute, AttributeValue, Category, CategoryAttribute,
-    Product, ProductAttributeValue,
+from ..models import (
+    Attribute,
+    AttributeValue,
+    Category,
+    CategoryAttribute,
+    Product,
+    ProductAttributeValue,
 )
 
 
 class ProductSpecificationTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.category = Category.objects.create(taxonomy_id="laptops", name="Laptops")
-        cls.other_category = Category.objects.create(taxonomy_id="phones", name="Phones")
+        cls.category = Category.objects.create(
+            taxonomy_id="laptops", name="Laptops")
+        cls.other_category = Category.objects.create(
+            taxonomy_id="phones", name="Phones")
         cls.ram = Attribute.objects.create(taxonomy_id="ram", name="RAM")
         cls.color = Attribute.objects.create(taxonomy_id="color", name="Color")
         cls.ram_value = AttributeValue.objects.create(
@@ -74,7 +80,8 @@ class ProductSpecificationTests(TestCase):
                 setattr(specification, field, 999999)
                 with self.assertRaises(ValidationError) as caught:
                     specification.full_clean()
-                self.assertIn(field.removesuffix("_id"), caught.exception.message_dict)
+                self.assertIn(field.removesuffix("_id"),
+                              caught.exception.message_dict)
 
     def test_uncategorized_product_cannot_have_specifications(self):
         self.product.category = None
@@ -94,7 +101,8 @@ class ProductSpecificationTests(TestCase):
 
     def test_compatible_category_change_is_allowed(self):
         self.create_specification()
-        CategoryAttribute.objects.create(category=self.other_category, attribute=self.ram)
+        CategoryAttribute.objects.create(
+            category=self.other_category, attribute=self.ram)
         self.product.category = self.other_category
         self.product.save()
         self.product.refresh_from_db()
@@ -122,7 +130,8 @@ class ProductSpecificationTests(TestCase):
     def test_unused_mapping_can_be_deleted(self):
         mapping_id = self.mapping.pk
         self.mapping.delete()
-        self.assertFalse(CategoryAttribute.objects.filter(pk=mapping_id).exists())
+        self.assertFalse(CategoryAttribute.objects.filter(
+            pk=mapping_id).exists())
 
     def test_existing_specification_cannot_be_saved_with_wrong_value(self):
         specification = self.create_specification()

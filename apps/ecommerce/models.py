@@ -36,10 +36,19 @@ class Category(models.Model):
 class Attribute(models.Model):
     taxonomy_id = models.CharField(
         max_length=100,
-        unique=True,
     )
-
+    # Shopify contexts can share an ID, but have distinct handles.
+    # Empty handles preserve existing local records until explicitly mapped.
+    handle = models.CharField(max_length=100, blank=True, default="")
     name = models.CharField(max_length=150)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["taxonomy_id", "handle"],
+                name="unique_taxonomy_attribute_context",
+            )
+        ]
 
     def __str__(self):
         return self.name
@@ -49,7 +58,6 @@ class Attribute(models.Model):
 class AttributeValue(models.Model):
     taxonomy_id = models.CharField(
         max_length=100,
-        unique=True,
     )
 
     attribute = models.ForeignKey(
@@ -59,6 +67,14 @@ class AttributeValue(models.Model):
     )
 
     name = models.CharField(max_length=150)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["attribute", "taxonomy_id"],
+                name="unique_attribute_taxonomy_value",
+            )
+        ]
 
     def __str__(self):
         return self.name

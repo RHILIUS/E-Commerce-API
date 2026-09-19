@@ -17,14 +17,14 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Attribute)
 class AttributeAdmin(admin.ModelAdmin):
-    search_fields = ("name", "taxonomy_id")
-    list_display = ("name", "taxonomy_id")
+    search_fields = ("name", "taxonomy_id", "handle")
+    list_display = ("name", "handle", "taxonomy_id")
 
 
 @admin.register(AttributeValue)
 class AttributeValueAdmin(admin.ModelAdmin):
     list_display = ("name", "attribute", "taxonomy_id")
-    search_fields = ("name", "taxonomy_id", "attribute__name")
+    search_fields = ("name", "taxonomy_id", "attribute__name", "attribute__handle")
     autocomplete_fields = ("attribute",)
 
 
