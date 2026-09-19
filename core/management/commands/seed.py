@@ -9,6 +9,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.account.models import RecipientInfo
+from apps.ecommerce.models import Product, ProductImage
 from core.seed_data import (
     PRODUCT_DATA,
     RECIPIENT_DATA,
@@ -17,7 +18,6 @@ from core.seed_data import (
     STORE_MEMBER_DATA,
     USER_DATA,
 )
-from ecommerce.models import Product, ProductImage
 from store.models import Store, StoreAddress, StoreMember
 
 PRODUCT_IMAGE_ROOT = (

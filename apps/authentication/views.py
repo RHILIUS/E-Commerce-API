@@ -24,7 +24,7 @@ from apps.authentication.services.registration_token_service import (
     REGISTRATION_TOKEN_COOKIE_NAME,
     issue_registration_token,
 )
-from ecommerce.models import User
+from apps.ecommerce.models import User
 
 is_secure = not settings.DEBUG
 

@@ -50,7 +50,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'core',
-    'ecommerce',
+    'apps.ecommerce',
     'apps.authentication',
     'apps.account',
     'store',
