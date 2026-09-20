@@ -7,6 +7,7 @@ Run these commands from the backend repository root with the project dependencie
 ```bash
 source venv/bin/activate
 python manage.py migrate
+python manage.py import_taxonomy --directory data/taxonomy/2026-08
 python manage.py seed
 ```
 
@@ -16,7 +17,37 @@ Keep the source images under `static/seed_images/` available even when rerunning
 
 ## What the command creates
 
-The command creates or updates a user, their default delivery recipient, a store, its address and membership, products, and product images. Seed values come from `core/seed_data.py`; the tables below document those values. Editing this Markdown file alone does not change what gets seeded.
+The command creates or updates a user, their default delivery recipient, a store, its address and membership, products, product specifications, and product images. Seed values come from `core/seed_data.py`; the tables below document those values. Editing this Markdown file alone does not change what gets seeded.
+
+## Product categories and specifications
+
+Import both Shopify 2026-08 JSON files before seeding (see [taxonomy.md](taxonomy.md)).
+Each product record in `core/seed_data.py` contains a `category_taxonomy_id` and an
+`attribute_values` list. Each choice identifies the attribute by Shopify ID and
+handle, and its value by Shopify value ID. Local database primary keys are resolved
+at runtime.
+
+| Seed products | Shopify category | Category ID suffix |
+| --- | --- | --- |
+| Six phones | Smart Phones | `el-4-8-5-2` |
+| Six tablets | Tablet Computers | `el-6-8` |
+| Six laptops | Laptops | `el-6-6` |
+| VisionDesk 24 | All-in-One Computers | `el-6-12` |
+| Other five desktop products | Desktop Computers | `el-6-3` |
+
+Specifications use official choices such as OLED/AMOLED/LCD, rugged/foldable phone
+form, SSD/NVMe storage, integrated/dedicated graphics, Full HD, DDR5, and computer
+form where supported by the descriptions. Tablets receive Battery-powered as their
+portable-device power source. RAM capacity and storage capacity remain in the
+descriptions; those attributes are not assigned to these categories in this snapshot.
+
+The command resolves active categories, allowed category–attribute links, and
+predefined values before creating records or uploading images. Missing taxonomy
+causes an actionable error; the seeder does not invent missing definitions.
+References are locked for the seed transaction. Re-running updates seeded values
+without duplicating specifications and retains additional manually added specs.
+If a category change conflicts with existing specifications, validation rejects it
+and the database transaction rolls back; review those specifications before retrying.
 
 The store membership grants the seeded user the store's configured role; it does not grant Django staff or superuser access.
 

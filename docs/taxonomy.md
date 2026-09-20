@@ -2,12 +2,14 @@
 
 Categories, attributes, allowed category–attribute associations, predefined values,
 and product specifications are managed through Django admin. The `import_taxonomy`
-command imports categories and contextual attributes from a local Shopify snapshot.
-The product specification API and predefined value importer are not implemented yet.
+command imports categories, contextual attributes, predefined values, and category
+associations from a local Shopify snapshot. The product specification API is not
+implemented yet.
 
 Apply all pending migrations, including `0011_attribute_handle_alter_attribute_taxonomy_id_and_more`,
-before importing. Existing products retain a null category; seeding still
-works without taxonomy data. Assign a category before adding specifications.
+before importing. Existing products retain a null category until assigned one.
+The development seeder now requires imported taxonomy and assigns categories and
+predefined specifications to all 24 products; see [seed.md](seed.md).
 
 ## Contextual attributes
 
@@ -33,11 +35,15 @@ python manage.py import_taxonomy --directory data/taxonomy/2026-08 --dry-run
 python manage.py import_taxonomy --directory data/taxonomy/2026-08
 ```
 
-The directory must contain `categories.en.json`. See the [snapshot README](../data/taxonomy/2026-08/README.md)
+The directory must contain `categories.en.json` and `attributes.en.json` with matching
+`version` fields. Both files are required, including for dry runs. See the [snapshot README](../data/taxonomy/2026-08/README.md)
 for its pinned download and checksum. The command reads local files only.
 
 The full file contains 14,606 categories, 8,500 distinct contextual attributes, and
-93,007 distinct category–attribute associations. Counts printed by the command show
+93,007 distinct category–attribute associations. The attributes distribution supplies
+81,518 value rows for these contexts; only contexts referenced by categories are
+imported. Extended contexts use the choices listed under their base attribute.
+Each value is matched by local attribute context and Shopify value ID. Counts printed by the command show
 planned creations, metadata updates, unchanged rows, and retained records outside
 the snapshot. Importing the same file again creates no duplicates.
 
@@ -49,20 +55,23 @@ or consuming sequence IDs; it requires a working database connection.
 
 Imports update names and category parents, preserve existing `is_active` settings,
 and add missing associations. They do not delete absent records or associations,
-reassign products, or modify existing attribute values and specifications. Retained
-associations may no longer appear in the new release; review those separately.
+reassign products, change value ownership, or modify product specifications. Existing
+value names are updated while their primary keys remain unchanged; values absent
+from the snapshot are retained. Retained associations may no longer appear in the
+new release; review those separately.
 
 All writes run in one transaction. PostgreSQL table locks serialize writes to the
-category, attribute, and association tables during the import; concurrent taxonomy
+category, attribute, association, and attribute value tables during the import; concurrent taxonomy
 edits can wait until it finishes. Bulk inserts here are limited to validated new
-associations and metadata: the importer never changes existing association endpoints
+values, associations, and metadata: the importer never changes existing association endpoints
 or value ownership. This is a controlled exception to the general bulk-write warning
 below. Failed imports roll back database changes.
 
-`categories.en.json` contains attribute metadata but no predefined attribute values.
-This command therefore populates `Category`, `Attribute`, and `CategoryAttribute`
-only. Obtain the matching value distribution before implementing `AttributeValue`
-import. Disclosures and return reasons are outside the current model scope.
+`categories.en.json` supplies category assignments, while `attributes.en.json`
+supplies base definitions, extended contexts, and predefined values. Missing contexts,
+conflicting names between files, duplicate value IDs within an attribute, invalid
+field lengths, and mismatched versions stop the import before any writes.
+The command populates `Category`, `Attribute`, `CategoryAttribute`, and `AttributeValue`. Disclosures and return reasons are outside the current model scope.
 
 ## Specification validation
 
@@ -79,8 +88,7 @@ or choose a category that supports them.
 These relationship checks are application validation, not cross-table database
 constraints. `QuerySet.update()`, `bulk_create()`, `bulk_update()`, and raw SQL bypass
 model validation; do not use them for these relationships. Concurrent taxonomy edits
-and specification writes are not serialized by these model checks. A future API or
-value importer must coordinate related writes in transactions with appropriate
+and specification writes are not serialized by these model checks. A future API must coordinate related writes in transactions with appropriate
 locking. Future DRF serializers must validate these relationships and translate
 validation failures into API errors; model validation alone does not provide that
 API behavior.

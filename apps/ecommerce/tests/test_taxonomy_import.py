@@ -42,12 +42,25 @@ def sample_snapshot():
     }
 
 
+def sample_attributes():
+    """Supply one shared choice for two independently identified color contexts."""
+    return {"version": "2026-08", "attributes": [{
+        "id": "color", "name": "Color", "handle": "color",
+        "extended_attributes": [
+            {"handle": "frame-color", "name": "Frame color"},
+            {"handle": "lens-color", "name": "Lens color"},
+        ],
+        "values": [{"id": "white", "name": "White", "handle": "color__white"}],
+    }]}
+
+
 class SnapshotValidationTests(SimpleTestCase):
     def load_data(self, data):
         """Load a temporary snapshot through the same parser as the command."""
         with TemporaryDirectory() as directory:
             path = Path(directory) / "categories.en.json"
             path.write_text(json.dumps(data), encoding="utf-8")
+            path.with_name("attributes.en.json").write_text(json.dumps(sample_attributes()), encoding="utf-8")
             return load_snapshot(path)
 
     def test_contextual_attributes_are_distinct(self):
@@ -106,11 +119,13 @@ class TaxonomyImportTests(TestCase):
         self.addCleanup(self.directory.cleanup)
         self.path = Path(self.directory.name) / "categories.en.json"
         self.data = sample_snapshot()
+        self.value_data = sample_attributes()
         self.write_snapshot()
 
     def write_snapshot(self):
         """Write the test's current source data for command and parser assertions."""
         self.path.write_text(json.dumps(self.data), encoding="utf-8")
+        self.path.with_name("attributes.en.json").write_text(json.dumps(self.value_data), encoding="utf-8")
 
     def run_command(self, *, dry_run=False):
         """Capture importer output without depending on terminal colors."""
@@ -135,7 +150,7 @@ class TaxonomyImportTests(TestCase):
             list(Attribute.objects.values_list("pk", flat=True)), attribute_ids)
         self.assertNotIn("created=1", output)
         self.assertEqual(CategoryAttribute.objects.count(), 2)
-        self.assertEqual(AttributeValue.objects.count(), 0)
+        self.assertEqual(AttributeValue.objects.count(), 2)
         self.assertEqual(ProductAttributeValue.objects.count(), 0)
 
     def test_dry_run_reports_without_writing(self):
@@ -171,6 +186,7 @@ class TaxonomyImportTests(TestCase):
         source_category["name"] = "Eyeglasses"
         source_category["parent_id"] = None
         source_category["attributes"][0]["name"] = "Frame colour"
+        self.value_data["attributes"][0]["extended_attributes"][0]["name"] = "Frame colour"
         source_category["attributes"].pop()
         self.write_snapshot()
         output = self.run_command()
@@ -243,3 +259,61 @@ class TaxonomyImportTests(TestCase):
         plan = import_snapshot(snapshot, dry_run=True)
         result = import_snapshot(snapshot)
         self.assertEqual(plan, result)
+
+    def test_invalid_value_sources_fail_before_writes(self):
+        original = sample_attributes()
+        variants = []
+        wrong_version = copy.deepcopy(original)
+        wrong_version["version"] = "2025-01"
+        variants.append(wrong_version)
+        missing_context = copy.deepcopy(original)
+        missing_context["attributes"][0]["extended_attributes"] = []
+        variants.append(missing_context)
+        duplicate = copy.deepcopy(original)
+        duplicate["attributes"][0]["values"] *= 2
+        variants.append(duplicate)
+        long_name = copy.deepcopy(original)
+        long_name["attributes"][0]["values"][0]["name"] = "x" * 151
+        variants.append(long_name)
+        for data in variants:
+            with self.subTest(data=data):
+                self.value_data = data
+                self.write_snapshot()
+                with self.assertRaises(CommandError):
+                    self.run_command()
+                self.assertFalse(Category.objects.exists())
+                self.assertFalse(AttributeValue.objects.exists())
+        self.path.with_name("attributes.en.json").unlink()
+        with self.assertRaisesMessage(CommandError, "attributes.en.json"):
+            self.run_command()
+
+    def test_value_updates_preserve_ids_ownership_and_product_references(self):
+        self.run_command()
+        value = AttributeValue.objects.get(attribute__handle="frame-color", taxonomy_id="white")
+        product = Product.objects.create(
+            name="Glasses", price="20", category=Category.objects.get(taxonomy_id="glasses"),
+            store=Store.objects.create(name="Store", country_code="PH"),
+        )
+        specification = ProductAttributeValue.objects.create(product=product, attribute=value.attribute, value=value)
+        self.value_data["attributes"][0]["values"][0]["name"] = "White updated"
+        self.write_snapshot()
+        self.run_command(dry_run=True)
+        value.refresh_from_db()
+        self.assertEqual(value.name, "White")
+        self.run_command()
+        value.refresh_from_db()
+        specification.refresh_from_db()
+        self.assertEqual(value.name, "White updated")
+        self.assertEqual(specification.value_id, value.pk)
+        self.assertEqual(specification.attribute_id, value.attribute_id)
+        self.value_data["attributes"][0]["values"] = []
+        self.write_snapshot()
+        self.run_command()
+        self.assertTrue(AttributeValue.objects.filter(pk=value.pk).exists())
+
+    def test_value_insert_failure_rolls_back_categories_and_attributes(self):
+        with patch.object(AttributeValue.objects, "bulk_create", side_effect=IntegrityError("failure")):
+            with self.assertRaises(CommandError):
+                self.run_command()
+        self.assertFalse(Category.objects.exists())
+        self.assertFalse(Attribute.objects.exists())

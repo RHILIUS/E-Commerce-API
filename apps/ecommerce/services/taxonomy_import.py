@@ -1,4 +1,4 @@
-"""Validate and import Shopify's English category distribution snapshot."""
+"""Validate and import Shopify's English category and attribute distributions."""
 
 import json
 from dataclasses import dataclass
@@ -7,7 +7,7 @@ from pathlib import Path
 from django.core.management.base import CommandError
 from django.db import connection, transaction
 
-from apps.ecommerce.models import Attribute, Category, CategoryAttribute
+from apps.ecommerce.models import Attribute, AttributeValue, Category, CategoryAttribute
 
 
 @dataclass
@@ -16,6 +16,7 @@ class TaxonomySnapshot:
     categories: dict[str, tuple[str, str | None]]
     attributes: dict[tuple[str, str], str]
     associations: set[tuple[str, tuple[str, str]]]
+    values: dict[tuple[tuple[str, str], str], str]
 
 
 def _text(record, field, limit, context):
@@ -34,14 +35,20 @@ def _list(record, field, context):
     return value
 
 
-def load_snapshot(path):
-    """Read and validate the full snapshot before any database writes occur."""
+def _read_json(path):
+    """Read a required JSON object and report the failing source file."""
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise CommandError(f"Cannot read taxonomy JSON: {error}") from error
+        raise CommandError(f"Cannot read taxonomy JSON {path}: {error}") from error
     if not isinstance(data, dict):
         raise CommandError("Taxonomy JSON must be an object.")
+    return data
+
+
+def load_snapshot(path):
+    """Validate categories and the matching sibling attributes file before writes."""
+    data = _read_json(path)
     version = _text(data, "version", 100, "Taxonomy")
     categories, attributes, associations = {}, {}, set()
     for vertical in _list(data, "verticals", "Taxonomy"):
@@ -74,7 +81,52 @@ def load_snapshot(path):
     if not categories:
         raise CommandError("Taxonomy snapshot contains no categories.")
     _validate_parents(categories)
-    return TaxonomySnapshot(version, categories, attributes, associations)
+    values = _load_values(Path(path).with_name("attributes.en.json"), version, attributes)
+    return TaxonomySnapshot(version, categories, attributes, associations, values)
+
+
+def _load_values(path, version, attributes):
+    """Resolve category contexts to their base attribute's predefined choices."""
+    data = _read_json(path)
+    if data.get("version") != version:
+        raise CommandError("Categories and attributes must have the same taxonomy version.")
+    definitions = {}
+    base_ids = set()
+    for record in _list(data, "attributes", "Attribute distribution"):
+        if not isinstance(record, dict):
+            raise CommandError("Each attribute definition must be an object.")
+        attribute_id = _text(record, "id", Attribute._meta.get_field("taxonomy_id").max_length, "Attribute")
+        if attribute_id in base_ids:
+            raise CommandError(f"Duplicate base attribute ID: {attribute_id}")
+        base_ids.add(attribute_id)
+        choices = {}
+        for value in _list(record, "values", attribute_id):
+            if not isinstance(value, dict):
+                raise CommandError(f"{attribute_id}: each value must be an object.")
+            value_id = _text(value, "id", AttributeValue._meta.get_field("taxonomy_id").max_length, attribute_id)
+            name = _text(value, "name", AttributeValue._meta.get_field("name").max_length, value_id)
+            if value_id in choices:
+                raise CommandError(f"Duplicate value ID for {attribute_id}: {value_id}")
+            choices[value_id] = name
+        for context in [record] + _list(record, "extended_attributes", attribute_id):
+            if not isinstance(context, dict):
+                raise CommandError(f"{attribute_id}: each extended attribute must be an object.")
+            handle = _text(context, "handle", Attribute._meta.get_field("handle").max_length, attribute_id)
+            name = _text(context, "name", Attribute._meta.get_field("name").max_length, attribute_id)
+            key = (attribute_id, handle)
+            if key in definitions:
+                raise CommandError(f"Duplicate attribute context: {key}")
+            definitions[key] = (name, choices)
+    values = {}
+    for key, name in attributes.items():
+        if key not in definitions:
+            raise CommandError(f"Missing attribute definition for {key}.")
+        defined_name, choices = definitions[key]
+        if defined_name != name:
+            raise CommandError(f"Conflicting attribute names between files for {key}.")
+        for value_id, value_name in choices.items():
+            values[(key, value_id)] = value_name
+    return values
 
 
 def _validate_parents(categories):
@@ -97,13 +149,13 @@ def import_snapshot(snapshot, *, dry_run=False):
     """Plan or atomically merge a snapshot without removing existing taxonomy data.
 
     PostgreSQL table locks serialize taxonomy writes during the merge. Bulk writes
-    are limited to validated metadata, parents, and new associations; existing
+    are limited to validated metadata, parents, new values and associations; existing
     association endpoints, value ownership, and product specifications never change.
     """
     with transaction.atomic():
         if not dry_run and connection.vendor == "postgresql":
             tables = ", ".join(connection.ops.quote_name(model._meta.db_table)
-                               for model in (Category, Attribute, CategoryAttribute))
+                               for model in (Category, Attribute, CategoryAttribute, AttributeValue))
             with connection.cursor() as cursor:
                 cursor.execute(f"LOCK TABLE {tables} IN SHARE ROW EXCLUSIVE MODE")
 
@@ -144,7 +196,24 @@ def import_snapshot(snapshot, *, dry_run=False):
                 attributes[key].name = name
                 changed_attributes.append(attributes[key])
         new_links = snapshot.associations - existing_links
+        attribute_keys = {obj.pk: key for key, obj in attributes.items()}
+        values = {
+            (attribute_keys[obj.attribute_id], obj.taxonomy_id): obj
+            for obj in AttributeValue.objects.all()
+        }
+        new_values, changed_values = [], []
+        for key, name in snapshot.values.items():
+            if key not in values:
+                new_values.append(key)
+            elif values[key].name != name:
+                values[key].name = name
+                changed_values.append(values[key])
         counts = {
+            "values": {
+                "created": len(new_values), "updated": len(changed_values),
+                "unchanged": len(snapshot.values) - len(new_values) - len(changed_values),
+                "retained_outside_snapshot": len(values.keys() - snapshot.values.keys()),
+            },
             "categories": {
                 "created": len(new_categories), "updated": len(changed_categories),
                 "unchanged": len(snapshot.categories) - len(new_categories) - len(changed_categories),
@@ -171,6 +240,13 @@ def import_snapshot(snapshot, *, dry_run=False):
         Attribute.objects.bulk_create(new_attributes, batch_size=1000)
         Attribute.objects.bulk_update(changed_attributes, ["name"], batch_size=1000)
         attributes.update({(obj.taxonomy_id, obj.handle): obj for obj in new_attributes})
+        # Match by context and value ID. Only labels change on existing rows;
+        # ownership and product specification foreign keys remain untouched.
+        AttributeValue.objects.bulk_create([
+            AttributeValue(attribute_id=attributes[key[0]].pk, taxonomy_id=key[1], name=snapshot.values[key])
+            for key in new_values
+        ], batch_size=1000)
+        AttributeValue.objects.bulk_update(changed_values, ["name"], batch_size=1000)
         CategoryAttribute.objects.bulk_create([
             CategoryAttribute(category_id=categories[category].pk, attribute_id=attributes[attribute].pk)
             for category, attribute in sorted(new_links)

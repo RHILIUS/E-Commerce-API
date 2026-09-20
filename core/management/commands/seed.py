@@ -9,7 +9,9 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.account.models import RecipientInfo
-from apps.ecommerce.models import Product, ProductImage
+from apps.ecommerce.models import (
+    AttributeValue, Category, CategoryAttribute, Product, ProductAttributeValue, ProductImage,
+)
 from apps.store.models import Store, StoreAddress, StoreMember
 from core.seed_data import (
     PRODUCT_DATA,
@@ -151,6 +153,58 @@ def validate_seed_data():
     return discover_product_images()
 
 
+def resolve_product_taxonomy():
+    """Resolve and lock seed taxonomy references before any writes or uploads.
+
+    Run inside the seed transaction. Missing or disallowed choices require an
+    explicit taxonomy import, never locally invented taxonomy records.
+    """
+    resolved = {}
+    categories, values = {}, {}
+    for product in PRODUCT_DATA:
+        category_id = product["category_taxonomy_id"]
+        if category_id not in categories:
+            category = Category.objects.select_for_update().filter(
+                taxonomy_id=category_id, is_active=True,
+            ).first()
+            if category is None:
+                raise CommandError(
+                    f"{product['name']}: missing or inactive category {category_id}. "
+                    "Import taxonomy first and ensure the category is active."
+                )
+            categories[category_id] = category
+        category = categories[category_id]
+        specifications = []
+        attribute_ids = set()
+        for specification in product["attribute_values"]:
+            key = (specification["attribute_taxonomy_id"], specification["attribute_handle"],
+                   specification["value_taxonomy_id"])
+            if key not in values:
+                value = AttributeValue.objects.select_for_update().select_related("attribute").filter(
+                    attribute__taxonomy_id=key[0], attribute__handle=key[1], taxonomy_id=key[2],
+                ).first()
+                if value is None:
+                    raise CommandError(
+                        f"{product['name']}: missing value {key[2]} for {key[1]}. "
+                        "Run import_taxonomy with both JSON files first."
+                    )
+                values[key] = value
+            value = values[key]
+            if value.attribute_id in attribute_ids:
+                raise CommandError(f"{product['name']}: duplicate specification for {key[1]}.")
+            attribute_ids.add(value.attribute_id)
+            association = CategoryAttribute.objects.select_for_update().filter(
+                category=category, attribute_id=value.attribute_id,
+            ).first()
+            if association is None:
+                raise CommandError(f"{product['name']}: {key[1]} is not allowed for the selected category.")
+            specifications.append(value)
+        if not specifications:
+            raise CommandError(f"{product['name']}: at least one specification is required.")
+        resolved[product["name"]] = (category, specifications)
+    return resolved
+
+
 def attach_image_if_missing(instance, field_name, path, uploaded_files):
     """Upload a source image only when the model's image field is empty."""
     if getattr(instance, field_name).name:
@@ -181,7 +235,8 @@ class Command(BaseCommand):
 
         try:
             with transaction.atomic():
-                self._seed(product_images, uploaded_files)
+                taxonomy = resolve_product_taxonomy()
+                self._seed(product_images, uploaded_files, taxonomy)
         except Exception:
             for storage, name in reversed(uploaded_files):
                 storage.delete(name)
@@ -196,7 +251,7 @@ class Command(BaseCommand):
             )
         )
 
-    def _seed(self, product_images, uploaded_files):
+    def _seed(self, product_images, uploaded_files, taxonomy):
         """Upsert the validated seed records in dependency order."""
         self.stdout.write("Seeding user and default recipient...")
         user = self._seed_user(uploaded_files)
@@ -208,7 +263,7 @@ class Command(BaseCommand):
         self._seed_store_member(store, user)
 
         self.stdout.write(f"Seeding {len(PRODUCT_DATA)} products...")
-        products = self._seed_products(store)
+        products = self._seed_products(store, taxonomy)
 
         self.stdout.write(f"Seeding {len(product_images)} product images...")
         self._seed_product_images(product_images, products, uploaded_files)
@@ -295,14 +350,16 @@ class Command(BaseCommand):
             defaults=STORE_MEMBER_DATA,
         )
 
-    def _seed_products(self, store):
-        """Upsert products and return them keyed by their names."""
+    def _seed_products(self, store, taxonomy):
+        """Upsert product categories and seeded specifications, retaining other specs."""
         products = {}
         for data in PRODUCT_DATA:
+            category, specifications = taxonomy[data["name"]]
             product, _ = Product.objects.update_or_create(
                 store=store,
                 name=data["name"],
                 defaults={
+                    "category": category,
                     "short_description": data["short_description"],
                     "description": data["description"],
                     "stock": int(data["stock"]),
@@ -311,6 +368,11 @@ class Command(BaseCommand):
                     "status": data["status"],
                 },
             )
+            for value in specifications:
+                ProductAttributeValue.objects.update_or_create(
+                    product=product, attribute_id=value.attribute_id,
+                    defaults={"value": value},
+                )
             products[product.name] = product
         return products
 
