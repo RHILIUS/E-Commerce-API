@@ -10,16 +10,23 @@ from django.db import transaction
 
 from apps.account.models import RecipientInfo
 from apps.ecommerce.models import (
-    AttributeValue, Category, CategoryAttribute, Product, ProductAttributeValue, ProductImage,
+    AttributeValue,
+    Category,
+    CategoryAttribute,
+    Product,
+    ProductAttributeValue,
+    ProductImage,
 )
 from apps.store.models import Store, StoreAddress, StoreMember
 from core.seed_data import (
+    CUSTOMER_RECIPIENT_DATA,
+    CUSTOMER_USER_DATA,
     PRODUCT_DATA,
-    RECIPIENT_DATA,
     STORE_ADDRESS_DATA,
     STORE_DATA,
     STORE_MEMBER_DATA,
-    USER_DATA,
+    STORE_RECIPIENT_DATA,
+    STORE_USER_DATA,
 )
 
 PRODUCT_IMAGE_ROOT = (
@@ -147,7 +154,8 @@ def validate_seed_data():
                 f"Invalid numeric product value: {product['name']}"
             ) from error
 
-    source_path(USER_DATA["profile_image"])
+    source_path(CUSTOMER_USER_DATA["profile_image"])
+    source_path(STORE_USER_DATA["profile_image"])
     source_path(STORE_DATA["profile_image"])
     source_path(STORE_DATA["banner_image"])
     return discover_product_images()
@@ -191,16 +199,19 @@ def resolve_product_taxonomy():
                 values[key] = value
             value = values[key]
             if value.attribute_id in attribute_ids:
-                raise CommandError(f"{product['name']}: duplicate specification for {key[1]}.")
+                raise CommandError(
+                    f"{product['name']}: duplicate specification for {key[1]}.")
             attribute_ids.add(value.attribute_id)
             association = CategoryAttribute.objects.select_for_update().filter(
                 category=category, attribute_id=value.attribute_id,
             ).first()
             if association is None:
-                raise CommandError(f"{product['name']}: {key[1]} is not allowed for the selected category.")
+                raise CommandError(
+                    f"{product['name']}: {key[1]} is not allowed for the selected category.")
             specifications.append(value)
         if not specifications:
-            raise CommandError(f"{product['name']}: at least one specification is required.")
+            raise CommandError(
+                f"{product['name']}: at least one specification is required.")
         resolved[product["name"]] = (category, specifications)
     return resolved
 
@@ -244,7 +255,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                "Seed complete: 1 user, 1 store, "
+                "Seed complete: 2 users, 1 store, "
                 f"{len(PRODUCT_DATA)} products, and "
                 f"{len(product_images)} product images. "
                 f"New files uploaded: {len(uploaded_files)}."
@@ -253,14 +264,16 @@ class Command(BaseCommand):
 
     def _seed(self, product_images, uploaded_files, taxonomy):
         """Upsert the validated seed records in dependency order."""
-        self.stdout.write("Seeding user and default recipient...")
-        user = self._seed_user(uploaded_files)
-        self._seed_recipient(user)
+        self.stdout.write("Seeding users and default recipients...")
+        store_user = self._seed_user(STORE_USER_DATA, uploaded_files)
+        self._seed_recipient(store_user, STORE_RECIPIENT_DATA)
+        customer = self._seed_user(CUSTOMER_USER_DATA, uploaded_files)
+        self._seed_recipient(customer, CUSTOMER_RECIPIENT_DATA)
 
         self.stdout.write("Seeding store, address, and membership...")
         store = self._seed_store(uploaded_files)
         self._seed_store_address(store)
-        self._seed_store_member(store, user)
+        self._seed_store_member(store, store_user)
 
         self.stdout.write(f"Seeding {len(PRODUCT_DATA)} products...")
         products = self._seed_products(store, taxonomy)
@@ -268,18 +281,18 @@ class Command(BaseCommand):
         self.stdout.write(f"Seeding {len(product_images)} product images...")
         self._seed_product_images(product_images, products, uploaded_files)
 
-    def _seed_user(self, uploaded_files):
-        """Create the seed owner with a hashed password or refresh its profile."""
+    def _seed_user(self, user_data, uploaded_files):
+        """Create a seed user with a hashed password or refresh its profile."""
         User = get_user_model()
-        user = User.objects.filter(email__iexact=USER_DATA["email"]).first()
+        user = User.objects.filter(email__iexact=user_data["email"]).first()
         if user is None:
             user = User.objects.create_user(
-                username=USER_DATA["username"],
-                email=USER_DATA["email"],
-                full_name=USER_DATA["full_name"],
-                password=USER_DATA["password"],
-                phone_number=USER_DATA["phone_number"],
-                country_code=USER_DATA["country_code"],
+                username=user_data["username"],
+                email=user_data["email"],
+                full_name=user_data["full_name"],
+                password=user_data["password"],
+                phone_number=user_data["phone_number"],
+                country_code=user_data["country_code"],
             )
         else:
             for field_name in (
@@ -288,7 +301,7 @@ class Command(BaseCommand):
                 "phone_number",
                 "country_code",
             ):
-                setattr(user, field_name, USER_DATA[field_name])
+                setattr(user, field_name, user_data[field_name])
             user.save(
                 update_fields=[
                     "username",
@@ -300,19 +313,19 @@ class Command(BaseCommand):
         attach_image_if_missing(
             user,
             "profile_image",
-            source_path(USER_DATA["profile_image"]),
+            source_path(user_data["profile_image"]),
             uploaded_files,
         )
         return user
 
-    def _seed_recipient(self, user):
-        """Upsert the seed owner's default delivery recipient."""
+    def _seed_recipient(self, user, recipient_data):
+        """Upsert a seed user's default delivery recipient."""
         RecipientInfo.objects.update_or_create(
             user=user,
-            is_default=RECIPIENT_DATA["is_default"],
+            is_default=recipient_data["is_default"],
             defaults={
                 key: value
-                for key, value in RECIPIENT_DATA.items()
+                for key, value in recipient_data.items()
                 if key != "is_default"
             },
         )

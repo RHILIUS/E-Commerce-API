@@ -17,7 +17,7 @@ Keep the source images under `static/seed_images/` available even when rerunning
 
 ## What the command creates
 
-The command creates or updates a user, their default delivery recipient, a store, its address and membership, products, product specifications, and product images. Seed values come from `core/seed_data.py`; the tables below document those values. Editing this Markdown file alone does not change what gets seeded.
+The command creates or updates a customer and a store owner, their default delivery recipients, a store, its address and owner membership, products, product specifications, and product images. Seed values come from `core/seed_data.py`; the tables below document those values. Editing this Markdown file alone does not change what gets seeded.
 
 ## Product categories and specifications
 
@@ -49,13 +49,13 @@ without duplicating specifications and retains additional manually added specs.
 If a category change conflicts with existing specifications, validation rejects it
 and the database transaction rolls back; review those specifications before retrying.
 
-The store membership grants the seeded user the store's configured role; it does not grant Django staff or superuser access.
+The store membership grants the seeded store owner the configured role; the customer does not receive a store membership. Neither user receives Django staff or superuser access.
 
 On success, the command prints `Seed complete` with the product, product image, and newly uploaded file counts.
 
 ## Running it again
 
-Run `python manage.py seed` again to update matching records. The command matches the user by email, the store by name, products by store and name, and product images by product and order.
+Run `python manage.py seed` again to update matching records. The command matches each user by email, the store by name, products by store and name, and product images by product and order.
 
 - Seeded fields, including product stock, prices, and sold counts, are restored to their seed values. Use this command against your intended development database.
 - An existing user's password is preserved.
@@ -64,7 +64,7 @@ Run `python manage.py seed` again to update matching records. The command matche
 
 ## Adding or changing seed images
 
-Update `core/seed_data.py` for user and store image paths. For products, use one folder per product under `static/seed_images/products/image/`, with each folder name exactly matching its product name. Extra or missing product folders cause validation to fail.
+Update `core/seed_data.py` for customer, store-owner, and store image paths. For products, use one folder per product under `static/seed_images/products/image/`, with each folder name exactly matching its product name. Extra or missing product folders cause validation to fail.
 
 Each product folder must contain exactly one image ending in `_default` before its extension. Additional images must end in `_1`, `_2`, and so on, without gaps or duplicate numbers. Supported extensions are `.jpg`, `.jpeg`, `.png`, and `.webp`.
 
@@ -74,18 +74,20 @@ If seeding fails, check the reported source path or naming error, database conne
 
 # Seed values
 
-## User
+## Users
 
-> The owner of the store
+> The customer and the owner of the store
 
 | username | email            | full_name             | password   | profile_image                                      | profile_image_crop | phone_number  | country_code |
 | -------- | ---------------- | --------------------- | ---------- | -------------------------------------------------- | ------------------ | ------------- | ------------ |
+| rjbaldomar | rjbaldomar23@gmail.com | RJ Baldomar | rjbaldomar123 | static/seed_images/users/profile/rj_profile.jpg | | +639987654321 | PH |
 | rhilius  | rhilius@test.com | Rhian Jolius Baldomar | rhilius123 | static/seed_images/users/profile/rhian_profile.jpg |                    | +639123456789 | PH           |
 
 ## RecipientInfo
 
 | name                  | phone_number  | is_default | country_code | address_line1                     | address_line2 | city       | region       | postal_code | user_id              |
 | --------------------- | ------------- | ---------- | ------------ | --------------------------------- | ------------- | ---------- | ------------ | ----------- | -------------------- |
+| RJ Baldomar | +639987654321 | true | PH | 123 Rizal St. Brgy. Mabuhay | | Mindanao City | Metro Hirang | 1234 | _references rjbaldomar_ |
 | Rhian Jolius Baldomar | +639123456789 | true       | PH           | 200 Magsaysay St. Brgy. Makabayan |               | Luzon City | Metro Hirang | 1234        | _references rhilius_ |
 
 ## Store

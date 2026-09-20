@@ -1,15 +1,17 @@
 from unittest.mock import patch
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.management.base import CommandError
 from django.db import transaction
 from django.test import SimpleTestCase, TestCase
 
+from apps.account.models import RecipientInfo
 from apps.ecommerce.models import Attribute, AttributeValue, Category, CategoryAttribute, Product, ProductAttributeValue
 from apps.ecommerce.services.taxonomy_import import load_snapshot
 from apps.store.models import Store
 from core.management.commands.seed import Command, resolve_product_taxonomy, validate_seed_data
-from core.seed_data import PRODUCT_DATA
+from core.seed_data import CUSTOMER_RECIPIENT_DATA, CUSTOMER_USER_DATA, PRODUCT_DATA
 
 
 class SeedDataTests(SimpleTestCase):
@@ -22,6 +24,34 @@ class SeedDataTests(SimpleTestCase):
             sum(image["is_default"] for image in product_images),
             24,
         )
+
+
+class SeedCustomerTests(TestCase):
+    @patch("core.management.commands.seed.attach_image_if_missing")
+    def test_customer_and_recipient_are_upserted_without_resetting_password(self, _):
+        command = Command()
+        customer = command._seed_user(CUSTOMER_USER_DATA, [])
+        command._seed_recipient(customer, CUSTOMER_RECIPIENT_DATA)
+
+        self.assertTrue(customer.check_password(CUSTOMER_USER_DATA["password"]))
+        customer.set_password("customer-changed-password")
+        customer.full_name = "Changed name"
+        customer.save()
+        recipient = customer.recipient_infos.get(is_default=True)
+        recipient.city = "Changed city"
+        recipient.save()
+
+        same_customer = command._seed_user(CUSTOMER_USER_DATA, [])
+        command._seed_recipient(same_customer, CUSTOMER_RECIPIENT_DATA)
+        same_customer.refresh_from_db()
+        recipient.refresh_from_db()
+
+        self.assertEqual(get_user_model().objects.count(), 1)
+        self.assertEqual(RecipientInfo.objects.count(), 1)
+        self.assertEqual(same_customer.pk, customer.pk)
+        self.assertEqual(same_customer.full_name, CUSTOMER_USER_DATA["full_name"])
+        self.assertTrue(same_customer.check_password("customer-changed-password"))
+        self.assertEqual(recipient.city, CUSTOMER_RECIPIENT_DATA["city"])
 
 
 class SeedTaxonomyTests(TestCase):
