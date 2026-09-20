@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from apps.account.models import RecipientInfo
 from apps.store.models import Store
 from core.common.images import compress_uploaded_image
 from core.common.models import TimeStampedModel
@@ -288,20 +289,42 @@ class CartItem(TimeStampedModel):
 
 
 class Order(TimeStampedModel):
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('paid', 'Paid'),
-        ('shipped', 'Shipped'),
-        ('cancelled', 'Cancelled')
-    ]
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACCEPTED = "accepted", "Accepted"
+        PACKED = "packed", "Packed"
+        SHIPMENT_ARRANGED = "shipment_arranged", "Shipment Arranged"
+        SHIPPED = "shipped", "Shipped"
+        CANCELLED = "cancelled", "Cancelled"
+        DELIVERED = "delivered", "Delivered"
 
     user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name='orders')
+        User,
+        on_delete=models.CASCADE,
+        related_name="orders",
+    )
+    recipient_info = models.ForeignKey(
+        RecipientInfo,
+        on_delete=models.PROTECT,
+        related_name="orders",
+    )
     status = models.CharField(
         max_length=20,
-        choices=STATUS_CHOICES,
-        default='pending'
+        choices=Status.choices,
+        default=Status.PENDING,
     )
+    concluded_at = models.DateTimeField(null=True, blank=True)
+
+    def clean(self):
+        super().clean()
+        if (
+            self.user_id
+            and self.recipient_info_id
+            and self.recipient_info.user_id != self.user_id
+        ):
+            raise ValidationError({
+                "recipient_info": "The recipient must belong to the order user."
+            })
 
     def get_total(self):
         return sum(item.get_subtotal() for item in self.items.all())
