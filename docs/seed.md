@@ -17,6 +17,23 @@ Keep the source images under `static/seed_images/` available even when rerunning
 
 ## What the command creates
 
+Seed data uses two lists: `CUSTOMERS_DATA` contains users, their
+`recipient_infos`, and `orders`; `STORES_DATA` contains each store's
+`address`, `members` (role and nested user with recipients), and `products`.
+Products are seeded before customer orders. Product names must be unique across
+the seed catalogs because order items and image folders identify them by name.
+
+Each sample order has a unique negative `id`, reserved for development seeding.
+Keep this ID stable across reruns. Orders use their user's default recipient;
+item purchase prices come from seeded products. Reruns restore the seeded item
+quantities and prices. They do not adjust stock or sold counts to simulate checkout.
+Delivered and cancelled orders receive a completion timestamp on first seeding,
+which is preserved on reruns. Other statuses have no completion timestamp.
+An existing order ID belonging to another user causes the transaction to fail.
+Additional non-default recipients are matched by their complete address/contact
+data; changing that data creates another recipient. Exactly one seeded recipient
+per user must be marked default.
+
 The command creates or updates a customer and a store owner, their default delivery recipients, a store, its address and owner membership, products, product specifications, and product images. Seed values come from `core/seed_data.py`; the tables below document those values. Editing this Markdown file alone does not change what gets seeded.
 
 ## Product categories and specifications

@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.files import File
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
 from apps.account.models import RecipientInfo
 from apps.ecommerce.models import (
@@ -16,18 +17,16 @@ from apps.ecommerce.models import (
     Product,
     ProductAttributeValue,
     ProductImage,
+    Order,
+    OrderItem,
 )
 from apps.store.models import Store, StoreAddress, StoreMember
-from core.seed_data import (
-    CUSTOMER_RECIPIENT_DATA,
-    CUSTOMER_USER_DATA,
-    PRODUCT_DATA,
-    STORE_ADDRESS_DATA,
-    STORE_DATA,
-    STORE_MEMBER_DATA,
-    STORE_RECIPIENT_DATA,
-    STORE_USER_DATA,
-)
+from core.seed_data import CUSTOMERS_DATA, STORES_DATA
+
+
+def product_data():
+    """Flatten store catalogs for shared image and taxonomy validation."""
+    return [product for store in STORES_DATA for product in store["products"]]
 
 PRODUCT_IMAGE_ROOT = (
     Path(settings.BASE_DIR) / "static" / "seed_images" / "products" / "image"
@@ -53,7 +52,7 @@ def discover_product_images():
             f"Product image directory does not exist: {PRODUCT_IMAGE_ROOT}"
         )
 
-    product_names = [product["name"] for product in PRODUCT_DATA]
+    product_names = [product["name"] for product in product_data()]
     folders = {
         folder.name: folder
         for folder in PRODUCT_IMAGE_ROOT.iterdir()
@@ -128,7 +127,7 @@ def discover_product_images():
 
 def validate_seed_data():
     """Validate model limits, choices, source assets, and image conventions."""
-    names = [product["name"] for product in PRODUCT_DATA]
+    names = [product["name"] for product in product_data()]
     if len(names) != len(set(names)):
         raise CommandError("Product seed names must be unique.")
 
@@ -136,7 +135,7 @@ def validate_seed_data():
     short_description_limit = Product._meta.get_field(
         "short_description"
     ).max_length
-    for product in PRODUCT_DATA:
+    for product in product_data():
         if len(product["name"]) > name_limit:
             raise CommandError(f"Product name is too long: {product['name']}")
         if len(product["short_description"]) > short_description_limit:
@@ -154,10 +153,32 @@ def validate_seed_data():
                 f"Invalid numeric product value: {product['name']}"
             ) from error
 
-    source_path(CUSTOMER_USER_DATA["profile_image"])
-    source_path(STORE_USER_DATA["profile_image"])
-    source_path(STORE_DATA["profile_image"])
-    source_path(STORE_DATA["banner_image"])
+    users = list(CUSTOMERS_DATA)
+    for store in STORES_DATA:
+        source_path(store["profile_image"])
+        source_path(store["banner_image"])
+        users.extend(member["user"] for member in store["members"])
+    order_ids = set()
+    for user in users:
+        source_path(user["profile_image"])
+        if sum(recipient["is_default"] for recipient in user["recipient_infos"]) != 1:
+            raise CommandError("Each seed user must have exactly one default recipient.")
+    for customer in CUSTOMERS_DATA:
+        for order in customer["orders"]:
+            if type(order["id"]) is not int or order["id"] >= 0 or order["id"] in order_ids:
+                raise CommandError("Seed order IDs must be unique negative integers.")
+            order_ids.add(order["id"])
+            if order["status"] not in Order.Status.values:
+                raise CommandError("Invalid seed order status.")
+            if not order["order_items"]:
+                raise CommandError("Seed orders must contain items.")
+            item_names = set()
+            for item in order["order_items"]:
+                if item["product_name"] not in names or item["product_name"] in item_names:
+                    raise CommandError("Order products must exist and occur only once per order.")
+                item_names.add(item["product_name"])
+                if type(item["quantity"]) is not int or item["quantity"] <= 0:
+                    raise CommandError("Order quantities must be positive integers.")
     return discover_product_images()
 
 
@@ -169,7 +190,7 @@ def resolve_product_taxonomy():
     """
     resolved = {}
     categories, values = {}, {}
-    for product in PRODUCT_DATA:
+    for product in product_data():
         category_id = product["category_taxonomy_id"]
         if category_id not in categories:
             category = Category.objects.select_for_update().filter(
@@ -238,7 +259,7 @@ class Command(BaseCommand):
         product_images = validate_seed_data()
         self.stdout.write(
             self.style.SUCCESS(
-                f"Validation complete: {len(PRODUCT_DATA)} products and "
+                f"Validation complete: {len(product_data())} products and "
                 f"{len(product_images)} product images."
             )
         )
@@ -255,8 +276,9 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                "Seed complete: 2 users, 1 store, "
-                f"{len(PRODUCT_DATA)} products, and "
+                f"Seed complete: {len(CUSTOMERS_DATA)} customers, {len(STORES_DATA)} stores, "
+                f"{sum(len(customer['orders']) for customer in CUSTOMERS_DATA)} orders, "
+                f"{len(product_data())} products, and "
                 f"{len(product_images)} product images. "
                 f"New files uploaded: {len(uploaded_files)}."
             )
@@ -264,22 +286,46 @@ class Command(BaseCommand):
 
     def _seed(self, product_images, uploaded_files, taxonomy):
         """Upsert the validated seed records in dependency order."""
-        self.stdout.write("Seeding users and default recipients...")
-        store_user = self._seed_user(STORE_USER_DATA, uploaded_files)
-        self._seed_recipient(store_user, STORE_RECIPIENT_DATA)
-        customer = self._seed_user(CUSTOMER_USER_DATA, uploaded_files)
-        self._seed_recipient(customer, CUSTOMER_RECIPIENT_DATA)
-
-        self.stdout.write("Seeding store, address, and membership...")
-        store = self._seed_store(uploaded_files)
-        self._seed_store_address(store)
-        self._seed_store_member(store, store_user)
-
-        self.stdout.write(f"Seeding {len(PRODUCT_DATA)} products...")
-        products = self._seed_products(store, taxonomy)
-
-        self.stdout.write(f"Seeding {len(product_images)} product images...")
+        products = {}
+        for data in STORES_DATA:
+            store = self._seed_store(data, uploaded_files)
+            self._seed_store_address(store, data["address"])
+            for member in data["members"]:
+                user = self._seed_user(member["user"], uploaded_files)
+                for recipient in member["user"]["recipient_infos"]:
+                    self._seed_recipient(user, recipient)
+                self._seed_store_member(store, user, member["role"])
+            products.update(self._seed_products(store, taxonomy, data["products"]))
+        for data in CUSTOMERS_DATA:
+            user = self._seed_user(data, uploaded_files)
+            for recipient in data["recipient_infos"]:
+                self._seed_recipient(user, recipient)
+            self._seed_orders(user, data["orders"], products)
         self._seed_product_images(product_images, products, uploaded_files)
+
+    def _seed_orders(self, user, orders, products):
+        """Upsert reserved development orders without changing inventory or sales counts."""
+        recipient = user.recipient_infos.get(is_default=True)
+        for data in orders:
+            order = Order.objects.select_for_update().filter(pk=data["id"]).first()
+            if order is not None and order.user_id != user.pk:
+                raise CommandError("Seed order ID already belongs to another user.")
+            if order is None:
+                order = Order(pk=data["id"], user=user)
+            order.recipient_info = recipient
+            order.status = data["status"]
+            if order.status in (Order.Status.DELIVERED, Order.Status.CANCELLED):
+                order.concluded_at = order.concluded_at or timezone.now()
+            else:
+                order.concluded_at = None
+            order.full_clean()
+            order.save()
+            for item in data["order_items"]:
+                product = products[item["product_name"]]
+                OrderItem.objects.update_or_create(
+                    order=order, product=product,
+                    defaults={"quantity": item["quantity"], "price_at_purchase": product.price},
+                )
 
     def _seed_user(self, user_data, uploaded_files):
         """Create a seed user with a hashed password or refresh its profile."""
@@ -319,10 +365,14 @@ class Command(BaseCommand):
         return user
 
     def _seed_recipient(self, user, recipient_data):
-        """Upsert a seed user's default delivery recipient."""
-        RecipientInfo.objects.update_or_create(
+        """Update the default recipient; match additional addresses by their contents."""
+        lookup = {} if recipient_data["is_default"] else {
+            key: value for key, value in recipient_data.items() if key != "is_default"
+        }
+        return RecipientInfo.objects.update_or_create(
             user=user,
             is_default=recipient_data["is_default"],
+            **lookup,
             defaults={
                 key: value
                 for key, value in recipient_data.items()
@@ -330,43 +380,43 @@ class Command(BaseCommand):
             },
         )
 
-    def _seed_store(self, uploaded_files):
+    def _seed_store(self, store_data, uploaded_files):
         """Upsert the store and upload its images when they are missing."""
         store, _ = Store.objects.update_or_create(
-            name=STORE_DATA["name"],
+            name=store_data["name"],
             defaults={
-                "description": STORE_DATA["description"],
-                "country_code": STORE_DATA["country_code"],
+                "description": store_data["description"],
+                "country_code": store_data["country_code"],
             },
         )
         for field_name in ("profile_image", "banner_image"):
             attach_image_if_missing(
                 store,
                 field_name,
-                source_path(STORE_DATA[field_name]),
+                source_path(store_data[field_name]),
                 uploaded_files,
             )
         return store
 
-    def _seed_store_address(self, store):
+    def _seed_store_address(self, store, address_data):
         """Upsert the store's one-to-one address."""
         StoreAddress.objects.update_or_create(
             store=store,
-            defaults=STORE_ADDRESS_DATA,
+            defaults=address_data,
         )
 
-    def _seed_store_member(self, store, user):
+    def _seed_store_member(self, store, user, role):
         """Ensure that the seed owner has the configured store role."""
         StoreMember.objects.update_or_create(
             store=store,
             user=user,
-            defaults=STORE_MEMBER_DATA,
+            defaults={"role": role},
         )
 
-    def _seed_products(self, store, taxonomy):
+    def _seed_products(self, store, taxonomy, catalog):
         """Upsert product categories and seeded specifications, retaining other specs."""
         products = {}
-        for data in PRODUCT_DATA:
+        for data in catalog:
             category, specifications = taxonomy[data["name"]]
             product, _ = Product.objects.update_or_create(
                 store=store,

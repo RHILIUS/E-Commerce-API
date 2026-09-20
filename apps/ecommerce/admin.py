@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 
 from .models import (
     Attribute, AttributeValue, Category, CategoryAttribute,
+    Order, OrderItem,
     Product, ProductAttributeValue, ProductImage,
 )
 
@@ -75,3 +76,35 @@ class ProductImageAdmin(admin.ModelAdmin):
     search_fields = ("product__name", "alt_text")
     autocomplete_fields = ("product",)
     readonly_fields = ("created_at", "updated_at")
+
+
+class OrderItemInline(admin.TabularInline):
+    model = OrderItem
+    extra = 0
+    fields = ("product", "quantity", "price_at_purchase", "subtotal")
+    autocomplete_fields = ("product",)
+    readonly_fields = ("subtotal",)
+
+    @admin.display(description="Subtotal")
+    def subtotal(self, obj):
+        """Display the item's total using its recorded purchase price."""
+        if obj.price_at_purchase is None or obj.quantity is None:
+            return None
+        return obj.get_subtotal()
+
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "recipient_info", "status", "created_at", "concluded_at")
+    list_filter = ("status", "created_at", "concluded_at")
+    search_fields = ("=id", "user__email", "user__full_name", "recipient_info__name")
+    autocomplete_fields = ("user",)
+    list_select_related = ("user", "recipient_info")
+    readonly_fields = ("created_at", "updated_at", "total")
+    ordering = ("-created_at", "-pk")
+    inlines = (OrderItemInline,)
+
+    @admin.display(description="Order total")
+    def total(self, obj):
+        """Show the sum of recorded item subtotals on an existing order."""
+        return obj.get_total() if obj.pk else None

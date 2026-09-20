@@ -1,50 +1,64 @@
-# CUSTOMER
-CUSTOMER_USER_DATA = {
-    "username": "rjbaldomar",
-    "email": "rjbaldomar23@gmail.com",
-    "full_name": "RJ Baldomar",
-    "password": "rjbaldomar123",
-    "profile_image": "static/seed_images/users/profile/rj_profile.jpg",
-    "phone_number": "+639987654321",
-    "country_code": "PH",
-}
+from apps.ecommerce.models import Order
 
-CUSTOMER_RECIPIENT_DATA = {
-    "name": "RJ Baldomar",
-    "phone_number": "+639987654321",
-    "is_default": True,
-    "country_code": "PH",
-    "address_line1": "123 Rizal St. Brgy. Mabuhay",
-    "address_line2": "",
-    "city": "Mindanao City",
-    "region": "Metro Hirang",
-    "postal_code": "1234",
-}
+CUSTOMERS_DATA = [
+    {
+        "username": "rjbaldomar",
+        "email": "rjbaldomar23@gmail.com",
+        "full_name": "RJ Baldomar",
+        "password": "rjbaldomar123",
+        "profile_image": "static/seed_images/users/profile/rj_profile.jpg",
+        "phone_number": "+639987654321",
+        "country_code": "PH",
+        "recipient_infos": [{
+            "name": "RJ Baldomar",
+            "phone_number": "+639987654321",
+            "is_default": True,
+            "country_code": "PH",
+            "address_line1": "123 Rizal St. Brgy. Mabuhay",
+            "address_line2": "",
+            "city": "Mindanao City",
+            "region": "Metro Hirang",
+            "postal_code": "1234",
+        }],
+        "orders": [
+            {
+                # Negative IDs are reserved for repeatable development orders.
+                "id": -1,
+                "status": Order.Status.DELIVERED,
+                "order_items": [{
+                    "product_name": "Rhilius NovaPhone X1",
+                    "quantity": 1,
+                }]
+            }
+        ]
+    }
+]
 
-# STORE
-STORE_USER_DATA = {
-    "username": "rhilius",
-    "email": "rhilius@test.com",
-    "full_name": "Rhian Jolius Baldomar",
-    "password": "rhilius123",
-    "profile_image": "static/seed_images/users/profile/rhian_profile.jpg",
-    "phone_number": "+639123456789",
-    "country_code": "PH",
-}
 
-STORE_RECIPIENT_DATA = {
-    "name": "Rhian Jolius Baldomar",
-    "phone_number": "+639123456789",
-    "is_default": True,
-    "country_code": "PH",
-    "address_line1": "200 Magsaysay St. Brgy. Makabayan",
-    "address_line2": "",
-    "city": "Luzon City",
-    "region": "Metro Hirang",
-    "postal_code": "1234",
-}
-
-STORE_DATA = {
+STORES_DATA = [{
+    "members": [{
+        "role": "admin",
+        "user": {
+            "username": "rhilius",
+            "email": "rhilius@test.com",
+            "full_name": "Rhian Jolius Baldomar",
+            "password": "rhilius123",
+            "profile_image": "static/seed_images/users/profile/rhian_profile.jpg",
+            "phone_number": "+639123456789",
+            "country_code": "PH",
+            "recipient_infos": [{
+                "name": "Rhian Jolius Baldomar",
+                "phone_number": "+639123456789",
+                "is_default": True,
+                "country_code": "PH",
+                "address_line1": "200 Magsaysay St. Brgy. Makabayan",
+                "address_line2": "",
+                "city": "Luzon City",
+                "region": "Metro Hirang",
+                "postal_code": "1234",
+            }],
+        },
+    }],
     "name": "RhiLius Tech Store",
     "description": (
         "We sell gadgets like tablets, mobile phones, laptops, and computers. "
@@ -57,20 +71,15 @@ STORE_DATA = {
     "banner_image": (
         "static/seed_images/stores/banner/rhilius_tech_store_banner.jpg"
     ),
-}
-
-STORE_ADDRESS_DATA = {
-    "country_code": "PH",
-    "address_line1": "200 Magsaysay St. Brgy. Makabayan",
-    "address_line2": "",
-    "city": "Luzon City",
-    "region": "Metro Hirang",
-    "postal_code": "1234",
-}
-
-STORE_MEMBER_DATA = {"role": "admin"}
-
-PRODUCT_DATA = [{'name': 'Rhilius NovaPhone X1',
+    "address": {
+        "country_code": "PH",
+        "address_line1": "200 Magsaysay St. Brgy. Makabayan",
+        "address_line2": "",
+        "city": "Luzon City",
+        "region": "Metro Hirang",
+        "postal_code": "1234",
+    },
+    "products": [{'name': 'Rhilius NovaPhone X1',
                  'category_taxonomy_id': 'gid://shopify/TaxonomyCategory/el-4-8-5-2',
                  'attribute_values': [
                      {'attribute_taxonomy_id': 'gid://shopify/TaxonomyAttribute/1248',
@@ -447,4 +456,5 @@ PRODUCT_DATA = [{'name': 'Rhilius NovaPhone X1',
                  'stock': '41',
                  'price': '549',
                  'sold_count': '108',
-                 'status': 'active'}]
+                 'status': 'active'}],
+}]

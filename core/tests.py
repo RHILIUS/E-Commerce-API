@@ -1,3 +1,4 @@
+from copy import deepcopy
 from unittest.mock import patch
 
 from django.conf import settings
@@ -11,10 +12,21 @@ from apps.ecommerce.models import Attribute, AttributeValue, Category, CategoryA
 from apps.ecommerce.services.taxonomy_import import load_snapshot
 from apps.store.models import Store
 from core.management.commands.seed import Command, resolve_product_taxonomy, validate_seed_data
-from core.seed_data import CUSTOMER_RECIPIENT_DATA, CUSTOMER_USER_DATA, PRODUCT_DATA
+from core.seed_data import CUSTOMERS_DATA, STORES_DATA
+
+CUSTOMER_USER_DATA = CUSTOMERS_DATA[0]
+CUSTOMER_RECIPIENT_DATA = CUSTOMER_USER_DATA["recipient_infos"][0]
+PRODUCT_DATA = [product for store in STORES_DATA for product in store["products"]]
 
 
 class SeedDataTests(SimpleTestCase):
+    def test_invalid_order_reference_is_rejected_before_seeding(self):
+        customers = deepcopy(CUSTOMERS_DATA)
+        customers[0]["orders"][0]["order_items"][0]["product_name"] = "Missing product"
+        with patch("core.management.commands.seed.CUSTOMERS_DATA", customers):
+            with self.assertRaisesMessage(CommandError, "Order products must exist"):
+                validate_seed_data()
+
     def test_seed_data_has_valid_products_and_images(self):
         product_images = validate_seed_data()
 
@@ -81,7 +93,7 @@ class SeedTaxonomyTests(TestCase):
     def seed_products(self):
         """Exercise the production resolver and product writer in one transaction."""
         with transaction.atomic():
-            return Command()._seed_products(self.store, resolve_product_taxonomy())
+            return Command()._seed_products(self.store, resolve_product_taxonomy(), PRODUCT_DATA)
 
     def test_every_product_has_valid_category_and_values_and_repeat_is_idempotent(self):
         products = self.seed_products()
@@ -106,6 +118,53 @@ class SeedTaxonomyTests(TestCase):
         self.seed_products()
         specification.refresh_from_db()
         self.assertEqual(specification.value, original_value)
+
+    @patch("core.management.commands.seed.attach_image_if_missing")
+    def test_nested_seed_repeats_orders_without_duplicates(self, _):
+        from apps.ecommerce.models import Order, OrderItem
+        command = Command()
+        command.handle()
+        order = Order.objects.get(pk=CUSTOMER_USER_DATA["orders"][0]["id"])
+        concluded_at = order.concluded_at
+        item = order.items.get()
+        self.assertEqual(order.recipient_info.user_id, order.user_id)
+        self.assertEqual(order.status, Order.Status.DELIVERED)
+        self.assertEqual(item.price_at_purchase, item.product.price)
+        self.assertEqual(item.quantity, 1)
+        self.assertFalse(order.user.store_memberships.exists())
+        command.handle()
+        order.refresh_from_db()
+        self.assertEqual(Order.objects.count(), 1)
+        self.assertEqual(OrderItem.objects.count(), 1)
+        self.assertEqual(order.concluded_at, concluded_at)
+        self.assertEqual(order.items.get().pk, item.pk)
+
+    @patch("core.management.commands.seed.attach_image_if_missing")
+    def test_multiple_customers_stores_and_recipients(self, _):
+        customers = deepcopy(CUSTOMERS_DATA)
+        second = deepcopy(customers[0])
+        second.update(username="second", email="second@example.com", phone_number="+639111111111")
+        second["orders"][0]["id"] = -2
+        customers.append(second)
+        extra = deepcopy(customers[0]["recipient_infos"][0])
+        extra.update(is_default=False, address_line1="Another address")
+        customers[0]["recipient_infos"].append(extra)
+        stores = deepcopy(STORES_DATA)
+        second_store = deepcopy(stores[0])
+        second_store.update(name="Second store", products=[])
+        stores.append(second_store)
+        with patch("core.management.commands.seed.CUSTOMERS_DATA", customers), patch(
+            "core.management.commands.seed.STORES_DATA", stores
+        ):
+            Command().handle()
+            Command().handle()
+        from apps.ecommerce.models import Order
+        self.assertEqual(Order.objects.count(), 2)
+        first_user = get_user_model().objects.get(email=customers[0]["email"])
+        self.assertEqual(first_user.recipient_infos.count(), 2)
+        self.assertEqual(Store.objects.filter(name__in=[s["name"] for s in stores]).count(), 2)
+        for order in Order.objects.all():
+            self.assertEqual(order.recipient_info.user_id, order.user_id)
 
     def test_missing_taxonomy_stops_before_writes_and_uploads(self):
         AttributeValue.objects.all().delete()
