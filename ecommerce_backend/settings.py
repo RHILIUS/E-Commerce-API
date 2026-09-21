@@ -23,6 +23,9 @@ env = environ.Env(
 )
 environ.Env.read_env(BASE_DIR / '.env')
 
+# Catalog conversion retains the store currency if the daily-rate provider fails.
+CATALOG_FX_TIMEOUT_SECONDS = env.float("CATALOG_FX_TIMEOUT_SECONDS", default=2)
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -48,10 +51,14 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',
     'rest_framework_simplejwt.token_blacklist',
-    'ecommerce',
-    'authentication',
-    'account',
+    'core',
+    'apps.ecommerce',
+    'apps.authentication',
+    'apps.account',
+    'apps.store',
 ]
 
 MIDDLEWARE = [
@@ -140,12 +147,22 @@ STATIC_URL = 'static/'
 # JWT
 
 REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'E-Commerce API',
+    'DESCRIPTION': 'Authentication and product catalog endpoints.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SWAGGER_UI_DIST': 'SIDECAR',
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
 }
 
 SIMPLE_JWT = {
@@ -185,3 +202,26 @@ OTP_MAX_SENDS_PER_WINDOW = 5
 OTP_EXPIRATION_SECONDS = 600  # 10 minutes
 OTP_MAX_VERIFICATION_ATTEMPTS = 5
 REGISTRATION_TOKEN_EXPIRATION_SECONDS = 900  # 15 minutes
+
+# Rolling window for catalog popularity, measured from order creation time.
+PRODUCT_POPULARITY_DAYS = env.int("PRODUCT_POPULARITY_DAYS", default=7)
+
+# Storage config
+USE_AZURE_STORAGE = env.bool("USE_AZURE_STORAGE", default=False)
+if USE_AZURE_STORAGE:
+    STORAGES = {
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+        "default": {
+            "BACKEND": "storages.backends.azure_storage.AzureStorage",
+            "OPTIONS": {
+                "account_name": env("AZURE_ACCOUNT_NAME"),
+                "account_key": env("AZURE_ACCOUNT_KEY"),
+                "azure_container": env("AZURE_CONTAINER"),
+            },
+        },
+    }
+else:
+    MEDIA_URL = "/media/"
+    MEDIA_ROOT = BASE_DIR / "media"

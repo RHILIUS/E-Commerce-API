@@ -22,7 +22,9 @@ Related repositories should be available at:
 - Frontend: `../frontend`
 - Documentation: `../docs`
 
-Before changing database design, API contracts, authentication, architecture, or cross-application workflows, review the relevant documentation in `../docs` and inspect frontend usage in `../frontend`.
+Backend-specific documentation is maintained in this repository's `docs/` folder:
+
+Before changing database design, API contracts, authentication, architecture, or cross-application workflows, review the relevant local documentation in `docs/`, the shared project documentation in `../docs`, and frontend usage in `../frontend`. The local `docs/` folder is distinct from the sibling documentation repository.
 
 Do not assume the code, frontend, and documentation are synchronized. Report inconsistencies before changing an established contract.
 
@@ -42,6 +44,12 @@ Use `settings.AUTH_USER_MODEL` for model relationships and `get_user_model()` in
 Use serializers for request validation and response transformation. Keep URL configuration limited to routing, and avoid placing substantial business logic directly in views.
 
 Preserve existing API request formats, response structures, status codes, permissions, and authentication behavior unless the task explicitly changes the contract.
+
+## OpenAPI Documentation
+
+The OpenAPI schema is served at `/api/schema/` and Swagger UI at `/api/docs/` using drf-spectacular. Whenever an API endpoint is added or its request, response, status codes, parameters, permissions, or cookie behavior changes, update its schema annotation and the relevant backend documentation in the same change. For `APIView` endpoints, describe request and response serializers explicitly when automatic discovery cannot represent the actual contract. Never document refresh tokens as response-body fields.
+
+Run `python manage.py spectacular --validate --fail-on-warn` after API changes. Review the generated schema for the changed operations, especially authentication and pagination, and add focused tests when the contract changes.
 
 ## Implementation Simplicity
 
@@ -71,6 +79,10 @@ Before modifying models, review the relevant documentation, relationships, seria
 
 Create and review a new migration for intentional model changes. Do not rewrite existing migrations unless explicitly requested.
 
+Review the affected Django admin configuration when models or relationships change. Update model registration, fields, list displays, filters, search, autocomplete fields, or inlines when the change affects admin usability or manual testing; do not modify the admin when the model change has no meaningful admin impact.
+
+When adding or changing model fields backed by cloud storage, review the complete file lifecycle, including replacement and deletion. Use signals or another established lifecycle mechanism when cleanup is required to prevent orphaned remote files. Schedule destructive storage operations after a successful database commit, and do not delete files that may still be referenced by another record.
+
 Protect data integrity for carts, orders, inventory, and prices. Do not trust client-provided ownership, totals, prices, or stock values when they can be determined by the backend.
 
 ## Testing
@@ -90,7 +102,7 @@ python manage.py makemigrations --check
 python manage.py migrate --plan
 ```
 
-Add focused tests for new behavior and bug fixes. Report any checks that could not run because required environment variables, PostgreSQL, or another service was unavailable.
+Add focused tests for new behavior and bug fixes. Report any checks that could not run because required environment variables, PostgreSQL, or another service was unavailable. Don't add test that is not necessary.
 
 ## Pull Request Documentation
 
