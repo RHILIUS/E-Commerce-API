@@ -12,10 +12,6 @@ or short descriptions. Blank searches match all active products.
 Filtering and ranking happen before pagination; only the selected page's images
 are prefetched. Rankings may change between requests as orders change or age.
 
-The frontend currently uses dummy products and local pagination. API integration
-must display `results`, compute page count as `ceil(count / 8)`, send `q` and
-`page`, and reset to page 1 when changing the search.
-
 Only active products appear, including those
 with zero stock. For authenticated users, categories rank by the sum of item
 quantities in that user's non-cancelled orders, including pending orders.
