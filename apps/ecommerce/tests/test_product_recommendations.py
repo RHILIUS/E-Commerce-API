@@ -24,8 +24,10 @@ class ProductRecommendationTests(APITestCase):
             full_name="Other", country_code="PH",
         )
         self.store = Store.objects.create(name="Store", country_code="PH")
-        self.laptops = Category.objects.create(name="Laptops", taxonomy_id="laptops")
-        self.phones = Category.objects.create(name="Phones", taxonomy_id="phones")
+        self.laptops = Category.objects.create(
+            name="Laptops", taxonomy_id="laptops")
+        self.phones = Category.objects.create(
+            name="Phones", taxonomy_id="phones")
         self.laptop = self.product("Laptop", self.laptops)
         self.new_laptop = self.product("New laptop", self.laptops)
         self.phone = self.product("Phone", self.phones)
@@ -48,7 +50,8 @@ class ProductRecommendationTests(APITestCase):
                 "country_code": "PH", "address_line1": "Test address", "city": "Manila",
             },
         )
-        order = Order.objects.create(user=user, recipient_info=recipient, status=status)
+        order = Order.objects.create(
+            user=user, recipient_info=recipient, status=status)
         OrderItem.objects.create(
             order=order, product=product, quantity=quantity, price_at_purchase="100.00",
         )
@@ -64,11 +67,13 @@ class ProductRecommendationTests(APITestCase):
                 expected = 0 if status == Order.Status.CANCELLED else 3
                 self.assertEqual(scores[self.laptop.pk], expected)
                 self.assertEqual(scores[self.new_laptop.pk], expected)
-                self.assertEqual(ranked.get(pk=self.laptop.pk).recent_popularity, expected)
+                self.assertEqual(ranked.get(
+                    pk=self.laptop.pk).recent_popularity, expected)
                 order.status = Order.Status.CANCELLED
                 order.save(update_fields=["status"])
                 self.assertEqual(
-                    rank_products_for_user(products, self.user).get(pk=self.laptop.pk).preference_score,
+                    rank_products_for_user(products, self.user).get(
+                        pk=self.laptop.pk).preference_score,
                     0,
                 )
 
@@ -82,29 +87,33 @@ class ProductRecommendationTests(APITestCase):
         draft.status = Product.Status.DRAFT
         draft.save()
         self.client.force_authenticate(self.user)
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(3):
             response = self.client.get("/api/shop/products/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
-            [row["id"] for row in response.json()],
-            [self.laptop.pk, self.new_laptop.pk, self.phone.pk, self.uncategorized.pk],
+            [row["id"] for row in response.json()["results"]],
+            [self.laptop.pk, self.new_laptop.pk,
+                self.phone.pk, self.uncategorized.pk],
         )
-        self.assertEqual(set(response.json()[0]), {
+        self.assertEqual(set(response.json()["results"][0]), {
             "id", "name", "short_description", "price", "sold_count", "default_image",
         })
 
     def test_guests_no_history_and_equal_scores_keep_newest_first_order(self):
         products = Product.objects.all()
         Product.objects.update(created_at=timezone.now())
-        expected = [self.uncategorized.pk, self.phone.pk, self.new_laptop.pk, self.laptop.pk]
+        expected = [self.uncategorized.pk, self.phone.pk,
+                    self.new_laptop.pk, self.laptop.pk]
         for user in (AnonymousUser(), self.user):
             with self.assertNumQueries(0):
                 ranked = rank_products_for_user(products, user)
-            self.assertEqual(list(ranked.values_list("pk", flat=True)), expected)
+            self.assertEqual(
+                list(ranked.values_list("pk", flat=True)), expected)
         self.purchase(self.laptop, 1, Order.Status.SHIPPED)
         self.purchase(self.phone, 1, Order.Status.PACKED)
         self.assertEqual(
-            list(rank_products_for_user(products, self.user).values_list("pk", flat=True)),
+            list(rank_products_for_user(
+                products, self.user).values_list("pk", flat=True)),
             [self.phone.pk, self.laptop.pk, self.new_laptop.pk, self.uncategorized.pk],
         )
 
@@ -114,12 +123,14 @@ class ProductRecommendationTests(APITestCase):
         self.purchase(self.phone, 4, Order.Status.DELIVERED, self.other_user)
         self.purchase(self.phone, 100, Order.Status.CANCELLED, self.other_user)
         for user in (AnonymousUser(), self.user):
-            self.client.force_authenticate(user if user.is_authenticated else None)
-            with self.assertNumQueries(2):
+            self.client.force_authenticate(
+                user if user.is_authenticated else None)
+            with self.assertNumQueries(3):
                 response = self.client.get("/api/shop/products/")
             self.assertEqual(
-                [row["id"] for row in response.json()],
-                [self.laptop.pk, self.phone.pk, self.uncategorized.pk, self.new_laptop.pk],
+                [row["id"] for row in response.json()["results"]],
+                [self.laptop.pk, self.phone.pk,
+                    self.uncategorized.pk, self.new_laptop.pk],
             )
 
     @override_settings(PRODUCT_POPULARITY_DAYS=7)
@@ -135,10 +146,13 @@ class ProductRecommendationTests(APITestCase):
             Order.objects.filter(pk=order.pk).update(created_at=now - age)
         with patch("apps.ecommerce.services.product_recommendations.timezone.now", return_value=now):
             ranked = rank_products_for_user(Product.objects.all(), self.user)
-            self.assertEqual(ranked.get(pk=self.laptop.pk).recent_popularity, 5)
+            self.assertEqual(ranked.get(
+                pk=self.laptop.pk).recent_popularity, 5)
             with override_settings(PRODUCT_POPULARITY_DAYS=30):
-                ranked = rank_products_for_user(Product.objects.all(), self.user)
-                self.assertEqual(ranked.get(pk=self.laptop.pk).recent_popularity, 105)
+                ranked = rank_products_for_user(
+                    Product.objects.all(), self.user)
+                self.assertEqual(ranked.get(
+                    pk=self.laptop.pk).recent_popularity, 105)
 
     def test_old_history_still_sets_personal_category_priority(self):
         old_order = self.purchase(self.laptop, 1, Order.Status.DELIVERED)
@@ -151,6 +165,19 @@ class ProductRecommendationTests(APITestCase):
             self.new_laptop.pk, self.laptop.pk, self.phone.pk, self.uncategorized.pk,
         ])
         self.assertEqual(ranked.get(pk=self.laptop.pk).recent_popularity, 0)
+
+    def test_preferred_products_are_ranked_before_page_is_selected(self):
+        for index in range(9):
+            self.product(f"New unrelated {index}", None)
+        self.purchase(self.laptop, 1, Order.Status.PENDING)
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/shop/products/").json()
+        self.assertEqual(response["count"], 13)
+        self.assertEqual(len(response["results"]), 8)
+        self.assertEqual(
+            [item["id"] for item in response["results"][:2]],
+            [self.laptop.pk, self.new_laptop.pk],
+        )
 
     def test_missing_products_and_categories_do_not_contribute(self):
         self.purchase(None, 10, Order.Status.DELIVERED)
