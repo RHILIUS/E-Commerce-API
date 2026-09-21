@@ -188,6 +188,9 @@ OTP_EXPIRATION_SECONDS = 600  # 10 minutes
 OTP_MAX_VERIFICATION_ATTEMPTS = 5
 REGISTRATION_TOKEN_EXPIRATION_SECONDS = 900  # 15 minutes
 
+# Rolling window for catalog popularity, measured from order creation time.
+PRODUCT_POPULARITY_DAYS = env.int("PRODUCT_POPULARITY_DAYS", default=7)
+
 # Storage config
 USE_AZURE_STORAGE = env.bool("USE_AZURE_STORAGE", default=False)
 if USE_AZURE_STORAGE:
