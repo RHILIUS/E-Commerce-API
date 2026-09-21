@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.core.exceptions import ValidationError
+from django.forms.models import BaseInlineFormSet
 
 from .models import (
     Attribute, AttributeValue, Category, CategoryAttribute,
@@ -78,12 +79,26 @@ class ProductImageAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at")
 
 
+class OrderItemAdminFormSet(BaseInlineFormSet):
+    def save_new(self, form, commit=True):
+        """Capture the selected product's current price when adding an item."""
+        form.instance.price_at_purchase = form.cleaned_data["product"].price
+        return super().save_new(form, commit=commit)
+
+    def save_existing(self, form, obj, commit=True):
+        """Refresh the captured price only when an item's product changes."""
+        if "product" in form.changed_data:
+            form.instance.price_at_purchase = form.cleaned_data["product"].price
+        return super().save_existing(form, obj, commit=commit)
+
+
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
+    formset = OrderItemAdminFormSet
     extra = 0
     fields = ("product", "quantity", "price_at_purchase", "subtotal")
     autocomplete_fields = ("product",)
-    readonly_fields = ("subtotal",)
+    readonly_fields = ("price_at_purchase", "subtotal")
 
     @admin.display(description="Subtotal")
     def subtotal(self, obj):
