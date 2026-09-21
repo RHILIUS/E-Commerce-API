@@ -45,6 +45,12 @@ Use serializers for request validation and response transformation. Keep URL con
 
 Preserve existing API request formats, response structures, status codes, permissions, and authentication behavior unless the task explicitly changes the contract.
 
+## OpenAPI Documentation
+
+The OpenAPI schema is served at `/api/schema/` and Swagger UI at `/api/docs/` using drf-spectacular. Whenever an API endpoint is added or its request, response, status codes, parameters, permissions, or cookie behavior changes, update its schema annotation and the relevant backend documentation in the same change. For `APIView` endpoints, describe request and response serializers explicitly when automatic discovery cannot represent the actual contract. Never document refresh tokens as response-body fields.
+
+Run `python manage.py spectacular --validate --fail-on-warn` after API changes. Review the generated schema for the changed operations, especially authentication and pagination, and add focused tests when the contract changes.
+
 ## Implementation Simplicity
 
 Prefer the smallest clear implementation that satisfies the verified current requirement and contract.

@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db.models import Prefetch, Q
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -7,7 +8,7 @@ from rest_framework.views import APIView
 
 from .models import Product, ProductImage
 from .pagination import ProductCatalogPagination
-from .serializers import ProductCatalogSerializer
+from .serializers import PaginatedProductsSerializer, ProductCatalogSerializer
 from .services.product_recommendations import rank_products_for_user
 
 User = get_user_model()
@@ -16,6 +17,7 @@ User = get_user_model()
 class Test(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(tags=["Development"], responses={200: dict})
     def get(self, request):
 
         users = User.objects.all()
@@ -27,6 +29,15 @@ class Test(APIView):
 class ProductCatalogView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=["Catalog"],
+        parameters=[
+            OpenApiParameter("q", str, description="Case-insensitive name or short-description search."),
+            OpenApiParameter("page", int, description="Page number, starting at 1; eight products per page."),
+        ],
+        description="List active products. Signed-in users see preferred categories first; recent product popularity ranks ties and is the first signal for guests.",
+        responses={200: PaginatedProductsSerializer, 401: dict, 404: dict},
+    )
     def get(self, request):
         # Fetch products and use an algorithm that show the user prefered products in the catalog first
         products = Product.objects.filter(status=Product.Status.ACTIVE)

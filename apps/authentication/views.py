@@ -1,4 +1,6 @@
 from django.conf import settings
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -6,8 +8,22 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
 
+from apps.authentication.openapi import (
+    DetailResponseSerializer,
+    LoginRequestSerializer,
+    LoginResponseSerializer,
+    MessageResponseSerializer,
+    RefreshResponseSerializer,
+    RetryErrorResponseSerializer,
+    SendOTPResponseSerializer,
+    VerifyTokenRequestSerializer,
+)
 from apps.authentication.serializers import (
     CustomTokenObtainPairSerializer,
     RegisterSerializer,
@@ -32,6 +48,15 @@ is_secure = not settings.DEBUG
 class LogoutView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=["Authentication"], request=None, auth=[],
+        parameters=[OpenApiParameter(
+            "refresh_token", str, location=OpenApiParameter.COOKIE,
+            description="Optional HttpOnly refresh-token cookie to revoke.",
+        )],
+        description="Clear the HttpOnly refresh-token cookie and blacklist its token when present.",
+        responses={200: DetailResponseSerializer},
+    )
     def post(self, request):
         refresh_token = request.COOKIES.get("refresh_token")
 
@@ -57,6 +82,15 @@ class LogoutView(APIView):
 class LoginView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
+    @extend_schema(
+        tags=["Authentication"], request=LoginRequestSerializer, auth=[],
+        description="Return a Bearer access token and public user data. The refresh token is set in an HttpOnly cookie and is never returned in the body.",
+        responses={200: LoginResponseSerializer,
+                   401: DetailResponseSerializer},
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+
     def finalize_response(self, request, response, *args, **kwargs):
 
         # Refresh token cookie
@@ -76,6 +110,16 @@ class RefreshView(TokenRefreshView):
     authentication_classes = []
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=["Authentication"], request=None, auth=[],
+        parameters=[OpenApiParameter(
+            "refresh_token", str, location=OpenApiParameter.COOKIE, required=True,
+            description="HttpOnly refresh-token cookie set by login or the previous refresh.",
+        )],
+        description="Read the refresh_token HttpOnly cookie, rotate it when configured, and return a new access token and public user data. No refresh token is accepted in the request body or returned in the response body.",
+        responses={200: RefreshResponseSerializer,
+                   401: DetailResponseSerializer},
+    )
     def post(self, request, *args, **kwargs):
         refresh_token = request.COOKIES.get(
             "refresh_token")
@@ -141,6 +185,12 @@ class SendOTPView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=["Authentication"], request=SendOTPSerializer, auth=[],
+        description="Send a registration OTP to the supplied email. The OTP is never returned in the response.",
+        responses={200: SendOTPResponseSerializer, 400: OpenApiTypes.OBJECT,
+                   429: RetryErrorResponseSerializer, 503: RetryErrorResponseSerializer},
+    )
     def post(self, request):
 
         serializer = SendOTPSerializer(data=request.data)
@@ -194,6 +244,12 @@ class VerifyOTPView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=["Authentication"], request=VerifyOTPSerializer, auth=[],
+        description="Verify the OTP and set an HttpOnly registration_token cookie scoped to /api/auth/register/. The cookie is not returned in the response body.",
+        responses={200: MessageResponseSerializer, 400: OpenApiTypes.OBJECT,
+                   410: OpenApiTypes.OBJECT, 429: OpenApiTypes.OBJECT},
+    )
     def post(self, request: Request):
 
         serializer = VerifyOTPSerializer(data=request.data)
@@ -223,6 +279,16 @@ class RegisterView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=["Authentication"], request=RegisterSerializer, auth=[],
+        parameters=[OpenApiParameter(
+            "registration_token", str, location=OpenApiParameter.COOKIE, required=True,
+            description="HttpOnly registration cookie set by OTP verification.",
+        )],
+        description="Create a user and default recipient using the verified registration_token HttpOnly cookie. Email comes from that cookie, not the request body. The cookie is cleared on success.",
+        responses={201: MessageResponseSerializer, 400: OpenApiTypes.OBJECT,
+                   401: DetailResponseSerializer},
+    )
     def post(self, request: Request):
 
         serializer = RegisterSerializer(
@@ -241,3 +307,14 @@ class RegisterView(APIView):
             path="/api/auth/register/",
         )
         return response
+
+
+class VerifyAccessTokenView(TokenVerifyView):
+    @extend_schema(
+        tags=["Authentication"], request=VerifyTokenRequestSerializer, auth=[],
+        description="Validate a JWT using SimpleJWT. Returns an empty object on success.",
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT,
+                   401: DetailResponseSerializer},
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
