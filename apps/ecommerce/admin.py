@@ -62,12 +62,18 @@ class ProductImageInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "store", "category", "status", "price", "stock", "created_at")
+    list_display = ("name", "store", "category", "status", "price", "store_currency", "stock", "created_at")
+    list_select_related = ("store", "category")
     list_filter = ("status", "store", "category")
     search_fields = ("name", "short_description", "store__name")
     autocomplete_fields = ("store", "category")
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("store_currency", "created_at", "updated_at")
     inlines = (ProductImageInline,)
+
+    @admin.display(description="Price currency")
+    def store_currency(self, obj):
+        """Identify the currency of the product's stored price in the admin."""
+        return obj.store.currency if obj and obj.store_id else "Set automatically from the selected store"
 
 
 @admin.register(ProductImage)

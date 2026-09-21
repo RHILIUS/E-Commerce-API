@@ -1,4 +1,6 @@
 from django.utils import timezone
+from decimal import Decimal
+from unittest.mock import patch
 from rest_framework.test import APITestCase
 
 from apps.ecommerce.models import Product, ProductImage
@@ -7,6 +9,9 @@ from apps.store.models import Store
 
 class ProductCatalogTests(APITestCase):
     def setUp(self):
+        rates = patch("apps.ecommerce.views.get_display_rates", return_value={"PHP": ("USD", Decimal(56))})
+        rates.start()
+        self.addCleanup(rates.stop)
         self.store = Store.objects.create(
             name="Catalog store", country_code="PH")
 
@@ -32,6 +37,8 @@ class ProductCatalogTests(APITestCase):
             {
                 "id": product.pk, "name": product.name,
                 "short_description": "Card description", "price": "123.45",
+                "currency": "PHP",
+                "display_price": {"amount": "2.20", "currency": "USD"},
                 "sold_count": 7, "default_image": None,
             }
             for product in (second, first)

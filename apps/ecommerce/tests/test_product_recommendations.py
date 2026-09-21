@@ -15,6 +15,9 @@ from apps.store.models import Store
 
 class ProductRecommendationTests(APITestCase):
     def setUp(self):
+        rate_lookup = patch("apps.ecommerce.views.get_display_rates", return_value={})
+        rate_lookup.start()
+        self.addCleanup(rate_lookup.stop)
         self.user = get_user_model().objects.create_user(
             username="buyer", email="buyer@example.com", phone_number="+639111111111",
             full_name="Buyer", country_code="PH",
@@ -96,7 +99,7 @@ class ProductRecommendationTests(APITestCase):
                 self.phone.pk, self.uncategorized.pk],
         )
         self.assertEqual(set(response.json()["results"][0]), {
-            "id", "name", "short_description", "price", "sold_count", "default_image",
+            "id", "name", "short_description", "price", "currency", "display_price", "sold_count", "default_image",
         })
 
     def test_guests_no_history_and_equal_scores_keep_newest_first_order(self):

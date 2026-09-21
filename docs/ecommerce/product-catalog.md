@@ -41,7 +41,11 @@ Each product contains:
 - `id`: product ID.
 - `name`: product name.
 - `short_description`: card description.
-- `price`: decimal string with two fractional digits.
+- `price`: original store price, a decimal string with two fractional digits.
+- `currency`: ISO 4217 currency of that original price, from the store.
+- `display_price`: `{ "amount": "5600.00", "currency": "PHP" }`, a display-only
+  converted decimal string and ISO 4217 currency code. This example can represent
+  a PHP 5600 product viewed by a Philippine user, without conversion.
 - `sold_count`: integer.
 - `default_image`: `null` when no image is marked default; otherwise an object
   containing `image` (storage URL), `alt_text`, and `crop`.
@@ -49,3 +53,50 @@ Each product contains:
 Local image URLs are made absolute using the request; cloud storage URLs are
 provided by the configured storage backend. If multiple images are marked
 default, the lowest image order and then ID determines the selected image.
+
+## Store currencies and display conversion
+
+`Store.currency` is assigned automatically from `country_code` when a store is
+created (PH → PHP, US → USD). The migration backfills existing stores from their
+countries without modifying any numeric product prices. Unknown countries and
+countries with multiple current tender currencies require an explicit policy;
+store creation and migration fail rather than guessing a source currency.
+Babel supplies current country-to-currency mappings; the migration freezes its
+mapping so applying it later has deterministic results.
+
+The currency is read-only in admin. Store country edits that would change currency
+are rejected by model validation and ordinary saves; moving between countries
+with the same currency is allowed. Changing pricing currency requires a separate,
+explicit price migration. Do not bypass this protection with bulk updates.
+Product admin shows the store currency beside each price.
+
+The catalog converts from each store's currency to the authenticated account's
+country currency. Guests and accounts without an unambiguous country currency
+use USD as their display target. For example, with an illustrative rate of
+56 PHP/USD, a PHP-store price of 5600 displays as PHP 5600 for a Philippine user
+and USD 100 for a guest. The original `price` and `currency` stay unchanged.
+
+Rates come from [Frankfurter v2](https://frankfurter.dev/), without an API key.
+One rate table keyed by the viewer currency serves all store currencies on a page;
+there are no per-product network or store lookups. Only the target currency is sent
+to the provider. Its table quotes source units per target unit, so conversion divides
+the original price by that rate. Decimal arithmetic rounds half up to the target's
+standard minor unit (two digits for PHP, zero for JPY, three for KWD).
+
+The Django default cache refreshes rate tables after 24 hours. On failure, valid
+cached rows remain usable until seven days after their provider date. Missing,
+invalid, or expired rates fall back to the **original store amount and currency**,
+never an unchanged amount labeled USD. The response can therefore contain mixed
+display currencies during outages. A five-minute refresh gate limits concurrent
+and failed requests. `CATALOG_FX_TIMEOUT_SECONDS` defaults to 2 seconds. Empty pages
+and pages entirely in the target currency do not contact the provider.
+
+Django's default local-memory cache is per process. Configure a shared Django
+cache in production to share tables and refresh gates across workers. Cold pages
+may wait for one provider request up to the configured timeout.
+
+This feature only converts catalog display prices. Checkout conversion and purchase
+currency snapshots are not implemented here. Existing order items retain their
+numeric purchase prices; mixed-currency order totals must not be treated as a
+single-currency amount. Checkout needs an explicit settlement currency and currency
+snapshots before supporting purchases across stores with different currencies.

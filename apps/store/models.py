@@ -1,6 +1,8 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
+from core.common.currencies import currency_for_country
 from core.common.images import compress_uploaded_image
 from core.common.models import TimeStampedModel
 
@@ -10,6 +12,10 @@ class Store(TimeStampedModel):
     description = models.TextField(blank=True)
 
     country_code = models.CharField(max_length=2)
+    currency = models.CharField(
+        max_length=3, editable=False,
+        help_text="Product price currency, assigned from the store country on creation.",
+    )
 
     profile_image = models.ImageField(
         upload_to="stores/profile/",
@@ -32,7 +38,29 @@ class Store(TimeStampedModel):
     def __str__(self):
         return self.name
 
+    class Meta:
+        constraints = [models.CheckConstraint(
+            condition=models.Q(currency__regex=r"^[A-Z]{3}$"),
+            name="store_currency_code_valid",
+        )]
+
+    def clean(self):
+        """Assign source currency and reject edits that would relabel store prices."""
+        super().clean()
+        expected = currency_for_country(self.country_code)
+        if expected is None:
+            raise ValidationError({"country_code": "This country has no unambiguous supported currency."})
+        if not self._state.adding:
+            original = type(self).objects.using(self._state.db).values_list(
+                "currency", flat=True).get(pk=self.pk)
+            if self.currency != original or expected != original:
+                raise ValidationError({"country_code": "Changing the store's pricing currency requires an explicit price migration."})
+        elif self.currency and self.currency != expected:
+            raise ValidationError({"country_code": "Store currency must match its country."})
+        self.currency = expected
+
     def save(self, *args, **kwargs):
+        self.clean()
         for field_name in ("profile_image", "banner_image"):
             image = getattr(self, field_name)
             if image and not image._committed:

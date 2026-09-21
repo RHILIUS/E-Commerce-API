@@ -1,10 +1,63 @@
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError, transaction
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, connection, transaction
+from django.db.migrations.executor import MigrationExecutor
 from django.forms import Select
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, TransactionTestCase
 
 from apps.store.admin import StoreAdminForm
 from apps.store.models import Store, StoreMember
+
+
+class StoreCurrencyTests(TestCase):
+    def test_currency_is_assigned_from_country(self):
+        for country, currency in [("PH", "PHP"), ("US", "USD"), ("JP", "JPY")]:
+            store = Store.objects.create(name=country, country_code=country)
+            store.refresh_from_db()
+            self.assertEqual(store.currency, currency)
+
+    def test_country_and_currency_edits_cannot_relabel_prices(self):
+        store = Store.objects.create(name="PH store", country_code="PH")
+        store.country_code = "US"
+        with self.assertRaises(ValidationError):
+            store.save()
+        store.refresh_from_db()
+        store.currency = "USD"
+        with self.assertRaises(ValidationError):
+            store.save()
+        store.refresh_from_db()
+        self.assertEqual((store.country_code, store.currency), ("PH", "PHP"))
+
+    def test_country_changes_with_the_same_currency_are_allowed(self):
+        store = Store.objects.create(name="Euro store", country_code="FR")
+        store.country_code = "DE"
+        store.save()
+        store.refresh_from_db()
+        self.assertEqual(store.currency, "EUR")
+
+    def test_unknown_country_does_not_silently_become_usd(self):
+        with self.assertRaises(ValidationError):
+            Store.objects.create(name="Unknown", country_code="XX")
+
+
+class StoreCurrencyMigrationTests(TransactionTestCase):
+    def test_existing_store_currencies_are_backfilled_without_repricing(self):
+        from apps.ecommerce.models import Product
+
+        executor = MigrationExecutor(connection)
+        latest = executor.loader.graph.leaf_nodes()
+        self.addCleanup(lambda: MigrationExecutor(connection).migrate(latest))
+        before = [("store", "0003_storeaddress")]
+        executor.migrate(before)
+        historical_store = executor.loader.project_state(before).apps.get_model("store", "Store")
+        ph = historical_store.objects.create(name="PH store", country_code="PH")
+        us = historical_store.objects.create(name="US store", country_code="US")
+        product = Product.objects.create(store_id=ph.pk, name="Existing price", price="899.00")
+        MigrationExecutor(connection).migrate(latest)
+        self.assertEqual(Store.objects.get(pk=ph.pk).currency, "PHP")
+        self.assertEqual(Store.objects.get(pk=us.pk).currency, "USD")
+        product.refresh_from_db()
+        self.assertEqual(str(product.price), "899.00")
 
 
 class StoreAdminFormTests(SimpleTestCase):

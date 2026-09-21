@@ -40,10 +40,10 @@ class StoreMemberInline(admin.TabularInline):
 @admin.register(Store)
 class StoreAdmin(admin.ModelAdmin):
     form = StoreAdminForm
-    list_display = ("name", "country_code", "created_at", "updated_at")
-    list_filter = ("country_code",)
+    list_display = ("name", "country_code", "currency", "created_at", "updated_at")
+    list_filter = ("country_code", "currency")
     search_fields = ("name", "description")
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("currency", "created_at", "updated_at")
     inlines = (StoreMemberInline,)
 
 

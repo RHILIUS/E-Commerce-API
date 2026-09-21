@@ -33,6 +33,8 @@ class OpenAPITests(SimpleTestCase):
                 [{"name": item["name"], "in": item["in"]} for item in parameters],
             )
         catalog = schema["paths"]["/api/shop/products/"]["get"]
+        self.assertIn("display_price", schema["components"]["schemas"]["ProductCatalog"]["properties"])
+        self.assertEqual(set(schema["components"]["schemas"]["DisplayPrice"]["properties"]), {"amount", "currency"})
         self.assertEqual(
             {parameter["name"] for parameter in catalog["parameters"]},
             {"page", "q"},

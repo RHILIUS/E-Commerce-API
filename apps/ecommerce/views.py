@@ -10,6 +10,7 @@ from .models import Product, ProductImage
 from .pagination import ProductCatalogPagination
 from .serializers import PaginatedProductsSerializer, ProductCatalogSerializer
 from .services.product_recommendations import rank_products_for_user
+from .services.display_prices import get_display_rates
 
 User = get_user_model()
 
@@ -35,12 +36,12 @@ class ProductCatalogView(APIView):
             OpenApiParameter("q", str, description="Case-insensitive name or short-description search."),
             OpenApiParameter("page", int, description="Page number, starting at 1; eight products per page."),
         ],
-        description="List active products. Signed-in users see preferred categories first; recent product popularity ranks ties and is the first signal for guests.",
+        description="List active products. Signed-in users see preferred categories first; recent product popularity ranks ties and is the first signal for guests. price and currency describe the original store price. display_price converts to the account country's currency, or USD for guests. Unavailable conversions retain the original store currency. Conversion is for display only.",
         responses={200: PaginatedProductsSerializer, 401: dict, 404: dict},
     )
     def get(self, request):
         # Fetch products and use an algorithm that show the user prefered products in the catalog first
-        products = Product.objects.filter(status=Product.Status.ACTIVE)
+        products = Product.objects.filter(status=Product.Status.ACTIVE).select_related("store")
         query = request.query_params.get("q", "").strip()
         if query:
             products = products.filter(
@@ -60,5 +61,8 @@ class ProductCatalogView(APIView):
         paginator = ProductCatalogPagination()
         page = paginator.paginate_queryset(products, request, view=self)
         serializer = ProductCatalogSerializer(
-            page, many=True, context={"request": request})
+            page, many=True, context={
+                "request": request,
+                "display_rates": get_display_rates(request.user, {product.store.currency for product in page}),
+            })
         return paginator.get_paginated_response(serializer.data)
