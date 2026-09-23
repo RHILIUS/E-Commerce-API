@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 
 from apps.account.models import RecipientInfo
@@ -174,6 +176,8 @@ class Product(TimeStampedModel):
         super().clean()
         if not self.pk:
             return
+        if self.cartitem_set.exclude(cart__store_id=self.store_id).exists():
+            raise ValidationError({"store": "A product saved in carts cannot move to another store."})
         allowed_attributes = CategoryAttribute.objects.filter(
             category_id=self.category_id
         ).values("attribute_id")
@@ -270,18 +274,43 @@ class ProductAttributeValue(models.Model):
 
 
 class Cart(TimeStampedModel):
-    user = models.OneToOneField(
-        User, on_delete=models.CASCADE, related_name='cart')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='carts')
+    store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='carts')
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=('user', 'store'), name='unique_user_store_cart')]
+
+    def clean(self):
+        """Prevent moving populated carts to a different store."""
+        super().clean()
+        if self.pk and self.items.exclude(product__store_id=self.store_id).exists():
+            raise ValidationError({"store": "Cart items must belong to the cart's store."})
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        return super().save(*args, **kwargs)
 
 
 class CartItem(TimeStampedModel):
     cart = models.ForeignKey(
         Cart, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField(default=1)
+    quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
 
     class Meta:
         unique_together = ('cart', 'product')
+        constraints = [models.CheckConstraint(condition=models.Q(quantity__gte=1), name='cart_item_quantity_positive')]
+
+    def clean(self):
+        """Keep each item inside its product's store cart."""
+        super().clean()
+        if self.cart_id and self.product_id and self.cart.store_id != self.product.store_id:
+            raise ValidationError({"product": "This product belongs to a different store."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 # --------------------------------
 # Order a Product
