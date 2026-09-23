@@ -13,7 +13,7 @@ class OpenAPITests(SimpleTestCase):
             "/api/auth/login/", "/api/auth/logout/", "/api/auth/refresh/",
             "/api/auth/register/", "/api/auth/send-otp/",
             "/api/auth/verify-otp/", "/api/auth/verify/",
-            "/api/shop/products/", "/api/shop/test/",
+            "/api/shop/products/", "/api/shop/products/{id}/", "/api/shop/test/",
         })
         for component in ("LoginResponse", "RefreshResponse"):
             self.assertEqual(
@@ -30,11 +30,14 @@ class OpenAPITests(SimpleTestCase):
             parameters = schema["paths"][route]["post"]["parameters"]
             self.assertIn(
                 {"name": cookie, "in": "cookie"},
-                [{"name": item["name"], "in": item["in"]} for item in parameters],
+                [{"name": item["name"], "in": item["in"]}
+                    for item in parameters],
             )
         catalog = schema["paths"]["/api/shop/products/"]["get"]
-        self.assertIn("display_price", schema["components"]["schemas"]["ProductCatalog"]["properties"])
-        self.assertEqual(set(schema["components"]["schemas"]["DisplayPrice"]["properties"]), {"amount", "currency"})
+        self.assertIn(
+            "display_price", schema["components"]["schemas"]["ProductCatalog"]["properties"])
+        self.assertEqual(set(schema["components"]["schemas"]["DisplayPrice"]["properties"]), {
+                         "amount", "currency"})
         self.assertEqual(
             {parameter["name"] for parameter in catalog["parameters"]},
             {"page", "q"},
@@ -43,3 +46,12 @@ class OpenAPITests(SimpleTestCase):
             catalog["responses"]["200"]["content"]["application/json"]["schema"],
             {"$ref": "#/components/schemas/PaginatedProducts"},
         )
+        detail = schema["paths"]["/api/shop/products/{id}/"]["get"]
+        self.assertEqual(set(detail["responses"]), {"200", "401", "404"})
+        self.assertIn({}, detail["security"])
+        self.assertEqual(
+            detail["responses"]["200"]["content"]["application/json"]["schema"],
+            {"$ref": "#/components/schemas/ProductDetail"},
+        )
+        self.assertEqual(schema["components"]["schemas"]["ProductDetail"]
+                         ["properties"]["can_purchase"]["type"], "boolean")
