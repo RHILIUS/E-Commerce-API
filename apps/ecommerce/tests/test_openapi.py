@@ -14,6 +14,7 @@ class OpenAPITests(SimpleTestCase):
             "/api/auth/register/", "/api/auth/send-otp/",
             "/api/auth/verify-otp/", "/api/auth/verify/",
             "/api/shop/products/", "/api/shop/products/{id}/", "/api/shop/test/",
+            "/api/shop/carts/", "/api/shop/carts/items/", "/api/shop/carts/items/{id}/",
         })
         for component in ("LoginResponse", "RefreshResponse"):
             self.assertEqual(

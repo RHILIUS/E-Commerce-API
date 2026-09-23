@@ -4,9 +4,32 @@ from django.forms.models import BaseInlineFormSet
 
 from .models import (
     Attribute, AttributeValue, Category, CategoryAttribute,
-    Order, OrderItem,
+    Order, OrderItem, Cart, CartItem,
     Product, ProductAttributeValue, ProductImage,
 )
+
+
+class CartItemInline(admin.TabularInline):
+    model = CartItem
+    extra = 0
+    fields = ('product', 'quantity')
+    readonly_fields = fields
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Cart)
+class CartAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'store', 'updated_at')
+    list_select_related = ('user', 'store')
+    search_fields = ('user__email', 'store__name')
+    readonly_fields = ('user', 'store', 'created_at', 'updated_at')
+    inlines = (CartItemInline,)
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(Category)
