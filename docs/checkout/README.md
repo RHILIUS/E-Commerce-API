@@ -6,7 +6,6 @@ are implemented. Checkout endpoints, stock locking, Stripe integration, webhook
 processing, reservation expiry and receipt pages are still future work.
 
 - [Model structure and rules](models.md)
-- [Development reset and verification](development.md)
 - [Development seed data](../seed.md)
 
 ```mermaid
