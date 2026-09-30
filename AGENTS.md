@@ -33,8 +33,11 @@ Do not assume the code, frontend, and documentation are synchronized. Report inc
 This project uses Python, Django, Django REST Framework, PostgreSQL, SimpleJWT, and `django-environ`. Treat `requirements.txt` and the current source code as the source of truth for implementation details.
 
 - `ecommerce_backend/` contains project settings and root routing.
-- `authentication/` contains the custom user model and authentication API.
-- `ecommerce/` contains the E-Commerce domain models and API.
+- `apps/authentication/` contains the custom user model and authentication API.
+- `apps/ecommerce/` contains catalog, cart, order models and APIs.
+- `apps/checkout/` contains checkout and payment-attempt models.
+- `apps/inventory/` contains stock-reservation models.
+- `apps/account/` and `apps/store/` contain recipient and store models.
 - `core/common/` contains shared code.
 
 Follow the existing Django app structure. Add shared abstractions only when they are genuinely used by multiple apps.

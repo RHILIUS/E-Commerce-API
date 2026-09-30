@@ -8,9 +8,10 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.account.models import RecipientInfo
-from apps.ecommerce.models import Category, Order, OrderItem, Product
+from apps.ecommerce.models import Category, Order, Product
 from apps.ecommerce.services.product_recommendations import rank_products_for_user
 from apps.store.models import Store
+from core.test_support import create_purchase
 
 
 class ProductRecommendationTests(APITestCase):
@@ -53,10 +54,9 @@ class ProductRecommendationTests(APITestCase):
                 "country_code": "PH", "address_line1": "Test address", "city": "Manila",
             },
         )
-        order = Order.objects.create(
-            user=user, recipient_info=recipient, status=status)
-        OrderItem.objects.create(
-            order=order, product=product, quantity=quantity, price_at_purchase="100.00",
+        order, _ = create_purchase(
+            user=user, recipient=recipient, product=product,
+            quantity=quantity, price="100.00", status=status,
         )
         return order
 
@@ -183,7 +183,9 @@ class ProductRecommendationTests(APITestCase):
         )
 
     def test_missing_products_and_categories_do_not_contribute(self):
-        self.purchase(None, 10, Order.Status.DELIVERED)
+        deleted_product = self.product("Deleted", self.laptops)
+        self.purchase(deleted_product, 10, Order.Status.DELIVERED)
+        deleted_product.delete()
         self.purchase(self.uncategorized, 10, Order.Status.PENDING)
         scores = rank_products_for_user(Product.objects.all(), self.user).values_list(
             "preference_score", flat=True,

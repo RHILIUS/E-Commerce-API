@@ -45,6 +45,8 @@ class StoreCurrencyMigrationTests(TransactionTestCase):
         from apps.ecommerce.models import Product
 
         executor = MigrationExecutor(connection)
+        if ("store", "0003_storeaddress") not in executor.loader.graph.nodes:
+            self.skipTest("Historical currency migration was removed by the development baseline reset.")
         latest = executor.loader.graph.leaf_nodes()
         self.addCleanup(lambda: MigrationExecutor(connection).migrate(latest))
         before = [("store", "0003_storeaddress")]

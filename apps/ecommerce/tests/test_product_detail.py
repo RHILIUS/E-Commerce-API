@@ -6,8 +6,9 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.account.models import RecipientInfo
-from apps.ecommerce.models import Order, OrderItem, Product, ProductImage
+from apps.ecommerce.models import Order, Product, ProductImage
 from apps.store.models import Store, StoreMember
+from core.test_support import create_purchase
 
 
 class ProductDetailTests(APITestCase):
@@ -162,9 +163,9 @@ class ProductDetailTests(APITestCase):
             user=self.user, name="Buyer", phone_number=self.user.phone_number,
             country_code="PH", address_line1="Test address", city="Manila",
         )
-        order = Order.objects.create(user=self.user, recipient_info=recipient)
-        item = OrderItem.objects.create(
-            order=order, product=self.product, quantity=2, price_at_purchase="5000.00",
+        order, item = create_purchase(
+            user=self.user, recipient=recipient, product=self.product,
+            quantity=2, price="5000.00",
         )
         self.product.status = Product.Status.ARCHIVED
         self.product.archived_at = timezone.now()

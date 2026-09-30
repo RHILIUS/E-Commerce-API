@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.core.exceptions import ValidationError
-from django.forms.models import BaseInlineFormSet
+
+from core.common.admin import ReadOnlyTransactionAdmin
 
 from .models import (
     Attribute, AttributeValue, Category, CategoryAttribute,
@@ -108,26 +109,19 @@ class ProductImageAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at")
 
 
-class OrderItemAdminFormSet(BaseInlineFormSet):
-    def save_new(self, form, commit=True):
-        """Capture the selected product's current price when adding an item."""
-        form.instance.price_at_purchase = form.cleaned_data["product"].price
-        return super().save_new(form, commit=commit)
-
-    def save_existing(self, form, obj, commit=True):
-        """Refresh the captured price only when an item's product changes."""
-        if "product" in form.changed_data:
-            form.instance.price_at_purchase = form.cleaned_data["product"].price
-        return super().save_existing(form, obj, commit=commit)
-
-
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
-    formset = OrderItemAdminFormSet
     extra = 0
-    fields = ("product", "quantity", "price_at_purchase", "subtotal")
-    autocomplete_fields = ("product",)
-    readonly_fields = ("price_at_purchase", "subtotal")
+    fields = ("product", "product_name_at_purchase", "quantity", "original_unit_price",
+              "price_at_purchase", "source_cart_item", "subtotal")
+    readonly_fields = fields
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
     @admin.display(description="Subtotal")
     def subtotal(self, obj):
@@ -138,15 +132,18 @@ class OrderItemInline(admin.TabularInline):
 
 
 @admin.register(Order)
-class OrderAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "recipient_info", "status", "created_at", "concluded_at")
-    list_filter = ("status", "created_at", "concluded_at")
+class OrderAdmin(ReadOnlyTransactionAdmin):
+    list_display = ("id", "checkout", "store", "user", "status", "payment_status", "created_at")
+    list_filter = ("status", "payment_status", "created_at")
     search_fields = ("=id", "user__email", "user__full_name", "recipient_info__name")
     autocomplete_fields = ("user",)
-    list_select_related = ("user", "recipient_info")
-    readonly_fields = ("created_at", "updated_at", "total")
+    list_select_related = ("user", "recipient_info", "checkout", "store")
     ordering = ("-created_at", "-pk")
     inlines = (OrderItemInline,)
+
+    def get_readonly_fields(self, request, obj=None):
+        """Show the computed total alongside protected purchase fields."""
+        return (*super().get_readonly_fields(request, obj), "total")
 
     @admin.display(description="Order total")
     def total(self, obj):

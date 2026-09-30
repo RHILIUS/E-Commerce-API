@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import close_old_connections, connection
 from django.db.migrations.executor import MigrationExecutor
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, skipUnlessDBFeature
 from rest_framework.test import APITestCase
 
 from apps.ecommerce.models import Cart, CartItem, Product
@@ -114,6 +114,7 @@ class CartTests(APITestCase):
 
 
 class ConcurrentCartTests(TransactionTestCase):
+    @skipUnlessDBFeature("has_select_for_update")
     def test_concurrent_additions_do_not_lose_updates_or_exceed_stock(self):
         user = get_user_model().objects.create_user(username='parallel', email='parallel@example.com', phone_number='+639333333333', full_name='Buyer', country_code='PH')
         store = Store.objects.create(name='Concurrent store', country_code='PH')
@@ -141,6 +142,8 @@ class ConcurrentCartTests(TransactionTestCase):
 class StoreCartMigrationTests(TransactionTestCase):
     def test_split_and_rollback_preserve_item_ids_and_quantities(self):
         executor = MigrationExecutor(connection)
+        if ('ecommerce', '0012_order_concluded_at_order_recipient_info_and_more') not in executor.loader.graph.nodes:
+            self.skipTest("Historical cart migration was removed by the development baseline reset.")
         new = executor.loader.graph.leaf_nodes()
         old = [node for node in new if node[0] != 'ecommerce'] + [('ecommerce', '0012_order_concluded_at_order_recipient_info_and_more')]
         executor.migrate(old)

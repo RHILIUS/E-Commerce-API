@@ -25,6 +25,7 @@ CUSTOMERS_DATA = [
                 # Negative IDs are reserved for repeatable development orders.
                 "id": -1,
                 "status": Order.Status.DELIVERED,
+                "payment_status": Order.PaymentStatus.PAID,
                 "order_items": [{
                     "product_name": "Rhilius NovaPhone X1",
                     "quantity": 1,

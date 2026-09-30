@@ -8,6 +8,9 @@ from django.db import transaction
 from django.test import SimpleTestCase, TestCase
 
 from apps.account.models import RecipientInfo
+from apps.checkout.models import Checkout, PaymentAttempt
+from apps.checkout.snapshots import recipient_snapshot
+from apps.inventory.models import StockReservation
 from apps.ecommerce.models import Attribute, AttributeValue, Category, CategoryAttribute, Product, ProductAttributeValue
 from apps.ecommerce.services.taxonomy_import import load_snapshot
 from apps.store.models import Store
@@ -25,6 +28,22 @@ class SeedDataTests(SimpleTestCase):
         customers[0]["orders"][0]["order_items"][0]["product_name"] = "Missing product"
         with patch("core.management.commands.seed.CUSTOMERS_DATA", customers):
             with self.assertRaisesMessage(CommandError, "Order products must exist"):
+                validate_seed_data()
+
+    def test_cross_store_seed_order_is_rejected_before_writes(self):
+        stores = deepcopy(STORES_DATA)
+        other = deepcopy(stores[0])
+        other["name"] = "Other store"
+        other["products"] = [stores[0]["products"].pop()]
+        stores.append(other)
+        customers = deepcopy(CUSTOMERS_DATA)
+        customers[0]["orders"][0]["order_items"].append({
+            "product_name": other["products"][0]["name"], "quantity": 1,
+        })
+        with patch("core.management.commands.seed.CUSTOMERS_DATA", customers), patch(
+            "core.management.commands.seed.STORES_DATA", stores
+        ):
+            with self.assertRaisesMessage(CommandError, "exactly one store"):
                 validate_seed_data()
 
     def test_seed_data_has_valid_products_and_images(self):
@@ -126,11 +145,24 @@ class SeedTaxonomyTests(TestCase):
         command.handle()
         order = Order.objects.get(pk=CUSTOMER_USER_DATA["orders"][0]["id"])
         concluded_at = order.concluded_at
+        checkout_id = order.checkout_id
+        checkout_reference = order.checkout.reference
+        paid_at = order.paid_at
+        self.assertEqual(order.checkout.total_amount, order.get_total())
+        self.assertEqual(order.checkout.currency, order.store.currency)
+        self.assertEqual(order.checkout.payment_method, Checkout.PaymentMethod.COD)
+        self.assertEqual(order.payment_status, Order.PaymentStatus.PAID)
+        self.assertEqual(order.recipient_snapshot, recipient_snapshot(order.recipient_info))
         item = order.items.get()
         self.assertEqual(order.recipient_info.user_id, order.user_id)
         self.assertEqual(order.status, Order.Status.DELIVERED)
         self.assertEqual(item.price_at_purchase, item.product.price)
         self.assertEqual(item.quantity, 1)
+        self.assertEqual(item.original_unit_price, item.product.price)
+        self.assertEqual(item.product_name_at_purchase, item.product.name)
+        self.assertEqual(order.store_id, item.product.store_id)
+        stock = item.product.stock
+        sold_count = item.product.sold_count
         self.assertFalse(order.user.store_memberships.exists())
         command.handle()
         order.refresh_from_db()
@@ -138,6 +170,15 @@ class SeedTaxonomyTests(TestCase):
         self.assertEqual(OrderItem.objects.count(), 1)
         self.assertEqual(order.concluded_at, concluded_at)
         self.assertEqual(order.items.get().pk, item.pk)
+        self.assertEqual(order.checkout_id, checkout_id)
+        self.assertEqual(order.checkout.reference, checkout_reference)
+        self.assertEqual(order.paid_at, paid_at)
+        self.assertEqual(Checkout.objects.count(), 1)
+        self.assertFalse(PaymentAttempt.objects.exists())
+        self.assertFalse(StockReservation.objects.exists())
+        item.product.refresh_from_db()
+        self.assertEqual(item.product.stock, stock)
+        self.assertEqual(item.product.sold_count, sold_count)
 
     @patch("core.management.commands.seed.attach_image_if_missing")
     def test_multiple_customers_stores_and_recipients(self, _):
