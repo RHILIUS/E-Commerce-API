@@ -6,11 +6,6 @@ command imports categories, contextual attributes, predefined values, and catego
 associations from a local Shopify snapshot. The product specification API is not
 implemented yet.
 
-Apply all pending migrations, including `0011_attribute_handle_alter_attribute_taxonomy_id_and_more`,
-before importing. Existing products retain a null category until assigned one.
-The development seeder now requires imported taxonomy and assigns categories and
-predefined specifications to all 24 products; see [seed.md](seed.md).
-
 ## Contextual attributes
 
 An attribute is identified by `(taxonomy_id, handle)`. Shopify can reuse a taxonomy
