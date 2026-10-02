@@ -1,6 +1,5 @@
 import re
 
-import phonenumbers
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
@@ -10,6 +9,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.account.models import RecipientInfo
+from core.common.contact import validate_country_code, validate_phone_number
 from apps.authentication.exceptions import (
     EmailAlreadyTakenError,
     ExpiredOTPError,
@@ -110,37 +110,14 @@ class RegisterSerializer(serializers.Serializer):
         return value
 
     def validate_phone_number(self, value):
-        if not re.fullmatch(r"\+[1-9][0-9]{1,14}", value):
-            raise serializers.ValidationError(
-                "Phone number must use E.164 format, for example +639171234567."
-            )
-
-        try:
-            phone_number = phonenumbers.parse(value, None)
-        except phonenumbers.NumberParseException as error:
-            raise serializers.ValidationError(
-                "Enter a valid phone number."
-            ) from error
-
-        if not phonenumbers.is_valid_number(phone_number):
-            raise serializers.ValidationError("Enter a valid phone number.")
-
-        # Check uniqueness
+        """Apply shared contact validation plus registration-only account uniqueness."""
+        value = validate_phone_number(value)
         if User.objects.filter(phone_number=value).exists():
             raise serializers.ValidationError("Phone number is already taken")
-
-        return phonenumbers.format_number(
-            phone_number, phonenumbers.PhoneNumberFormat.E164
-        )
+        return value
 
     def validate_country_code(self, value):
-        country_code = value.upper()
-        if country_code not in phonenumbers.SUPPORTED_REGIONS:
-            raise serializers.ValidationError(
-                "Enter a valid two-letter country code."
-            )
-
-        return country_code
+        return validate_country_code(value)
 
     def validate_password(self, value):
         if not re.search(r"[A-Z]", value):

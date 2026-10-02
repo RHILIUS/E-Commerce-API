@@ -160,7 +160,7 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'E-Commerce API',
-    'DESCRIPTION': 'Authentication and product catalog endpoints.',
+    'DESCRIPTION': 'Authentication, saved recipients, product catalog, and cart endpoints.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'SWAGGER_UI_DIST': 'SIDECAR',

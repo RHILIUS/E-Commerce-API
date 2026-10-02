@@ -2,9 +2,11 @@
 
 The checkout feature groups a customer's purchase into one order per store.
 These models, their validation, development fixtures and inspection-only admin
-are implemented. Checkout endpoints, stock locking, Stripe integration, webhook
+are implemented, along with saved-recipient list/create APIs. Checkout preview,
+placement, confirmation, stock locking, Stripe integration, webhook
 processing, reservation expiry and receipt pages are still future work.
 
+- [Saved-recipient API contract](recipients-api.md)
 - [Model structure and rules](models.md)
 - [Development seed data](../seed.md)
 
