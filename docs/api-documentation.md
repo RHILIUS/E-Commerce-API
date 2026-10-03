@@ -5,7 +5,7 @@ returns the OpenAPI schema; append `?format=json` for JSON. The UI assets are
 included in the project dependencies so the page does not require a CDN.
 
 The schema covers authentication, [saved recipients](checkout/recipients-api.md),
-[cart](ecommerce/carts.md), product catalog, and
+[cart](ecommerce/carts.md), [checkout preview](checkout/preview-api.md), product catalog, and
 [product detail](ecommerce/product-detail.md) routes. Use
 Swagger UI's **Authorize** button with a Bearer access token for protected
 operations. Login returns an access token and sets the refresh token in an

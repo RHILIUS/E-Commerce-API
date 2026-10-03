@@ -27,6 +27,9 @@ environ.Env.read_env(BASE_DIR / '.env')
 CATALOG_FX_TIMEOUT_SECONDS = env.float("CATALOG_FX_TIMEOUT_SECONDS", default=2)
 
 
+# Checkout uses strict conversion and never falls back to unconverted store totals.
+CHECKOUT_FX_TIMEOUT_SECONDS = env.float("CHECKOUT_FX_TIMEOUT_SECONDS", default=2)
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -160,7 +163,7 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'E-Commerce API',
-    'DESCRIPTION': 'Authentication, saved recipients, product catalog, and cart endpoints.',
+    'DESCRIPTION': 'Authentication, saved recipients, product catalog, cart, and checkout preview endpoints.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'SWAGGER_UI_DIST': 'SIDECAR',
