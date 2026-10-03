@@ -5,7 +5,7 @@ from django.core.validators import MinValueValidator
 from django.db import models
 
 from apps.account.models import RecipientInfo
-from apps.checkout.snapshots import validate_recipient_snapshot
+from apps.checkout.services.snapshots import validate_recipient_snapshot
 from apps.store.models import Store
 from core.common.images import compress_uploaded_image
 from core.common.models import TimeStampedModel

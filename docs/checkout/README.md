@@ -32,3 +32,12 @@ the customer's currency and uses USD when it cannot be resolved or when required
 conversion targets an unsupported currency. A failed FX lookup must not relabel
 original store prices. No currency conversion or USD fallback is performed by
 model `save()`.
+
+## Code organization
+
+Checkout business logic and snapshot helpers live in `apps/checkout/services/`.
+Application code and the initial ecommerce migration import snapshot helpers
+from `services.snapshots`. This is the only snapshot implementation.
+
+Checkout tests live in `apps/checkout/tests/`. API-wide schema checks live in
+`core/tests/test_openapi.py`, alongside seed tests in `core/tests/test_seed.py`.

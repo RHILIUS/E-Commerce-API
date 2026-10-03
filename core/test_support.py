@@ -6,7 +6,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from apps.checkout.models import Checkout
-from apps.checkout.snapshots import recipient_snapshot
+from apps.checkout.services.snapshots import recipient_snapshot
 from apps.ecommerce.models import Order, OrderItem
 
 

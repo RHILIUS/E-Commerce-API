@@ -9,7 +9,7 @@ from django.test import SimpleTestCase, TestCase
 
 from apps.account.models import RecipientInfo
 from apps.checkout.models import Checkout, PaymentAttempt
-from apps.checkout.snapshots import recipient_snapshot
+from apps.checkout.services.snapshots import recipient_snapshot
 from apps.inventory.models import StockReservation
 from apps.ecommerce.models import Attribute, AttributeValue, Category, CategoryAttribute, Product, ProductAttributeValue
 from apps.ecommerce.services.taxonomy_import import load_snapshot

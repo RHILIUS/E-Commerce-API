@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from apps.account.models import RecipientInfo
 from apps.checkout.models import Checkout
-from apps.checkout.snapshots import recipient_snapshot
+from apps.checkout.services.snapshots import recipient_snapshot
 from apps.ecommerce.models import (
     AttributeValue,
     Category,
