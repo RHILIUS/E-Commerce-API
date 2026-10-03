@@ -30,6 +30,11 @@ class Checkout(TimeStampedModel):
         related_name="checkouts",
     )
     idempotency_key = models.UUIDField()
+    request_fingerprint = models.CharField(
+        max_length=64, blank=True, default="", editable=False,
+        validators=[RegexValidator(r"^[0-9a-f]{64}$", "Use a SHA-256 request fingerprint.")],
+        help_text="Normalized placement request hash. Empty for records created before placement APIs.",
+    )
 
     payment_method = models.CharField(
         max_length=10,
@@ -70,7 +75,8 @@ class Checkout(TimeStampedModel):
         super().clean()
         if self.pk and (self.orders.exists() or self.payment_attempts.exists()):
             previous = type(self).objects.filter(pk=self.pk).values(
-                "user_id", "currency", "total_amount", "payment_method").first()
+                "user_id", "currency", "total_amount", "payment_method",
+                "idempotency_key", "request_fingerprint").first()
             if previous and any(previous[field] != getattr(self, field) for field in previous):
                 raise ValidationError("A checkout with orders or payment attempts cannot change its payment terms.")
 

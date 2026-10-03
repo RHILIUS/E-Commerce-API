@@ -11,7 +11,8 @@ One customer submission, grouping its store orders and payment attempts.
 | ----------------- | --------------------------------------------------------------------------------------------------------- |
 | `reference`       | Unique public UUID, generated once; not proof of authorization.                                           |
 | `user`            | Customer who owns the checkout; deletion is protected.                                                    |
-| `idempotency_key` | UUID supplied by the future creation service; unique per customer. Reuse for retries of the same request. |
+| `idempotency_key` | UUID supplied to placement; unique per customer. Reuse for retries of the same request. |
+| `request_fingerprint` | SHA-256 hash of the accepted placement payload. Empty only for legacy/seed records; never returned by the API. |
 | `payment_method`  | `cod` (default) or `stripe`.                                                                              |
 | `status`          | `pending`, `completed`, `cancelled`, or `expired`. Defaults to pending.                                   |
 | `currency`        | Required uppercase three-letter code for the final total.                                                 |
@@ -23,8 +24,10 @@ Completed means COD order placement or verified online payment, not fulfillment
 or delivery. The current models do not automatically set status/timestamps.
 Currency shape validation does not verify Stripe or FX-provider support.
 Once orders or attempts exist, ordinary saves reject changes to the customer,
-currency, amount or payment method. The future service must reject an idempotency
-key reused with different contents and compare totals with all order lines.
+currency, amount, payment method, idempotency key or request fingerprint. COD
+placement rejects keys reused with different contents and verifies the signed
+total against all reviewed order lines. The new fingerprint field requires an
+additive migration; see [COD setup](cod-api.md#required-database-update).
 
 ## Order (`apps.ecommerce`)
 
@@ -46,16 +49,15 @@ One store's part of a checkout, with its own fulfillment and payment state.
 | `exchange_rate`          | Positive Decimal, 28 digits and 12 decimal places. Multiply source price by this rate to obtain checkout price before rounding. |
 | `exchange_rate_date`     | Optional date of the rate used; not needed when currencies match.                                                               |
 
-The charged currency is `order.checkout.currency`. For equal currencies, use rate
-
-1. `get_total()` sums recorded item subtotals. Catalog display conversion currently
-   uses a divisor; the future checkout service must translate that convention.
+The charged currency is `order.checkout.currency`. For equal currencies, use rate 1. `get_total()` sums recorded item subtotals.
+Catalog display conversion uses a divisor; checkout preview signs a multiplier
+that COD placement preserves unchanged.
 
 Recipient JSON has exactly these string fields: `name`, `phone_number`,
 `country_code`, `address_line1`, `address_line2`, `city`, `region`, `postal_code`.
 Name, phone, country, address line 1 and city cannot be empty. Optional address
 parts may be empty strings. `recipient_snapshot(recipient)` copies this shape;
-JSON validation does not replace phone/address validation in the eventual API.
+COD placement also validates phone/address details through the recipient serializer.
 
 Recipient/product changes do not update snapshots automatically. Existing orders
 cannot move to another customer, store or checkout through ordinary saves.

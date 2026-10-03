@@ -73,3 +73,65 @@ class PreviewResponseSerializer(serializers.Serializer):
     issues = PreviewIssueSerializer(many=True)
     preview_token = serializers.CharField(allow_null=True)
     expires_at = serializers.DateTimeField(allow_null=True)
+
+
+class PlaceCODSerializer(serializers.Serializer):
+    preview_token = serializers.CharField(trim_whitespace=False, max_length=500000)
+    recipient_id = serializers.IntegerField(min_value=1)
+    payment_method = serializers.ChoiceField(choices=['cod'])
+    idempotency_key = serializers.UUIDField()
+
+    def validate(self, attrs):
+        """Reject unsupported inputs so retry identity covers every accepted field."""
+        unexpected = self.initial_data.keys() - self.fields.keys()
+        if unexpected:
+            raise serializers.ValidationError({key: ['Unexpected field.'] for key in unexpected})
+        return attrs
+
+
+class ConfirmationRecipientSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    phone_number = serializers.CharField()
+    country_code = serializers.CharField()
+    address_line1 = serializers.CharField()
+    address_line2 = serializers.CharField(allow_blank=True)
+    city = serializers.CharField()
+    region = serializers.CharField(allow_blank=True)
+    postal_code = serializers.CharField(allow_blank=True)
+
+
+class ConfirmationStoreSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+
+class ConfirmationItemSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    product_id = serializers.IntegerField(allow_null=True)
+    name = serializers.CharField()
+    quantity = serializers.IntegerField()
+    unit_price = PreviewMoneySerializer()
+    original_unit_price = PreviewMoneySerializer()
+    subtotal = PreviewMoneySerializer()
+
+
+class ConfirmationOrderSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    store = ConfirmationStoreSerializer()
+    status = serializers.CharField()
+    payment_status = serializers.CharField()
+    recipient = ConfirmationRecipientSerializer()
+    subtotal = PreviewMoneySerializer()
+    exchange_rate = serializers.CharField()
+    exchange_rate_date = serializers.DateField(allow_null=True)
+    items = ConfirmationItemSerializer(many=True)
+
+
+class CheckoutConfirmationSerializer(serializers.Serializer):
+    reference = serializers.UUIDField()
+    status = serializers.CharField()
+    payment_method = serializers.CharField()
+    created_at = serializers.DateTimeField()
+    completed_at = serializers.DateTimeField(allow_null=True)
+    total = PreviewMoneySerializer()
+    orders = ConfirmationOrderSerializer(many=True)

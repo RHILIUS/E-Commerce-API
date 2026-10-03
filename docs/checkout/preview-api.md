@@ -1,7 +1,8 @@
 # Checkout preview API
 
-**Implemented:** authenticated product/cart preview. Order placement, confirmation
-and frontend checkout integration are still pending. Preview is read-only for
+**Implemented:** authenticated product/cart preview. COD placement and confirmation
+are covered in the [COD contract](cod-api.md).
+Frontend checkout integration remains pending. Preview is read-only for
 application data: it creates no checkout, order, reservation or cart record and
 never changes quantities or stock. FX responses may be cached.
 
@@ -131,12 +132,12 @@ Invalid/foreign tokens raise 400; expired tokens raise 409. This is a service he
 not an additional endpoint. `can_place_order` describes item/price readiness only;
 the frontend must also require a complete recipient and payment method.
 
-Future placement must check successful idempotency replay **before** validating
-preview expiry, then verify this token and recipient ownership. It must lock and
-recheck products, source prices, cart selection/quantities and available stock.
+COD placement checks successful idempotency replay **before** validating
+preview expiry, then verifies this token and recipient ownership. It locks and
+rechecks products, source prices, cart selection/quantities and available stock.
 Token verification alone cannot authorize order creation. Changed purchase terms
-require a fresh preview and customer review. No placement endpoint is introduced
-by this implementation.
+require a fresh preview and customer review. See the [COD contract](cod-api.md)
+for placement requests and confirmation responses.
 
 ## Status codes
 
