@@ -107,8 +107,9 @@ inside one session do not need extra rows; a newly created session gets a new ro
 A partial unique constraint allows only one pending attempt per checkout. Use
 null, not an empty string, for unknown provider IDs. A declined card can leave a
 session open, so it need not make the entire attempt terminal. Verified provider
-state must determine when a retry session is safe. Backend webhook verification,
-idempotent stock/order updates and duplicate-success protection remain unimplemented.
+state must determine when a retry session is safe. Stripe webhook verification,
+Stripe stock/order updates and duplicate-success protection remain unimplemented.
+COD placement already provides atomic stock/order updates and idempotent replay.
 Creating this record never contacts Stripe or marks an order paid.
 
 ## StockReservation (`apps.inventory`)
@@ -148,4 +149,5 @@ handle concurrent uniqueness failures. Validation alone is not concurrency contr
 
 Purchase records and order-item inlines are inspection-only in Django admin,
 including for superusers. Manual payment, quantity and deletion controls would
-bypass the pending transactional workflows. Catalog and cart admin remain separate.
+bypass the COD placement service and the invariants required by future Stripe
+and fulfillment workflows. Catalog and cart admin remain separate.

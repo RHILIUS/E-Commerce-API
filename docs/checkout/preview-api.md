@@ -2,7 +2,8 @@
 
 **Implemented:** authenticated product/cart preview. COD placement and confirmation
 are covered in the [COD contract](cod-api.md).
-Frontend checkout integration remains pending. Preview is read-only for
+[Frontend checkout integration](../../../frontend/docs/checkout/README.md) is
+implemented for COD. Preview is read-only for
 application data: it creates no checkout, order, reservation or cart record and
 never changes quantities or stock. FX responses may be cached.
 

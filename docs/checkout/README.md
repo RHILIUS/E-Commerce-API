@@ -1,10 +1,12 @@
-# Checkout model foundation
+# Checkout feature
 
 The checkout feature groups a customer's purchase into one order per store.
 These models, their validation, development fixtures and inspection-only admin
 are implemented, along with saved-recipient, checkout preview, atomic COD placement
-and owner-only confirmation APIs. Frontend checkout/receipt pages, Stripe integration,
-webhook processing and reservation expiry workflows remain future work.
+and owner-only confirmation APIs. The frontend COD checkout and confirmation
+pages are also implemented; see the [frontend handoff](../../../frontend/docs/checkout/README.md).
+Stripe integration, webhook processing, reservation expiry, delivery and payment
+collection workflows remain future work.
 
 See the COD contract below.
 

@@ -1,8 +1,9 @@
 # Saved-recipient APIs
 
 **Implemented:** authenticated listing and creation. These endpoints prepare the
-recipient selection used by the approved COD checkout design. Preview, placement,
-confirmation and frontend integration are still pending.
+recipient selection used by the implemented COD checkout flow. Checkout
+[preview](preview-api.md), [placement and confirmation](cod-api.md), and
+[frontend integration](../../../frontend/docs/checkout/README.md) are implemented.
 
 ## Authentication and ownership
 
