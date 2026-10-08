@@ -53,7 +53,8 @@ class CheckoutPlacementView(APIView):
         serializer.is_valid(raise_exception=True)
         checkout, created = place_cod(request.user, serializer.validated_data)
         result = checkout_confirmation(request.user, checkout.reference)
-        return Response(CheckoutConfirmationSerializer(result).data, status=201 if created else 200)
+        return Response(CheckoutConfirmationSerializer(result, context={'request': request}).data,
+                        status=201 if created else 200)
 
 
 class CheckoutConfirmationView(APIView):
@@ -64,4 +65,5 @@ class CheckoutConfirmationView(APIView):
         description='Read the owning customer’s persisted checkout/order snapshots. Never recomputes current prices or FX.',
     )
     def get(self, request, reference):
-        return Response(CheckoutConfirmationSerializer(checkout_confirmation(request.user, reference)).data)
+        return Response(CheckoutConfirmationSerializer(
+            checkout_confirmation(request.user, reference), context={'request': request}).data)

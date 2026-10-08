@@ -67,8 +67,9 @@ reissued. The same UUID may be used independently by different customers.
 ## Read confirmation
 
 `GET /api/shop/checkouts/{reference}/` requires Bearer authentication. The reference
-is a UUID, not proof of ownership. Missing and other customers' checkouts return 404. The response uses persisted snapshots, with no live product, recipient or
-exchange-rate lookup.
+is a UUID, not proof of ownership. Missing and other customers' checkouts return 404.
+Purchase details use persisted snapshots, with no live price, recipient or exchange-rate lookup.
+Optional images are loaded from the current linked catalog records.
 
 Example **200** confirmation (also the **201/200** placement body):
 
@@ -83,7 +84,7 @@ Example **200** confirmation (also the **201/200** placement body):
   "orders": [
     {
       "id": 11,
-      "store": { "id": 4, "name": "Camera store" },
+      "store": { "id": 4, "name": "Camera store", "profile_image": null },
       "status": "pending",
       "payment_status": "unpaid",
       "recipient": {
@@ -104,6 +105,7 @@ Example **200** confirmation (also the **201/200** placement body):
           "id": 19,
           "product_id": 12,
           "name": "Camera",
+          "image": null,
           "quantity": 2,
           "unit_price": { "amount": "12.34", "currency": "PHP" },
           "original_unit_price": { "amount": "12.34", "currency": "PHP" },
@@ -121,8 +123,13 @@ the source currency; converted prices and totals carry the checkout currency.
 Subtotals are sums of saved item prices, not current catalog prices. Order/payment
 statuses reflect their saved current state; recipient and purchase details remain
 snapshots. If a product is later deleted, `product_id` becomes null while its saved
-name, quantity and prices remain. Confirmation has no product-image field because
-the current purchase model does not snapshot images.
+name, quantity and prices remain. Each store includes nullable `profile_image` (an absolute
+URL); each item includes nullable `image` (`image` URL, `alt_text`, `crop`). The default
+product image is preferred, otherwise the first by order and ID. Deleted products and
+products without images return null. Images are current presentation data, not purchase
+snapshots; changing catalog images can change the receipt imagery. Clients show a
+placeholder for missing or broken images. These fields appear in placement, replay and
+confirmation responses. No database migration is required.
 
 Display “Order placed — payment due on delivery.” A completed COD checkout does
 not mean paid or delivered. Reading confirmation must never resubmit placement.

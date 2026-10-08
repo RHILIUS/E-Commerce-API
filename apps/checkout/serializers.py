@@ -103,12 +103,14 @@ class ConfirmationRecipientSerializer(serializers.Serializer):
 class ConfirmationStoreSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
+    profile_image = serializers.ImageField(allow_null=True)
 
 
 class ConfirmationItemSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     product_id = serializers.IntegerField(allow_null=True)
     name = serializers.CharField()
+    image = CatalogImageSerializer(allow_null=True)
     quantity = serializers.IntegerField()
     unit_price = PreviewMoneySerializer()
     original_unit_price = PreviewMoneySerializer()

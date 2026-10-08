@@ -16,7 +16,7 @@ from rest_framework.test import APIClient, APITestCase
 from apps.account.models import RecipientInfo
 from apps.checkout.models import Checkout, PaymentAttempt
 from apps.checkout.services.placement import PlacementConflict, place_cod
-from apps.ecommerce.models import Cart, CartItem, Order, OrderItem, Product
+from apps.ecommerce.models import Cart, CartItem, Order, OrderItem, Product, ProductImage
 from apps.inventory.models import StockReservation
 from apps.store.models import Store
 from core.test_support import create_purchase
@@ -43,6 +43,31 @@ def customer(number):
 
 
 class CODPlacementTests(APITestCase):
+    def test_confirmation_current_images_leave_purchase_snapshots_unchanged(self):
+        self.store.profile_image = 'stores/receipt.jpg'
+        self.store.save()
+        ProductImage.objects.create(product=self.product, image='products/first.jpg', order=0)
+        selected = ProductImage.objects.create(product=self.product, image='products/default.jpg',
+                                               is_default=True, order=5, alt_text='Camera front')
+        body = self.body()
+        response = self.place(body)
+        self.assertEqual(response.status_code, 201)
+        order = response.data['orders'][0]
+        self.assertIn('stores/receipt.jpg', order['store']['profile_image'])
+        self.assertIn('products/default.jpg', order['items'][0]['image']['image'])
+        self.assertEqual(order['items'][0]['image']['alt_text'], 'Camera front')
+        self.assertEqual(self.place(body).data, response.data)
+        url = f"{PLACE}{response.data['reference']}/"
+        self.assertEqual(self.client.get(url).data, response.data)
+        selected.delete()
+        self.assertIn('products/first.jpg', self.client.get(url).data['orders'][0]['items'][0]['image']['image'])
+        self.product.delete()
+        item = self.client.get(url).data['orders'][0]['items'][0]
+        self.assertIsNone(item['image'])
+        self.assertIsNone(item['product_id'])
+        self.assertEqual(item['name'], 'Camera')
+        self.assertEqual(item['unit_price'], order['items'][0]['unit_price'])
+
     def setUp(self):
         self.user, self.recipient = customer(1)
         self.other, self.other_recipient = customer(2)
