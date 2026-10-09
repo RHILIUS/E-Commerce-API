@@ -4,11 +4,6 @@ Implemented: customer/store wallet ownership, USD accounts, an immutable journal
 a transactional posting service and inspection-only Django admin. This is internal
 backend infrastructure with no API, frontend integration or real money movement.
 
-Apply `python manage.py migrate` after reviewing the new `wallet.0001_initial`
-migration. It creates four tables and their constraints; it does not provision
-wallets for existing users/stores or create starting funds. Wallets are provisioned
-explicitly through the service when a future business workflow needs them.
-
 ## Models and amounts
 
 - `Wallet`: one user XOR one store, enforced in the database; one wallet per owner.
