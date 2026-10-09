@@ -10,7 +10,7 @@ class OpenAPITests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         schema = response.json()
         self.assertEqual(set(schema["paths"]), {
-            "/api/account/recipients/",
+            "/api/account/recipients/", "/api/account/recipients/{id}/",
             "/api/shop/checkout/preview/",
             "/api/shop/checkouts/", "/api/shop/checkouts/{reference}/",
             "/api/auth/login/", "/api/auth/logout/", "/api/auth/refresh/",

@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiResponse, OpenApiTypes, extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -6,7 +7,7 @@ from rest_framework.views import APIView
 
 from .models import RecipientInfo
 from .serializers import RecipientListSerializer, RecipientSerializer
-from .services import create_recipient
+from .services import create_recipient, update_recipient
 
 
 class RecipientListCreateView(APIView):
@@ -41,3 +42,26 @@ class RecipientListCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         recipient = create_recipient(request.user, serializer.validated_data)
         return Response(RecipientSerializer(recipient).data, status=status.HTTP_201_CREATED)
+
+
+class RecipientUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Recipients"],
+        request=RecipientSerializer,
+        responses={
+            200: RecipientSerializer,
+            400: OpenApiResponse(response=OpenApiTypes.OBJECT, description="Field names mapped to validation messages."),
+            401: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        },
+        description="Partially update an owned saved recipient. Omitted fields are unchanged. Default replacement is atomic; the current default cannot be directly cleared. Existing order snapshots remain unchanged.",
+    )
+    def patch(self, request, pk):
+        # Check ownership before validation so foreign and missing IDs always return 404.
+        recipient = get_object_or_404(RecipientInfo, pk=pk, user=request.user)
+        serializer = RecipientSerializer(recipient, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        recipient = update_recipient(request.user, pk, serializer.validated_data)
+        return Response(RecipientSerializer(recipient).data)

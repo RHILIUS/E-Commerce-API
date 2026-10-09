@@ -1,13 +1,13 @@
 # Saved-recipient APIs
 
-**Implemented:** authenticated listing and creation. These endpoints prepare the
+**Implemented:** authenticated listing, creation and editing. These endpoints prepare the
 recipient selection used by the implemented COD checkout flow. Checkout
 [preview](preview-api.md), [placement and confirmation](cod-api.md), and
 [frontend integration](../../../frontend/docs/checkout/README.md) are implemented.
 
 ## Authentication and ownership
 
-Both operations use the existing Bearer access token. Missing, expired or invalid
+All operations use the existing Bearer access token. Missing, expired or invalid
 authentication returns 401. The backend takes ownership from the authenticated
 customer. `user` and `user_id` are not writable fields; submitted values cannot
 change ownership. `id` is read-only. No new cookies or token response fields exist.
@@ -96,6 +96,23 @@ A successful create is not idempotent: repeating a POST creates another recipien
 The frontend should disable duplicate submissions and select the returned recipient.
 Choosing a recipient for checkout will not change the saved default.
 
+## Edit a recipient
+
+`PATCH /api/account/recipients/{id}/` partially updates an owned saved recipient
+and returns **200** with the same single-object shape as creation. Omitted fields
+remain unchanged, including `is_default` and optional address strings. The same
+field validation and normalization apply. Missing or foreign IDs return **404**;
+unauthenticated requests return **401**. Ownership and ID are never writable.
+
+Setting `is_default: true` replaces the prior default atomically under the same
+customer-row locking protocol as creation and order placement. Setting the current
+default to false returns **400** with an `is_default` field error; choose another
+default instead. Validation or save failure leaves the old data/default unchanged.
+
+Editing changes saved recipient details for future purchases. Existing checkout
+and order recipient snapshots remain unchanged. GET, POST, PUT and DELETE on the
+detail endpoint return **405** for authenticated requests.
+
 ## Errors and scope
 
 Validation errors return 400 as field names mapped to message arrays, for example:
@@ -105,8 +122,7 @@ Validation errors return 400 as field names mapped to message arrays, for exampl
 ```
 
 Invalid input is rejected before changing defaults. PUT, PATCH and DELETE on the
-collection return 405 for authenticated requests. Editing, deleting, separate
-default-switching endpoints, checkout creation and payment are outside this step.
+collection return 405 for authenticated requests. Deleting and separate default-switching endpoints are outside this recipient API.
 
 Request/response schemas are published in `/api/schema/` and Swagger `/api/docs/`.
 Regression tests cover authentication, owner scoping, normalized response shape,

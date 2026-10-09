@@ -9,7 +9,7 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
 
 from .models import RecipientInfo
-from .services import create_recipient
+from .services import create_recipient, update_recipient
 
 
 def recipient_data(**overrides):
@@ -138,6 +138,72 @@ class RecipientAPITests(APITestCase):
                          {"$ref": "#/components/schemas/RecipientList"})
         self.assertTrue(schema["components"]["schemas"]["Recipient"]["properties"]["id"]["readOnly"])
 
+    def test_update_is_partial_normalized_and_cannot_change_ownership(self):
+        existing = RecipientInfo.objects.create(user=self.user, is_default=True, **recipient_data())
+        response = self.client.patch(f"{self.url}{existing.pk}/", {
+            "name": "  Updated  ", "country_code": "us", "address_line2": "",
+            "user": self.other.pk, "user_id": self.other.pk, "id": 999,
+        }, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["name"], "Updated")
+        self.assertEqual(response.data["country_code"], "US")
+        self.assertEqual(response.data["phone_number"], existing.phone_number)
+        self.assertTrue(response.data["is_default"])
+        existing.refresh_from_db()
+        self.assertEqual(existing.user_id, self.user.pk)
+        self.assertEqual(response.data["id"], existing.pk)
+
+    def test_update_requires_authentication_and_ownership(self):
+        foreign = RecipientInfo.objects.create(user=self.other, **recipient_data())
+        for pk in (foreign.pk, 999999):
+            self.assertEqual(self.client.patch(f"{self.url}{pk}/", {"name": ""}, format="json").status_code, 404)
+        self.client.credentials()
+        self.assertEqual(self.client.patch(f"{self.url}{foreign.pk}/", {}, format="json").status_code, 401)
+
+    def test_update_default_and_invalid_updates_are_atomic(self):
+        first = RecipientInfo.objects.create(user=self.user, is_default=True, **recipient_data())
+        second = RecipientInfo.objects.create(user=self.user, **recipient_data(name="Second"))
+        url = f"{self.url}{second.pk}/"
+        response = self.client.patch(url, {"name": "", "is_default": True}, format="json")
+        self.assertEqual(response.status_code, 400)
+        first.refresh_from_db()
+        self.assertTrue(first.is_default)
+        self.assertEqual(self.client.patch(f"{self.url}{first.pk}/", {"is_default": False}, format="json").status_code, 400)
+        with patch("apps.account.models.RecipientInfo.save", side_effect=IntegrityError("simulated failure")):
+            with self.assertRaises(IntegrityError):
+                update_recipient(self.user, second.pk, {"is_default": True})
+        first.refresh_from_db()
+        self.assertTrue(first.is_default)
+        self.assertEqual(self.client.patch(url, {"is_default": True}, format="json").status_code, 200)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertFalse(first.is_default)
+        self.assertTrue(second.is_default)
+
+    def test_edit_leaves_existing_order_snapshot_unchanged(self):
+        from apps.ecommerce.models import Product
+        from apps.store.models import Store
+        from core.test_support import create_purchase
+
+        recipient = RecipientInfo.objects.create(user=self.user, **recipient_data())
+        store = Store.objects.create(name="Store", country_code="PH")
+        product = Product.objects.create(store=store, name="Camera", price="100", stock=5)
+        order, _ = create_purchase(user=self.user, recipient=recipient, product=product)
+        snapshot = dict(order.recipient_snapshot)
+        response = self.client.patch(f"{self.url}{recipient.pk}/", {"name": "Updated", "address_line1": "New street"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        order.refresh_from_db()
+        self.assertEqual(order.recipient_snapshot, snapshot)
+
+    def test_update_schema_and_unsupported_methods(self):
+        schema = self.client.get("/api/schema/?format=json").json()
+        operation = schema["paths"]["/api/account/recipients/{id}/"]["patch"]
+        self.assertEqual(set(operation["responses"]), {"200", "400", "401", "404"})
+        self.assertNotIn({}, operation["security"])
+        existing = RecipientInfo.objects.create(user=self.user, **recipient_data())
+        for method in ("get", "post", "put", "delete"):
+            self.assertEqual(getattr(self.client, method)(f"{self.url}{existing.pk}/", {}, format="json").status_code, 405)
+
 
 class ConcurrentRecipientTests(TransactionTestCase):
     def setUp(self):
@@ -170,3 +236,24 @@ class ConcurrentRecipientTests(TransactionTestCase):
         self.assertEqual(RecipientInfo.objects.filter(user=self.user, is_default=True).count(), 1)
         old.refresh_from_db()
         self.assertFalse(old.is_default)
+
+
+    @skipUnlessDBFeature("has_select_for_update")
+    def test_concurrent_edit_and_creation_share_default_lock(self):
+        existing = RecipientInfo.objects.create(user=self.user, **recipient_data())
+        barrier = Barrier(2)
+
+        def write(index):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                if index == 0:
+                    return update_recipient(self.user, existing.pk, {"is_default": True}).pk
+                return create_recipient(self.user, recipient_data(name="New", is_default=True)).pk
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            ids = list(pool.map(write, range(2)))
+        self.assertEqual(len(set(ids)), 2)
+        self.assertEqual(RecipientInfo.objects.filter(user=self.user, is_default=True).count(), 1)
