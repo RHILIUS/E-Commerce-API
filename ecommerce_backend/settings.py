@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'apps.store',
     'apps.checkout',
     'apps.inventory',
+    'apps.wallet',
 ]
 
 MIDDLEWARE = [

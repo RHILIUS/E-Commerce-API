@@ -14,6 +14,7 @@ See the COD contract below.
 - [Checkout preview API contract](preview-api.md)
 - [Saved-recipient API contract](recipients-api.md)
 - [Model structure and rules](models.md)
+- [Demo USD wallet foundation](../wallet/README.md) — internal ledger only; not connected to checkout yet.
 - [Development seed data](../seed.md)
 
 ```mermaid

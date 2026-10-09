@@ -37,6 +37,7 @@ This project uses Python, Django, Django REST Framework, PostgreSQL, SimpleJWT, 
 - `apps/ecommerce/` contains catalog, cart, order models and APIs.
 - `apps/checkout/` contains checkout and payment-attempt models.
 - `apps/inventory/` contains stock-reservation models.
+- `apps/wallet/` contains simulated USD wallets, the immutable ledger and internal posting services.
 - `apps/account/` and `apps/store/` contain recipient and store models.
 - `core/common/` contains shared code.
 
