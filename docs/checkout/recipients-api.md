@@ -128,3 +128,25 @@ Request/response schemas are published in `/api/schema/` and Swagger `/api/docs/
 Regression tests cover authentication, owner scoping, normalized response shape,
 required fields/limits, shared phones, defaults, rollback and concurrent creation.
 Concurrency tests require row-lock support and skip on SQLite.
+
+
+## Django admin
+
+Staff can inspect, add and edit recipients under **Account → Recipient infos**.
+The list shows the recipient, customer, phone, city, country and default status,
+with customer/contact/address search and country/default filters. Creation uses
+customer autocomplete; ownership is read-only after creation. Contact and address
+fields are grouped on the form.
+
+Admin writes reuse API validation and the transactional recipient services.
+The first recipient becomes default; choosing a new default replaces the old one
+atomically. Clearing the current default is a form error. Phone/country values
+are normalized, and invalid submissions do not save. Admin POST validation locks
+the customer inside Django's change-form transaction, keeping default validation
+and persistence consistent with concurrent API writes.
+
+Django's standard view/add/change model permissions and admin change logs apply.
+Customer autocomplete additionally requires view or change permission on the user
+model, following Django's related-object autocomplete permissions.
+Recipient deletion, including bulk deletion, is disabled until default handling
+for deletion is defined. Existing order snapshots are unchanged by admin edits.
