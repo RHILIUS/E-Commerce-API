@@ -1,7 +1,8 @@
-"""Atomic COD purchases, serialized per customer and across shared inventory."""
+"""Shared purchase validation for COD placement and online inventory reservation."""
 import hashlib
 import json
 from decimal import Decimal
+from datetime import timedelta
 from hmac import compare_digest
 
 from django.contrib.auth import get_user_model
@@ -13,7 +14,7 @@ from rest_framework.exceptions import APIException, ValidationError
 
 from apps.account.models import RecipientInfo
 from apps.account.serializers import RecipientSerializer
-from apps.checkout.models import Checkout
+from apps.checkout.models import Checkout, PaymentAttempt
 from apps.ecommerce.models import Cart, CartItem, Order, OrderItem, Product
 from apps.inventory.models import StockReservation
 from apps.store.models import Store
@@ -43,21 +44,30 @@ def _replay(checkout, fingerprint):
 
 
 @transaction.atomic
-def place_cod(user, data):
-    """Commit one all-or-nothing purchase or return its successful replay before token checks.
+def _place(user, data):
+    """Commit a COD purchase or online reservation, replaying matching requests before token checks.
 
     Lock order is customer, recipient, products by ID, stores by ID, cart lines by ID.
     Cart APIs already lock the customer first. Future reservation writers must lock
     the same product rows before changing holds to preserve available-stock checks.
     """
+    online = data['payment_method'] == 'stripe'
     fingerprint = _fingerprint(data)
     # Serializing on the customer also covers two first submissions with the same key.
     get_user_model().objects.select_for_update().only('pk').get(pk=user.pk)
     existing = Checkout.objects.filter(user=user, idempotency_key=data['idempotency_key']).first()
     if existing is not None:
+        if online:
+            if existing.payment_method != 'stripe' or not compare_digest(existing.request_fingerprint, fingerprint):
+                raise PlacementConflict('This idempotency key has already been used for a different or incomplete purchase.')
+            return existing, False
         return _replay(existing, fingerprint)
 
     preview = read_preview(data['preview_token'], user)
+    if preview.get('payment_method', 'cod') != data['payment_method']:
+        raise PlacementConflict('Review prices for the selected payment method first.')
+    if online and (preview['currency'] != 'USD' or not Decimal('0.50') <= Decimal(preview['total_amount']) <= Decimal('999999.99')):
+        raise PlacementConflict('Stripe checkout requires a valid USD total.')
     recipient = get_object_or_404(RecipientInfo.objects.select_for_update(), pk=data['recipient_id'], user=user)
     recipient_data = RecipientSerializer(data=recipient_snapshot(recipient))
     if not recipient_data.is_valid():
@@ -76,11 +86,13 @@ def place_cod(user, data):
         pk__in=cart_ids, cart__user=user).order_by('pk')}
     if len(cart_items) != len(cart_ids):
         raise PlacementConflict('Selected cart items changed. Request a fresh preview.')
+    from apps.ecommerce.services.carts import reject_frozen_items
+    reject_frozen_items(cart_ids)
     # Lock waits can outlive the original review window. Recheck after acquiring all rows.
     read_preview(data['preview_token'], user)
     now = timezone.now()
     holds = dict(StockReservation.objects.filter(
-        product_id__in=product_ids, status=StockReservation.Status.HELD, expires_at__gt=now,
+        product_id__in=product_ids, status=StockReservation.Status.HELD,
     ).values('product_id').annotate(total=Sum('quantity')).values_list('product_id', 'total'))
     calculated_total = Decimal(0)
     for line in lines:
@@ -105,8 +117,9 @@ def place_cod(user, data):
 
     checkout = Checkout.objects.create(
         user=user, idempotency_key=data['idempotency_key'], request_fingerprint=fingerprint,
-        payment_method=Checkout.PaymentMethod.COD, status=Checkout.Status.COMPLETED,
-        currency=preview['currency'], total_amount=calculated_total, completed_at=now,
+        payment_method=data['payment_method'], status=Checkout.Status.PENDING if online else Checkout.Status.COMPLETED,
+        currency=preview['currency'], total_amount=calculated_total, completed_at=None if online else now,
+        expires_at=now + timedelta(hours=1) if online else None,
     )
     orders = {}
     for line in lines:
@@ -117,17 +130,37 @@ def place_cod(user, data):
                 recipient_snapshot=recipient_details, store_id=store_id,
                 store_name_at_purchase=line['store_name'], source_currency=line['source_currency'],
                 exchange_rate=Decimal(line['exchange_rate']), exchange_rate_date=line['exchange_rate_date'],
-                status=Order.Status.PENDING, payment_status=Order.PaymentStatus.UNPAID,
+                status=Order.Status.PENDING, payment_status=Order.PaymentStatus.PENDING if online else Order.PaymentStatus.UNPAID,
             )
-        OrderItem.objects.create(
+        item = OrderItem.objects.create(
             order=orders[store_id], product_id=line['product_id'], quantity=line['quantity'],
             product_name_at_purchase=line['product_name'], original_unit_price=Decimal(line['original_unit_price']),
             price_at_purchase=Decimal(line['unit_price']), source_cart_item_id=line['cart_item_id'],
         )
         product = products[line['product_id']]
-        Product.objects.filter(pk=product.pk).update(stock=product.stock - line['quantity'], updated_at=now)
-    if cart_ids:
+        if online:
+            StockReservation.objects.create(order_item=item, product=product, quantity=item.quantity, expires_at=checkout.expires_at)
+        else:
+            Product.objects.filter(pk=product.pk).update(stock=product.stock - line['quantity'], updated_at=now)
+    if online:
+        attempt = PaymentAttempt.objects.create(checkout=checkout, amount=calculated_total, currency="USD", expires_at=checkout.expires_at)
+        from .stripe_provider import session_parameters
+        attempt.session_parameters = session_parameters(attempt)
+        attempt.save(update_fields=["session_parameters", "updated_at"])
+    if cart_ids and not online:
         # Quantities were checked under lock, so removing these lines removes exactly the purchase.
         CartItem.objects.filter(pk__in=cart_ids).delete()
         Cart.objects.filter(user=user, items__isnull=True).delete()
     return checkout, True
+
+
+def place_cod(user, data):
+    """Place or replay a COD purchase using the shared authoritative review checks."""
+    return _place(user, data)
+
+
+def reserve_online(user, data):
+    """Persist all online orders and holds before any external provider request."""
+    from .stripe_provider import ensure_configured
+    ensure_configured()
+    return _place(user, data)

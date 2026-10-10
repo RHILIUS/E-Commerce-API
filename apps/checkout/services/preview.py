@@ -4,7 +4,6 @@ from decimal import Decimal
 
 from django.db.models import Prefetch, Sum
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
 from apps.ecommerce.models import CartItem, Product, ProductImage
@@ -36,9 +35,15 @@ def preview_checkout(request, data):
 
     held = dict(StockReservation.objects.filter(
         product_id__in=[product.pk for product, _, _ in lines],
-        status=StockReservation.Status.HELD, expires_at__gt=timezone.now(),
+        status=StockReservation.Status.HELD,
     ).values('product_id').annotate(total=Sum('quantity')).values_list('product_id', 'total'))
-    currency, rates = checkout_rates(request.user, {p.store.currency for p, _, _ in lines})
+    method = data.get('payment_method', 'cod')
+    if method == 'stripe':
+        from .stripe_provider import ensure_configured
+        ensure_configured()
+        currency, rates = checkout_rates(request.user, {p.store.currency for p, _, _ in lines}, target_currency='USD')
+    else:
+        currency, rates = checkout_rates(request.user, {p.store.currency for p, _, _ in lines})
     groups, snapshots, issues = {}, [], []
     for product, quantity, item_id in lines:
         store = product.store
@@ -91,10 +96,13 @@ def preview_checkout(request, data):
                            'message': 'Reduce the selected quantities before checkout.'})
         else:
             total = _money(amount, currency)
+    if method == 'stripe' and total and not Decimal('0.50') <= Decimal(total['amount']) <= Decimal('999999.99'):
+        issues.append({'code': 'amount_too_large', 'product_id': None, 'cart_item_id': None,
+                       'message': 'Stripe test checkout requires a total between USD 0.50 and USD 999,999.99.'})
     token, expires_at = None, None
     if not issues:
         token, expires = sign_preview(request.user, {
-            'source': data['source'], 'currency': currency, 'total_amount': total['amount'],
+            'source': data['source'], 'currency': currency, 'payment_method': method, 'total_amount': total['amount'],
             'items': sorted(snapshots, key=lambda item: item['product_id']),
         })
         expires_at = datetime.fromtimestamp(expires, datetime_timezone.utc)

@@ -42,10 +42,10 @@ have the confirmation shape shown below. Payment is still unpaid.
    lines. Check token expiry again after waiting for locks. Recheck product
    availability, store membership, store currency, names, source prices and saved
    cart quantities against the reviewed snapshot.
-5. Subtract active, unexpired stock holds from available inventory. Recalculate
+5. Subtract active, unresolved stock holds from available inventory. Recalculate
    the rounded unit prices using the **signed exchange multipliers**, and ensure
    the sum of line subtotals equals the signed total. No FX request is made during
-   placement. A changed rate at the provider does not change an unexpired review.
+   placement. A changed rate at the provider does not change an unresolved review.
 6. Create one `completed` Checkout and one `pending`/`unpaid` Order per store. Save
    recipient, product/store names, original/converted prices and dated FX rates.
    Deduct stock and remove exactly the purchased selected cart lines. Remove carts
@@ -185,3 +185,7 @@ not a new test run for this documentation update.
   the additive migration linked above, generated after that verification run.
 - The temporary PostgreSQL instances were stopped. The development database and
   repository migration files were not changed during that verification run.
+
+Online payment integration: COD now counts every unresolved held reservation, even
+past its deadline, and rejects selected cart lines frozen by pending Stripe checkout.
+See [Stripe test checkout](stripe-api.md).

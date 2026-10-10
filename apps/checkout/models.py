@@ -131,6 +131,13 @@ class PaymentAttempt(TimeStampedModel):
         blank=True,
     )
 
+    session_parameters = models.JSONField(default=dict, blank=True, editable=False)
+    checkout_url = models.URLField(max_length=2048, blank=True)
+    cancel_requested = models.BooleanField(default=False)
+    receipt = models.OneToOneField(
+        "wallet.LedgerTransaction", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="payment_attempt",
+    )
     failure_code = models.CharField(max_length=100, blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     succeeded_at = models.DateTimeField(null=True, blank=True)
@@ -161,6 +168,16 @@ class PaymentAttempt(TimeStampedModel):
             errors["amount"] = "The amount must equal the checkout total."
         if self.currency != checkout.currency:
             errors["currency"] = "The currency must match the checkout currency."
+        if self.pk:
+            previous = type(self).objects.filter(pk=self.pk).values(
+                "checkout_id", "amount", "currency", "reference", "session_parameters",
+                "stripe_checkout_session_id", "stripe_payment_intent_id", "receipt_id").first()
+            for field in ("checkout_id", "amount", "currency", "reference"):
+                if previous and previous[field] != getattr(self, field):
+                    errors[field] = "Payment attempt identity and terms are immutable."
+            for field in ("session_parameters", "stripe_checkout_session_id", "stripe_payment_intent_id", "receipt_id"):
+                if previous and previous[field] and previous[field] != getattr(self, field):
+                    errors[field] = "Assigned provider and ledger references cannot change."
         if errors:
             raise ValidationError(errors)
 
@@ -168,3 +185,31 @@ class PaymentAttempt(TimeStampedModel):
         """Validate payment terms without contacting Stripe or updating order status."""
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+class ProviderEvent(models.Model):
+    """Durable, minimal Stripe webhook inbox; financial work is independently idempotent."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSED = "processed", "Processed"
+        FAILED = "failed", "Failed"
+
+    payment_attempt = models.ForeignKey(PaymentAttempt, null=True, blank=True, on_delete=models.PROTECT)
+    event_id = models.CharField(max_length=255)
+    environment = models.CharField(max_length=10, default="test", editable=False)
+    event_type = models.CharField(max_length=100)
+    session_id = models.CharField(max_length=255)
+    attempt_reference = models.CharField(max_length=36, blank=True)
+    processing_status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    received_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["environment", "event_id"], name="stripe_event_environment_unique"),
+            models.CheckConstraint(condition=models.Q(environment="test"), name="provider_event_test_only"),
+        ]
+        indexes = [models.Index(fields=["processing_status", "received_at"], name="provider_event_pending_idx")]

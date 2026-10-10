@@ -35,7 +35,7 @@ This project uses Python, Django, Django REST Framework, PostgreSQL, SimpleJWT, 
 - `ecommerce_backend/` contains project settings and root routing.
 - `apps/authentication/` contains the custom user model and authentication API.
 - `apps/ecommerce/` contains catalog, cart, order models and APIs.
-- `apps/checkout/` contains checkout and payment-attempt models.
+- `apps/checkout/` contains checkout/payment-attempt models, the Stripe test webhook inbox, and online payment/recovery services.
 - `apps/inventory/` contains stock-reservation models.
 - `apps/wallet/` contains simulated USD wallets, the immutable ledger and internal posting services.
 - `apps/account/` and `apps/store/` contain recipient and store models.

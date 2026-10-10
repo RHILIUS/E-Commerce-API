@@ -13,6 +13,8 @@ class OpenAPITests(SimpleTestCase):
             "/api/account/recipients/", "/api/account/recipients/{id}/",
             "/api/shop/checkout/preview/",
             "/api/shop/checkouts/", "/api/shop/checkouts/{reference}/",
+            "/api/shop/checkouts/stripe/", "/api/shop/checkouts/{reference}/payment/",
+            "/api/shop/checkouts/{reference}/payment/cancel/", "/api/shop/stripe/webhook/",
             "/api/auth/login/", "/api/auth/logout/", "/api/auth/refresh/",
             "/api/auth/register/", "/api/auth/send-otp/",
             "/api/auth/verify-otp/", "/api/auth/verify/",

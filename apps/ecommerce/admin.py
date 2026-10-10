@@ -22,7 +22,7 @@ class CartItemInline(admin.TabularInline):
 
 
 @admin.register(Cart)
-class CartAdmin(admin.ModelAdmin):
+class CartAdmin(ReadOnlyTransactionAdmin):
     list_display = ('id', 'user', 'store', 'updated_at')
     list_select_related = ('user', 'store')
     search_fields = ('user__email', 'store__name')

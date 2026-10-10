@@ -3,7 +3,7 @@
 **Implemented:** authenticated product/cart preview. COD placement and confirmation
 are covered in the [COD contract](cod-api.md).
 [Frontend checkout integration](../../../frontend/docs/checkout/README.md) is
-implemented for COD. Preview is read-only for
+implemented for COD and Stripe test checkout. Preview is read-only for
 application data: it creates no checkout, order, reservation or cart record and
 never changes quantities or stock. FX responses may be cached.
 
@@ -23,7 +23,11 @@ Selected cart items:
 {"source": "cart", "item_ids": [31, 45]}
 ```
 
-Use exactly one shape. Product quantities are positive integers up to 2147483647.
+Either shape accepts optional `payment_method` (`cod` by default, or `stripe`).
+Stripe reviews require configured test credentials, use USD, and bind the signed
+token to that payment method. See [Stripe checkout](stripe-api.md).
+
+Use exactly one selection shape. Product quantities are positive integers up to 2147483647.
 Cart requests accept 1–500 distinct cart-item IDs and use their saved quantities.
 Missing or foreign cart IDs reject the entire request with 404. The backend does
 not accept client prices, totals, currency, ownership or cart quantity overrides.
@@ -64,7 +68,7 @@ cart lines are ordered by cart-item ID. Images follow the catalog's
 `image`, `alt_text`, `crop` shape and use an absolute storage URL. The default image
 is preferred, otherwise the first image by order and ID.
 
-Stock is current product stock minus unexpired `held` reservations, floored at zero.
+Stock is current product stock minus all unresolved `held` reservations, floored at zero.
 Preview is not a stock guarantee: placement must lock and revalidate inventory.
 Archived/sold-out products and excessive quantities return 200 with issues, for
 example:

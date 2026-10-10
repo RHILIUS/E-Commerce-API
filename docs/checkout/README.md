@@ -3,13 +3,15 @@
 The checkout feature groups a customer's purchase into one order per store.
 These models, their validation, development fixtures and inspection-only admin
 are implemented, along with saved-recipient, checkout preview, atomic COD placement
-and owner-only confirmation APIs. The frontend COD checkout and confirmation
+and owner-only confirmation APIs. The frontend COD/Stripe test checkout, payment status and confirmation
 pages are also implemented; see the [frontend handoff](../../../frontend/docs/checkout/README.md).
-Stripe integration, webhook processing, reservation expiry, delivery and payment
-collection workflows remain future work.
+Stripe test checkout, webhook recovery, stock holds and pending store-wallet credits
+are implemented. Delivery, settlement release, returns, withdrawals and COD payment
+collection remain future work.
 
 See the COD contract below.
 
+- [Stripe test checkout and setup](stripe-api.md)
 - [COD placement and confirmation](cod-api.md)
 - [Checkout preview API contract](preview-api.md)
 - [Saved-recipient API contract](recipients-api.md)

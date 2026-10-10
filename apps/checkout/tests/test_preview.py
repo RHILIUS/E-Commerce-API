@@ -132,7 +132,7 @@ class PreviewAPITests(APITestCase):
         self.assertIsNone(data['preview_token'])
         self.assertNotIn('Secret', json.dumps(data))
 
-    def test_active_holds_reduce_available_stock_expired_holds_do_not(self):
+    def test_unresolved_holds_reduce_stock_even_after_deadline(self):
         recipient = RecipientInfo.objects.create(user=self.user, name='Buyer', phone_number=self.user.phone_number,
             country_code='PH', address_line1='Street', city='Manila')
         _, order_item = create_purchase(user=self.user, recipient=recipient, product=self.product, quantity=4)
@@ -142,6 +142,8 @@ class PreviewAPITests(APITestCase):
         self.assertEqual(data['stores'][0]['items'][0]['available_stock'], 1)
         self.assertFalse(data['can_place_order'])
         StockReservation.objects.filter(pk=hold.pk).update(expires_at=timezone.now() - timedelta(seconds=1))
+        self.assertFalse(self.preview().json()['can_place_order'])
+        StockReservation.objects.filter(pk=hold.pk).update(status='released')
         self.assertTrue(self.preview().json()['can_place_order'])
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, 5)

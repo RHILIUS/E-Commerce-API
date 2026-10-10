@@ -231,3 +231,8 @@ if USE_AZURE_STORAGE:
 else:
     MEDIA_URL = "/media/"
     MEDIA_ROOT = BASE_DIR / "media"
+
+# Test-only hosted checkout. Never expose the secret or webhook key to the frontend.
+STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
+STRIPE_FRONTEND_ORIGIN = env("STRIPE_FRONTEND_ORIGIN", default="http://localhost:5173")

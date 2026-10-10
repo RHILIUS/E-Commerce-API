@@ -196,12 +196,15 @@ class CODPlacementTests(APITestCase):
         self.assertFalse(Checkout.objects.exists())
         self.assertEqual(Product.objects.get(pk=self.product.pk).stock, 5)
 
-    def test_new_hold_blocks_placement_and_expired_hold_does_not(self):
+    def test_unresolved_hold_blocks_placement_even_after_deadline(self):
         body = self.body()
         _, item = create_purchase(user=self.other, recipient=self.other_recipient, product=self.product, quantity=4)
         hold = StockReservation.objects.create(order_item=item, product=self.product, quantity=4, expires_at=timezone.now()+timedelta(minutes=5))
         self.assertEqual(self.place(body).status_code, 409)
         hold.expires_at = timezone.now()-timedelta(seconds=1)
+        hold.save()
+        self.assertEqual(self.place(body).status_code, 409)
+        hold.status = 'released'
         hold.save()
         self.assertEqual(self.place(body).status_code, 201)
         self.assertEqual(StockReservation.objects.count(), 1)

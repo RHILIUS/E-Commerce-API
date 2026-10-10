@@ -1,8 +1,8 @@
 # Demo USD wallet and ledger foundation
 
 Implemented: customer/store wallet ownership, USD accounts, an immutable journal,
-a transactional posting service and inspection-only Django admin. This is internal
-backend infrastructure with no API, frontend integration or real money movement.
+a transactional posting service and inspection-only Django admin. Stripe test checkout
+now posts pending store credits through this internal service; no real money moves.
 
 ## Models and amounts
 
@@ -89,16 +89,17 @@ and while holding locks. Administrative database writes are outside this contrac
 
 ## Scope and next steps
 
-No Stripe calls, ProviderEvent, settlement/hold records, seven-day jobs, refunds,
+Stripe test checkout and ProviderEvent are now implemented; see [setup](../checkout/stripe-api.md).
+No settlement/hold records, seven-day jobs, refunds,
 withdrawal workflow, mock-bank adapter, wallet spending or fee logic are implemented.
 COD does not create any ledger entries. A reversal API and `reverses_id` link from
 the proposed ERD are deferred until a correction/refund workflow can enforce its
 business limits; posted history must never be edited to simulate a reversal.
-Payment/settlement/withdrawal foreign keys will be added with those workflows.
+PaymentAttempt now holds a protected one-to-one receipt reference. Settlement and
+withdrawal foreign keys remain deferred with those workflows.
 
-Next: implement Stripe test checkout and event recovery together, using this
-posting service inside atomic payment finalization. Fix unresolved reservation
-expiry handling across stock consumers before enabling online payments.
+Stripe uses this service inside atomic payment finalization and protects unresolved
+stock reservations across preview and placement. Next: delivery and settlement release.
 
 Design context: [shared wallet ERD](../../../docs/diagrams/erd/demo-wallet-ledger.md)
 and [online checkout process](../../../docs/diagrams/specific-business-processes/checkout/demo-online-checkout.md).

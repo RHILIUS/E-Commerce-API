@@ -10,3 +10,4 @@ djangorestframework_simplejwt==5.5.1
 phonenumbers==9.0.38
 pillow==12.3.0
 psycopg2-binary==2.9.11
+stripe==16.0.0

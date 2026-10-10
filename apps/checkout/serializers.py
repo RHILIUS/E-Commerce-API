@@ -5,6 +5,7 @@ from apps.ecommerce.serializers import CatalogImageSerializer
 
 
 class PreviewRequestSerializer(serializers.Serializer):
+    payment_method = serializers.ChoiceField(choices=['cod', 'stripe'], required=False)
     source = serializers.ChoiceField(choices=['product', 'cart'])
     product_id = serializers.IntegerField(min_value=1, required=False)
     quantity = serializers.IntegerField(min_value=1, max_value=2147483647, required=False)
@@ -16,8 +17,9 @@ class PreviewRequestSerializer(serializers.Serializer):
     def validate(self, attrs):
         """Require exactly one source shape, rejecting client-owned pricing fields."""
         expected = {'source', 'product_id', 'quantity'} if attrs['source'] == 'product' else {'source', 'item_ids'}
+        allowed = expected | {'payment_method'}
         errors = {key: ['This field is required.'] for key in expected - attrs.keys()}
-        errors.update({key: ['Unexpected field for this checkout source.'] for key in self.initial_data.keys() - expected})
+        errors.update({key: ['Unexpected field for this checkout source.'] for key in self.initial_data.keys() - allowed})
         if errors:
             raise serializers.ValidationError(errors)
         if attrs['source'] == 'cart' and len(set(attrs['item_ids'])) != len(attrs['item_ids']):
@@ -137,3 +139,19 @@ class CheckoutConfirmationSerializer(serializers.Serializer):
     completed_at = serializers.DateTimeField(allow_null=True)
     total = PreviewMoneySerializer()
     orders = ConfirmationOrderSerializer(many=True)
+
+
+class PlaceStripeSerializer(PlaceCODSerializer):
+    payment_method = serializers.ChoiceField(choices=["stripe"])
+
+
+class StripeSessionSerializer(serializers.Serializer):
+    reference = serializers.UUIDField()
+    status = serializers.ChoiceField(choices=["pending", "completed", "cancelled", "expired"])
+    checkout_url = serializers.URLField(allow_null=True)
+    expires_at = serializers.DateTimeField(allow_null=True)
+    cancel_requested = serializers.BooleanField()
+
+
+class WebhookResponseSerializer(serializers.Serializer):
+    received = serializers.BooleanField()

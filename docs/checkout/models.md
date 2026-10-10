@@ -86,7 +86,7 @@ Ordinary saves require product/store agreement. A source cart line must match th
 product and customer. A product already referenced by orders cannot move stores.
 An item with a reservation cannot change its product or quantity; the reservation
 must continue to describe that item. Source cart linkage alone does not remove
-items: the future transaction service must handle concurrent cart changes safely.
+items: the online service freezes selected cart lines until resolution and removes them atomically on success.
 
 ## PaymentAttempt (`apps.checkout`)
 
@@ -107,8 +107,8 @@ inside one session do not need extra rows; a newly created session gets a new ro
 A partial unique constraint allows only one pending attempt per checkout. Use
 null, not an empty string, for unknown provider IDs. A declined card can leave a
 session open, so it need not make the entire attempt terminal. Verified provider
-state must determine when a retry session is safe. Stripe webhook verification,
-Stripe stock/order updates and duplicate-success protection remain unimplemented.
+state must determine when a retry session is safe. Stripe test webhook verification, atomic stock/order/ledger updates and duplicate-success
+protection are implemented in the online payment services.
 COD placement already provides atomic stock/order updates and idempotent replay.
 Creating this record never contacts Stripe or marks an order paid.
 
@@ -126,7 +126,7 @@ One inventory hold for one order item.
 | `resolved_at` | Optional consumption/release timestamp.                   |
 
 Saving a reservation does not reduce stock, lock products or schedule expiry.
-The future checkout service must lock product rows and account for held quantities;
+The online checkout service locks product rows and accounts for every unresolved held quantity;
 current catalog/cart APIs still expose `Product.stock` and do not subtract holds.
 Do not treat inserting a reservation row as an implemented stock reservation workflow.
 Coordinate confirmed Stripe expiry with releasing stock to avoid late-payment races.
@@ -149,5 +149,16 @@ handle concurrent uniqueness failures. Validation alone is not concurrency contr
 
 Purchase records and order-item inlines are inspection-only in Django admin,
 including for superusers. Manual payment, quantity and deletion controls would
-bypass the COD placement service and the invariants required by future Stripe
-and fulfillment workflows. Catalog and cart admin remain separate.
+bypass the COD/Stripe services and financial/inventory invariants. Fulfillment
+workflows remain future work. Catalog and cart admin remain separate.
+
+
+## Stripe workflow additions
+
+See [Stripe API and setup](stripe-api.md) for implemented behavior and recovery.
+PaymentAttempt now includes saved immutable session parameters, a hosted checkout
+URL, cancellation intent and a protected unique ledger receipt. Provider IDs cannot
+be reassigned once known. ProviderEvent is a durable test-only inbox unique by
+environment/event ID, retaining only routing identifiers, processing timestamps and
+safe error codes. Both models are inspection-only in admin. No OrderSettlement or
+SettlementHold is created yet; paid store shares remain pending in the journal.

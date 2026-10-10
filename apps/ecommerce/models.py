@@ -2,7 +2,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from django.db import models
+from django.db import models, transaction
 
 from apps.account.models import RecipientInfo
 from apps.checkout.services.snapshots import validate_recipient_snapshot
@@ -191,9 +191,15 @@ class Product(TimeStampedModel):
             })
 
     def save(self, *args, **kwargs):
-        """Check category compatibility when saving a product."""
-        self.clean()
-        return super().save(*args, **kwargs)
+        """Serialize inventory edits and preserve quantities owned by unresolved payments."""
+        with transaction.atomic():
+            if self.pk:
+                type(self).objects.select_for_update().get(pk=self.pk)
+                held = self.stock_reservations.filter(status="held").aggregate(total=models.Sum("quantity"))["total"] or 0
+                if self.stock < held:
+                    raise ValidationError({"stock": "Stock cannot be lower than unresolved payment reservations."})
+            self.clean()
+            return super().save(*args, **kwargs)
 
 
 class ProductImage(TimeStampedModel):
