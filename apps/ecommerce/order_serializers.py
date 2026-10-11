@@ -27,3 +27,19 @@ class UserOrderListSerializer(serializers.Serializer):
     next = serializers.URLField(allow_null=True)
     previous = serializers.URLField(allow_null=True)
     results = UserOrderSerializer(many=True)
+
+
+class OrderEventSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    event_type = serializers.CharField()
+    label = serializers.CharField(source='get_event_type_display')
+    occurred_at = serializers.DateTimeField()
+    actor_role = serializers.CharField()
+    is_backfilled = serializers.BooleanField()
+
+
+class OrderHistorySerializer(serializers.Serializer):
+    order_id = serializers.IntegerField()
+    current_status = serializers.CharField()
+    is_partial = serializers.BooleanField()
+    events = OrderEventSerializer(many=True)

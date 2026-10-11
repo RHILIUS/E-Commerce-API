@@ -10,7 +10,7 @@ from rest_framework.exceptions import APIException
 
 from apps.checkout.models import Checkout, OrderRefund, PaymentAttempt
 from apps.checkout.services.confirmation import order_snapshot, _money
-from apps.ecommerce.models import Order, OrderItem, Product, ProductImage
+from apps.ecommerce.models import Order, OrderEvent, OrderItem, Product, ProductImage
 
 CANCELLABLE = ('pending', 'accepted', 'packed')
 TAB_STATUSES = {
@@ -79,5 +79,9 @@ def cancel_order(user, pk):
     order.status, order.concluded_at = 'cancelled', now
     if checkout.payment_method == 'cod':
         order.payment_status = 'cancelled'
-    order.save(update_fields=['status', 'concluded_at', 'payment_status', 'updated_at'])
+    order.save(update_fields=['status', 'concluded_at', 'payment_status', 'updated_at'],
+               event_actor=user, event_actor_role='customer', event_at=now)
+    if refund:
+        OrderEvent.objects.create(order=order, event_type='refund_requested', occurred_at=now,
+                                  actor=user, actor_role='customer')
     return refund

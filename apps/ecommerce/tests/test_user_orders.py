@@ -122,6 +122,8 @@ class UserOrdersTests(APITestCase):
         self.product.refresh_from_db(); self.assertEqual(self.product.stock, 10)
         attempt.refresh_from_db(); self.assertEqual(attempt.status, 'succeeded')
         self.assertEqual(LedgerTransaction.objects.count(), 2)
+        self.assertEqual(list(order.events.values_list('event_type', flat=True)),
+                         ['placed', 'cancelled', 'refund_requested', 'refund_succeeded'])
 
     @patch('apps.checkout.services.refunds.provider.create_refund')
     def test_unknown_outcome_is_durable_and_retry_recovers(self, create):
@@ -148,6 +150,7 @@ class UserOrdersTests(APITestCase):
         self.client.post(f'{URL}{order.pk}/cancel/')
         self.assertEqual(create.call_count, 1); retrieve.assert_called_once_with(refund.stripe_refund_id)
         self.assertEqual(account_balance(account), 0)
+        self.assertEqual(order.events.filter(event_type='refund_succeeded').count(), 1)
 
     @patch('apps.checkout.services.refunds.provider.find_refund', return_value=None)
     @patch('apps.checkout.services.refunds.provider.create_refund', side_effect=TimeoutError)
@@ -230,3 +233,4 @@ class CancellationConcurrencyTests(TransactionTestCase):
             list(pool.map(lambda _: cancel(), range(2)))
         product.refresh_from_db(); self.assertEqual(product.stock, 10)
         order.refresh_from_db(); self.assertEqual(order.status, 'cancelled')
+        self.assertEqual(order.events.filter(event_type='cancelled').count(), 1)

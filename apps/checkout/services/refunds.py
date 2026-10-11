@@ -6,6 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.checkout.models import OrderRefund
+from apps.ecommerce.models import OrderEvent
 from apps.wallet.models import LedgerAccount
 from apps.wallet.services import Posting, get_treasury_account, post_transaction
 from . import stripe_provider as provider
@@ -30,6 +31,7 @@ def apply_refund(pk, result):
     # A stale concurrent response must not regress a final provider result.
     if refund.status in ('failed', 'canceled'):
         return
+    previous_status = refund.status
     refund.stripe_refund_id = result['id']
     refund.status = result['status']
     refund.failure_code = ''
@@ -41,6 +43,9 @@ def apply_refund(pk, result):
                       Posting(get_treasury_account().pk, 'credit', refund.amount_cents)],
         )
     refund.save()
+    if previous_status != refund.status:
+        OrderEvent.objects.create(order=refund.order, event_type=f'refund_{refund.status}',
+                                  occurred_at=timezone.now())
 
 
 def reconcile_refund(pk):

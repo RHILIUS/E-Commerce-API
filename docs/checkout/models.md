@@ -169,3 +169,12 @@ SettlementHold is created yet; paid store shares remain pending in the journal.
 and their immutable compensating ledger entries. `concluded_at` is set by new
 order cancellations and terminal online cancellation/expiry; historical nulls
 remain unknown. Fulfillment Completed is separate from Checkout completed.
+
+
+## OrderEvent
+
+[Persistent order history](../ecommerce/user-orders.md#persistent-order-history)
+adds immutable milestones with independent occurrence times and protected order and
+actor references. Order saves log placement, fulfillment changes and confirmed
+payment atomically; cancellation/refund services log their own relevant events.
+Historical entries use only existing timestamps and are explicitly marked partial.

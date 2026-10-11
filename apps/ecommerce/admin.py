@@ -5,7 +5,7 @@ from core.common.admin import ReadOnlyTransactionAdmin
 
 from .models import (
     Attribute, AttributeValue, Category, CategoryAttribute,
-    Order, OrderItem, Cart, CartItem,
+    Order, OrderEvent, OrderItem, Cart, CartItem,
     Product, ProductAttributeValue, ProductImage,
 )
 
@@ -131,6 +131,21 @@ class OrderItemInline(admin.TabularInline):
         return obj.get_subtotal()
 
 
+class OrderEventInline(admin.TabularInline):
+    model = OrderEvent
+    extra = 0
+    fields = ('event_type', 'occurred_at', 'actor_role', 'actor', 'is_backfilled')
+    readonly_fields = fields
+    can_delete = False
+    ordering = ('occurred_at', 'pk')
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Order)
 class OrderAdmin(ReadOnlyTransactionAdmin):
     list_display = ("id", "checkout", "store", "user", "status", "payment_status", "created_at")
@@ -139,7 +154,7 @@ class OrderAdmin(ReadOnlyTransactionAdmin):
     autocomplete_fields = ("user",)
     list_select_related = ("user", "recipient_info", "checkout", "store")
     ordering = ("-created_at", "-pk")
-    inlines = (OrderItemInline,)
+    inlines = (OrderItemInline, OrderEventInline)
 
     def get_readonly_fields(self, request, obj=None):
         """Show the computed total alongside protected purchase fields."""

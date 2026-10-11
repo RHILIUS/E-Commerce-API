@@ -6,7 +6,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.checkout.services.refunds import reconcile_refund
-from .order_serializers import OrderFilterSerializer, UserOrderSerializer, UserOrderListSerializer
+from .order_serializers import OrderFilterSerializer, UserOrderSerializer, UserOrderListSerializer, OrderHistorySerializer
+from .models import Order
 from .services.orders import TAB_STATUSES, cancel_order, customer_orders, serialize_order
 
 
@@ -41,3 +42,17 @@ class UserOrderCancelView(APIView):
             reconcile_refund(refund.pk)
         order = get_object_or_404(customer_orders(request.user), pk=pk)
         return Response(UserOrderSerializer(serialize_order(order), context={'request': request}).data)
+
+
+class UserOrderHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=['Orders'], responses={200: OrderHistorySerializer, 401: dict, 404: dict},
+                   description='Read the owning customer’s complete recorded timeline, oldest first. Historical gaps are flagged. Actor roles only; no identities, provider IDs or internal errors. This GET never creates events or contacts Stripe.')
+    def get(self, request, pk):
+        order = get_object_or_404(Order.objects.filter(user=request.user), pk=pk)
+        events = list(order.events.all())
+        return Response(OrderHistorySerializer({
+            'order_id': order.pk, 'current_status': order.status,
+            'is_partial': any(event.is_backfilled for event in events), 'events': events,
+        }).data)

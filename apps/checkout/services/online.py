@@ -79,7 +79,9 @@ def reject_session_creation(attempt_id):
     now = timezone.now()
     StockReservation.objects.filter(pk__in=[r.pk for r in reservations]).update(
         status='released', resolved_at=now, updated_at=now)
-    Order.objects.filter(checkout=checkout).update(status='cancelled', payment_status='cancelled', concluded_at=now, updated_at=now)
+    for order in checkout.orders.order_by('pk'):
+        order.status, order.payment_status = 'cancelled', 'cancelled'
+        order.save(update_fields=['status', 'payment_status', 'updated_at'], event_at=now)
     attempt.status = 'failed'
     attempt.failure_code = 'session_creation_rejected'
     attempt.checkout_url = ''
@@ -168,7 +170,9 @@ def apply_session(attempt_id, session):
         for item in items:
             Product.objects.filter(pk=item.product_id).update(stock=products[item.product_id].stock - item.quantity, updated_at=now)
         StockReservation.objects.filter(pk__in=[r.pk for r in reservations]).update(status='consumed', resolved_at=now, updated_at=now)
-        Order.objects.filter(checkout=checkout).update(payment_status='paid', paid_at=now, updated_at=now)
+        for order in orders:
+            order.payment_status, order.paid_at = 'paid', now
+            order.save(update_fields=['payment_status', 'paid_at', 'updated_at'], event_at=now)
         # Selected lines are frozen by all public cart writers while holds are active.
         CartItem.objects.filter(pk__in=[item.source_cart_item_id for item in items if item.source_cart_item_id]).delete()
         Cart.objects.filter(user_id=checkout.user_id, items__isnull=True).delete()
@@ -178,7 +182,9 @@ def apply_session(attempt_id, session):
         StockReservation.objects.filter(pk__in=[r.pk for r in reservations]).update(status='released', resolved_at=now, updated_at=now)
         checkout.status = 'cancelled' if attempt.cancel_requested else 'expired'
         attempt.status = checkout.status
-        Order.objects.filter(checkout=checkout).update(status='cancelled', payment_status='cancelled', concluded_at=now, updated_at=now)
+        for order in orders:
+            order.status, order.payment_status = 'cancelled', 'cancelled'
+            order.save(update_fields=['status', 'payment_status', 'updated_at'], event_at=now)
     attempt.checkout_url = ''
     attempt.failure_code = ''
     attempt.save()

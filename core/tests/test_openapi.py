@@ -12,7 +12,7 @@ class OpenAPITests(SimpleTestCase):
         self.assertEqual(set(schema["paths"]), {
             "/api/account/recipients/", "/api/account/recipients/{id}/",
             "/api/shop/checkout/preview/",
-            "/api/shop/orders/", "/api/shop/orders/{id}/cancel/",
+            "/api/shop/orders/", "/api/shop/orders/{id}/cancel/", "/api/shop/orders/{id}/history/",
             "/api/shop/checkouts/", "/api/shop/checkouts/{reference}/",
             "/api/shop/checkouts/stripe/", "/api/shop/checkouts/{reference}/payment/",
             "/api/shop/checkouts/{reference}/payment/cancel/", "/api/shop/stripe/webhook/",

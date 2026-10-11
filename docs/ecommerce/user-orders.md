@@ -2,7 +2,7 @@
 
 ## API
 
-Both endpoints require the authenticated owner and use the existing Bearer token
+All order endpoints require the authenticated owner and use the existing Bearer token
 contract. Foreign/missing orders return 404. No cookies or authentication behavior
 changes are introduced.
 
@@ -93,3 +93,59 @@ and withdrawals are outside scope.
 Stripe contracts: [create refund](https://docs.stripe.com/api/refunds/create),
 [refund object](https://docs.stripe.com/api/refunds/object), and
 [idempotency](https://docs.stripe.com/api/idempotent_requests).
+
+
+## Persistent order history
+
+`GET /api/shop/orders/{id}/history/` returns the authenticated owner's complete
+recorded timeline (200), with 401 for no authentication and 404 for missing/foreign
+orders. Reading history never writes records or contacts Stripe. Response:
+
+- `order_id`, `current_status`, `is_partial`
+- `events`: `{id, event_type, label, occurred_at, actor_role, is_backfilled}`,
+  ordered by `occurred_at, id`, oldest first. No truncation or pagination.
+
+Actor roles are customer, seller, system or unknown. The protected actor identity
+is retained for internal auditing but is not returned to customers; names, emails,
+payment identifiers, arbitrary messages and internal retry errors are not exposed.
+
+`OrderEvent` is append-only through ordinary model saves, queryset updates/deletes,
+bulk mutations and admin. It has protected order/actor foreign keys, event type,
+occurrence timestamp, actor role and a historical-backfill marker. Admin exposes a
+read-only timeline inline on Order. These are ORM safeguards, not database triggers;
+raw SQL and low-level ORM bypasses are outside this boundary.
+
+`Order.save()` locks the persisted order, compares actually saved fields and appends
+placement/status/payment-confirmation milestones in the same transaction. New
+placements explicitly attribute the customer; verified online payment and automatic
+payment closure are system events. Customer cancellation records cancellation and
+refund request in the cancellation transaction. Verified refund-state transitions
+are recorded in the same transaction as their refund/ledger changes. No-op saves,
+placement/cancellation replay and unchanged provider statuses produce no duplicate
+event. Outer transaction rollback removes both the change and its event.
+
+Future fulfillment services must authorize their actor, preserve the established
+lock order, and call `order.save(update_fields=["status", "updated_at"],
+event_actor=actor, event_actor_role="seller")`. System transitions omit the actor.
+Do not use queryset `update()`, `bulk_update()` or raw SQL for status changes: they
+bypass model-level history. Existing production bulk order-status writers were
+converted to saves. No seller endpoints or seven-day completion jobs are added here.
+
+A Delivered event keeps its own timestamp permanently even after Completed gets
+its later timestamp. The existing `concluded_at` follows the latest terminal status;
+history retains both milestones. The trusted `event_at` argument lets a service use
+one authoritative timestamp across its atomic changes. Refund timestamps represent
+when this backend verified the state, not an invented card-bank processing time.
+
+Migrations `ecommerce.0003_orderevent` and `0004_backfill_order_events` add storage
+and backfill older orders from `created_at`, `paid_at`, terminal `concluded_at`,
+refund creation and confirmed reversal `posted_at`. No `updated_at` guesses or
+intermediate accepted/shipped/delivered milestones are synthesized. Actors are
+unknown on backfilled entries and `is_partial` is true for those orders. Orders
+already containing events are skipped, including on a repeated backfill. Failed or
+pending historical refunds have no guessed outcome time.
+
+Tests: `apps/ecommerce/tests/test_order_history.py`, plus cancellation/refund replay
+and concurrency assertions in `test_user_orders.py`. Coverage includes chronology,
+all fulfillment statuses, field-restricted saves, ownership/privacy, immutable
+records, rollback, payment deduplication and accurate idempotent legacy backfill.
