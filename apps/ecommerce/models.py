@@ -181,7 +181,8 @@ class Product(TimeStampedModel):
             raise ValidationError(
                 {"store": "A product saved in carts cannot move to another store."})
         if self.orderitem_set.exclude(order__store_id=self.store_id).exists():
-            raise ValidationError({"store": "A purchased product cannot move to another store."})
+            raise ValidationError(
+                {"store": "A purchased product cannot move to another store."})
         allowed_attributes = CategoryAttribute.objects.filter(
             category_id=self.category_id
         ).values("attribute_id")
@@ -195,9 +196,11 @@ class Product(TimeStampedModel):
         with transaction.atomic():
             if self.pk:
                 type(self).objects.select_for_update().get(pk=self.pk)
-                held = self.stock_reservations.filter(status="held").aggregate(total=models.Sum("quantity"))["total"] or 0
+                held = self.stock_reservations.filter(status="held").aggregate(
+                    total=models.Sum("quantity"))["total"] or 0
                 if self.stock < held:
-                    raise ValidationError({"stock": "Stock cannot be lower than unresolved payment reservations."})
+                    raise ValidationError(
+                        {"stock": "Stock cannot be lower than unresolved payment reservations."})
             self.clean()
             return super().save(*args, **kwargs)
 
@@ -341,7 +344,8 @@ class Order(TimeStampedModel):
         SHIPMENT_ARRANGED = "shipment_arranged", "Shipment Arranged"
         SHIPPED = "shipped", "Shipped"
         CANCELLED = "cancelled", "Cancelled"
-        DELIVERED = "delivered", "Delivered"
+        DELIVERED = "delivered", "Delivered",
+        COMPLETED = "completed", "Completed",
 
     class PaymentStatus(models.TextChoices):
         UNPAID = "unpaid", "Unpaid"
@@ -385,7 +389,8 @@ class Order(TimeStampedModel):
     )
     paid_at = models.DateTimeField(null=True, blank=True)
 
-    recipient_snapshot = models.JSONField(validators=[validate_recipient_snapshot])
+    recipient_snapshot = models.JSONField(
+        validators=[validate_recipient_snapshot])
 
     source_currency = models.CharField(max_length=3)
     exchange_rate = models.DecimalField(
@@ -420,7 +425,8 @@ class Order(TimeStampedModel):
         if self.user_id and checkout_user is not None and checkout_user != self.user_id:
             errors["checkout"] = "The checkout must belong to the order user."
         if self.pk:
-            previous = type(self).objects.filter(pk=self.pk).values("user_id", "store_id", "checkout_id").first()
+            previous = type(self).objects.filter(pk=self.pk).values(
+                "user_id", "store_id", "checkout_id").first()
             if previous and any(previous[field] != getattr(self, field) for field in previous):
                 errors["checkout"] = "An existing order cannot move to another user, store or checkout."
         if errors:
@@ -436,7 +442,8 @@ class Order(TimeStampedModel):
 
 
 class OrderItem(TimeStampedModel):
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
+    product = models.ForeignKey(
+        Product, on_delete=models.SET_NULL, null=True, blank=True)
     order = models.ForeignKey(
         Order, on_delete=models.CASCADE, related_name='items')
     price_at_purchase = models.DecimalField(max_digits=18, decimal_places=3)
@@ -474,8 +481,10 @@ class OrderItem(TimeStampedModel):
         """Check store membership, cart ownership and existing reservation consistency."""
         super().clean()
         errors = {}
-        order = Order.objects.filter(pk=self.order_id).values("store_id", "user_id").first()
-        product_store = Product.objects.filter(pk=self.product_id).values_list("store_id", flat=True).first()
+        order = Order.objects.filter(pk=self.order_id).values(
+            "store_id", "user_id").first()
+        product_store = Product.objects.filter(
+            pk=self.product_id).values_list("store_id", flat=True).first()
         if order and product_store is not None and product_store != order["store_id"]:
             errors["product"] = "The product must belong to the order store."
         if self.source_cart_item_id:
