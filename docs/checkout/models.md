@@ -41,7 +41,7 @@ One store's part of a checkout, with its own fulfillment and payment state.
 | `recipient_info`         | Existing protected saved-recipient reference; must belong to the customer.                                                      |
 | `store_name_at_purchase` | Snapshot for historical display.                                                                                                |
 | `recipient_snapshot`     | Required JSON copy of recipient contact/address fields.                                                                         |
-| `status`                 | Existing fulfillment states: pending, accepted, packed, shipment_arranged, shipped, cancelled, delivered.                       |
+| `status`                 | Existing fulfillment states: pending, accepted, packed, shipment_arranged, shipped, cancelled, delivered, completed.                       |
 | `concluded_at`           | Existing optional fulfillment conclusion timestamp.                                                                             |
 | `payment_status`         | unpaid (default), pending, paid, failed, cancelled.                                                                             |
 | `paid_at`                | Optional verified payment/collection timestamp.                                                                                 |
@@ -162,3 +162,19 @@ be reassigned once known. ProviderEvent is a durable test-only inbox unique by
 environment/event ID, retaining only routing identifiers, processing timestamps and
 safe error codes. Both models are inspection-only in admin. No OrderSettlement or
 SettlementHold is created yet; paid store shares remain pending in the journal.
+
+## Customer cancellation refunds
+
+[OrderRefund](../ecommerce/user-orders.md) tracks durable Stripe test card refunds
+and their immutable compensating ledger entries. `concluded_at` is set by new
+order cancellations and terminal online cancellation/expiry; historical nulls
+remain unknown. Fulfillment Completed is separate from Checkout completed.
+
+
+## OrderEvent
+
+[Persistent order history](../ecommerce/user-orders.md#persistent-order-history)
+adds immutable milestones with independent occurrence times and protected order and
+actor references. Order saves log placement, fulfillment changes and confirmed
+payment atomically; cancellation/refund services log their own relevant events.
+Historical entries use only existing timestamps and are explicitly marked partial.

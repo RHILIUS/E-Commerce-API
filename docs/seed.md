@@ -26,17 +26,24 @@ the seed catalogs because order items and image folders identify them by name.
 See [checkout fixture behavior](checkout/development.md#seed-purchase-behavior) and
 [model structures](checkout/models.md) for checkout, payment and reservation details.
 
-Each sample order has a unique negative `id`, reserved for development seeding.
-Keep this ID stable across reruns. Each order now gets a stable COD checkout,
+Each sample order has a unique non-empty string `key` for repeatable development seeding.
+Order IDs are positive values assigned by the database. The stable key determines
+the checkout UUID; reruns find the order by checkout and store. Keep fixture keys
+unchanged to avoid creating another order.
+
+Existing negative-ID fixtures are not converted or deleted automatically. For
+disposable development databases created by the older seeder, rebuild the database,
+apply migrations, import the taxonomy, and seed again.
+Keep this key stable across reruns. Each order now gets a stable COD checkout,
 explicit unpaid/paid payment status, one store, rate 1 and complete purchase
 snapshots in that store's currency. A fixture order cannot span stores. The current
 sample explicitly marks payment paid. Orders use their user's default recipient;
 item purchase prices come from seeded products. Identical reruns preserve checkout/order/item IDs and timestamps and restore fixture
-values. Changing the agreed checkout total/currency requires a new fixture ID or
+values. Changing the agreed checkout total/currency requires a new fixture key or
 a disposable reset; populated checkout payment terms cannot be rewritten. They do not adjust stock or sold counts to simulate checkout.
 Delivered and cancelled orders receive a completion timestamp on first seeding,
 which is preserved on reruns. Other statuses have no completion timestamp.
-An existing order ID belonging to another user causes the transaction to fail.
+An existing fixture checkout or order belonging to another user causes the transaction to fail.
 Additional non-default recipients are matched by their complete address/contact
 data; changing that data creates another recipient. Exactly one seeded recipient
 per user must be marked default.

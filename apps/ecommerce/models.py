@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models, transaction
+from django.utils import timezone
 
 from apps.account.models import RecipientInfo
 from apps.checkout.services.snapshots import validate_recipient_snapshot
@@ -181,7 +182,8 @@ class Product(TimeStampedModel):
             raise ValidationError(
                 {"store": "A product saved in carts cannot move to another store."})
         if self.orderitem_set.exclude(order__store_id=self.store_id).exists():
-            raise ValidationError({"store": "A purchased product cannot move to another store."})
+            raise ValidationError(
+                {"store": "A purchased product cannot move to another store."})
         allowed_attributes = CategoryAttribute.objects.filter(
             category_id=self.category_id
         ).values("attribute_id")
@@ -195,9 +197,11 @@ class Product(TimeStampedModel):
         with transaction.atomic():
             if self.pk:
                 type(self).objects.select_for_update().get(pk=self.pk)
-                held = self.stock_reservations.filter(status="held").aggregate(total=models.Sum("quantity"))["total"] or 0
+                held = self.stock_reservations.filter(status="held").aggregate(
+                    total=models.Sum("quantity"))["total"] or 0
                 if self.stock < held:
-                    raise ValidationError({"stock": "Stock cannot be lower than unresolved payment reservations."})
+                    raise ValidationError(
+                        {"stock": "Stock cannot be lower than unresolved payment reservations."})
             self.clean()
             return super().save(*args, **kwargs)
 
@@ -341,7 +345,8 @@ class Order(TimeStampedModel):
         SHIPMENT_ARRANGED = "shipment_arranged", "Shipment Arranged"
         SHIPPED = "shipped", "Shipped"
         CANCELLED = "cancelled", "Cancelled"
-        DELIVERED = "delivered", "Delivered"
+        DELIVERED = "delivered", "Delivered",
+        COMPLETED = "completed", "Completed",
 
     class PaymentStatus(models.TextChoices):
         UNPAID = "unpaid", "Unpaid"
@@ -385,7 +390,8 @@ class Order(TimeStampedModel):
     )
     paid_at = models.DateTimeField(null=True, blank=True)
 
-    recipient_snapshot = models.JSONField(validators=[validate_recipient_snapshot])
+    recipient_snapshot = models.JSONField(
+        validators=[validate_recipient_snapshot])
 
     source_currency = models.CharField(max_length=3)
     exchange_rate = models.DecimalField(
@@ -420,23 +426,62 @@ class Order(TimeStampedModel):
         if self.user_id and checkout_user is not None and checkout_user != self.user_id:
             errors["checkout"] = "The checkout must belong to the order user."
         if self.pk:
-            previous = type(self).objects.filter(pk=self.pk).values("user_id", "store_id", "checkout_id").first()
+            previous = type(self).objects.filter(pk=self.pk).values(
+                "user_id", "store_id", "checkout_id").first()
             if previous and any(previous[field] != getattr(self, field) for field in previous):
                 errors["checkout"] = "An existing order cannot move to another user, store or checkout."
         if errors:
             raise ValidationError(errors)
 
-    def save(self, *args, **kwargs):
-        """Validate order ownership and purchase snapshots on ordinary writes."""
+    @transaction.atomic
+    def save(self, *args, event_actor=None, event_actor_role='system', event_at=None, **kwargs):
+        """Save purchase changes and their milestones together, serializing competing saves.
+
+        Business services must authorize actors and use save() for status changes;
+        queryset updates and raw SQL bypass this model-level audit boundary.
+        """
+        fields = kwargs.get('update_fields')
+        if fields is not None:
+            fields = set(fields)
+            if not fields:
+                return
+        previous = (type(self).objects.select_for_update().filter(pk=self.pk)
+                    .values('status', 'payment_status').first()) if self.pk else None
+        now = event_at or timezone.now()
+        status_changed = (previous is not None and previous['status'] != self.status
+                          and (fields is None or 'status' in fields))
+        paid = (previous is not None and previous['payment_status'] != 'paid' and self.payment_status == 'paid'
+                and (fields is None or 'payment_status' in fields))
+        if status_changed and self.status in ('cancelled', 'delivered', 'completed'):
+            self.concluded_at = now
+            if fields is not None:
+                fields.add('concluded_at')
+        if paid and self.paid_at is None:
+            self.paid_at = now
+            if fields is not None:
+                fields.add('paid_at')
+        if fields is not None:
+            kwargs['update_fields'] = fields
         self.full_clean()
-        return super().save(*args, **kwargs)
+        result = super().save(*args, **kwargs)
+        if previous is None:
+            OrderEvent.objects.create(order=self, event_type='placed', occurred_at=self.created_at,
+                                      actor=event_actor, actor_role=event_actor_role)
+        if status_changed:
+            OrderEvent.objects.create(order=self, event_type=self.status, occurred_at=now,
+                                      actor=event_actor, actor_role=event_actor_role)
+        if paid:
+            OrderEvent.objects.create(order=self, event_type='payment_confirmed', occurred_at=self.paid_at,
+                                      actor=event_actor, actor_role=event_actor_role)
+        return result
 
     def get_total(self):
         return sum(item.get_subtotal() for item in self.items.all())
 
 
 class OrderItem(TimeStampedModel):
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
+    product = models.ForeignKey(
+        Product, on_delete=models.SET_NULL, null=True, blank=True)
     order = models.ForeignKey(
         Order, on_delete=models.CASCADE, related_name='items')
     price_at_purchase = models.DecimalField(max_digits=18, decimal_places=3)
@@ -474,8 +519,10 @@ class OrderItem(TimeStampedModel):
         """Check store membership, cart ownership and existing reservation consistency."""
         super().clean()
         errors = {}
-        order = Order.objects.filter(pk=self.order_id).values("store_id", "user_id").first()
-        product_store = Product.objects.filter(pk=self.product_id).values_list("store_id", flat=True).first()
+        order = Order.objects.filter(pk=self.order_id).values(
+            "store_id", "user_id").first()
+        product_store = Product.objects.filter(
+            pk=self.product_id).values_list("store_id", flat=True).first()
         if order and product_store is not None and product_store != order["store_id"]:
             errors["product"] = "The product must belong to the order store."
         if self.source_cart_item_id:
@@ -499,3 +546,83 @@ class OrderItem(TimeStampedModel):
 
     def get_subtotal(self):
         return self.price_at_purchase * self.quantity
+
+
+
+class OrderEventQuerySet(models.QuerySet):
+    """Keep recorded customer history append-only through public ORM operations."""
+
+    def update(self, **kwargs):
+        raise ValidationError('Order events cannot be edited.')
+
+    def delete(self):
+        raise ValidationError('Order events cannot be deleted.')
+
+    def bulk_update(self, objs, fields, **kwargs):
+        raise ValidationError('Order events cannot be edited.')
+
+    def bulk_create(self, objs, **kwargs):
+        raise ValidationError('Create validated order events individually.')
+
+
+class OrderEvent(TimeStampedModel):
+    """Immutable customer-visible milestones, without internal errors or payment identifiers."""
+
+    class Type(models.TextChoices):
+        PLACED = 'placed', 'Order placed'
+        PENDING = 'pending', 'Order pending'
+        ACCEPTED = 'accepted', 'Accepted by seller'
+        PACKED = 'packed', 'Order packed'
+        SHIPMENT_ARRANGED = 'shipment_arranged', 'Shipment arranged'
+        SHIPPED = 'shipped', 'Order shipped'
+        DELIVERED = 'delivered', 'Order delivered'
+        COMPLETED = 'completed', 'Order completed'
+        CANCELLED = 'cancelled', 'Order cancelled'
+        PAYMENT_CONFIRMED = 'payment_confirmed', 'Payment confirmed'
+        REFUND_REQUESTED = 'refund_requested', 'Refund requested'
+        REFUND_PENDING = 'refund_pending', 'Refund pending'
+        REFUND_REQUIRES_ACTION = 'refund_requires_action', 'Refund requires review'
+        REFUND_SUCCEEDED = 'refund_succeeded', 'Refund confirmed'
+        REFUND_FAILED = 'refund_failed', 'Refund failed'
+        REFUND_CANCELED = 'refund_canceled', 'Refund cancelled'
+
+    class ActorRole(models.TextChoices):
+        CUSTOMER = 'customer', 'Customer'
+        SELLER = 'seller', 'Seller'
+        SYSTEM = 'system', 'System'
+        UNKNOWN = 'unknown', 'Actor not recorded'
+
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name='events')
+    event_type = models.CharField(max_length=30, choices=Type.choices)
+    occurred_at = models.DateTimeField(default=timezone.now)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT,
+                              related_name='order_events')
+    actor_role = models.CharField(max_length=10, choices=ActorRole.choices, default=ActorRole.SYSTEM)
+    is_backfilled = models.BooleanField(default=False)
+    objects = OrderEventQuerySet.as_manager()
+
+    class Meta:
+        ordering = ('occurred_at', 'pk')
+        indexes = [models.Index(fields=['order', 'occurred_at', 'id'], name='order_event_timeline_idx')]
+        constraints = [models.CheckConstraint(
+            condition=(models.Q(actor__isnull=True, actor_role__in=['system', 'unknown'])
+                       | models.Q(actor__isnull=False, actor_role__in=['customer', 'seller'])),
+            name='order_event_actor_role_consistent',
+        )]
+
+    def clean(self):
+        """Do not attribute a customer's action to a different account."""
+        super().clean()
+        if self.actor_role == self.ActorRole.CUSTOMER and self.actor_id != self.order.user_id:
+            raise ValidationError('Customer events must belong to the order customer.')
+
+    def save(self, *args, **kwargs):
+        """Validate new events; amendments require a new event instead of rewriting history."""
+        if not self._state.adding:
+            raise ValidationError('Order events cannot be edited.')
+        self.full_clean()
+        kwargs['force_insert'] = True
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Order events cannot be deleted.')

@@ -132,3 +132,27 @@ def verify_webhook(body, signature):
     """Verify raw bytes before saving the minimal webhook inbox record."""
     ensure_configured()
     return stripe.Webhook.construct_event(body, signature, settings.STRIPE_WEBHOOK_SECRET).to_dict()
+
+
+def create_refund(refund):
+    """Refund only this store order's saved USD amount to its original test payment."""
+    return client().v1.refunds.create({
+        'payment_intent': refund.payment_attempt.stripe_payment_intent_id,
+        'amount': refund.amount_cents,
+        'reason': 'requested_by_customer',
+        'metadata': {'order_refund_reference': str(refund.reference)},
+    }, options={'idempotency_key': f'order-refund:{refund.reference}'}).to_dict()
+
+
+def retrieve_refund(refund_id):
+    """Read provider refund status without initiating another money movement."""
+    return client().v1.refunds.retrieve(refund_id).to_dict()
+
+
+def find_refund(refund):
+    """Recover an old ambiguous request by its saved reference, without creating a refund."""
+    results = client().v1.refunds.list({'payment_intent': refund.payment_attempt.stripe_payment_intent_id, 'limit': 100})
+    for result in results.auto_paging_iter():
+        if result.metadata.get('order_refund_reference') == str(refund.reference):
+            return result.to_dict()
+    return None

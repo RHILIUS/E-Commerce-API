@@ -125,13 +125,14 @@ def _place(user, data):
     for line in lines:
         store_id = line['store_id']
         if store_id not in orders:
-            orders[store_id] = Order.objects.create(
+            orders[store_id] = Order(
                 checkout=checkout, user=user, recipient_info=recipient,
                 recipient_snapshot=recipient_details, store_id=store_id,
                 store_name_at_purchase=line['store_name'], source_currency=line['source_currency'],
                 exchange_rate=Decimal(line['exchange_rate']), exchange_rate_date=line['exchange_rate_date'],
                 status=Order.Status.PENDING, payment_status=Order.PaymentStatus.PENDING if online else Order.PaymentStatus.UNPAID,
             )
+            orders[store_id].save(event_actor=user, event_actor_role='customer')
         item = OrderItem.objects.create(
             order=orders[store_id], product_id=line['product_id'], quantity=line['quantity'],
             product_name_at_purchase=line['product_name'], original_unit_price=Decimal(line['original_unit_price']),
