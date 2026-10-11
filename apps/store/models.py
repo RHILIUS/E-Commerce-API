@@ -49,14 +49,17 @@ class Store(TimeStampedModel):
         super().clean()
         expected = currency_for_country(self.country_code)
         if expected is None:
-            raise ValidationError({"country_code": "This country has no unambiguous supported currency."})
+            raise ValidationError(
+                {"country_code": "This country has no unambiguous supported currency."})
         if not self._state.adding:
             original = type(self).objects.using(self._state.db).values_list(
                 "currency", flat=True).get(pk=self.pk)
             if self.currency != original or expected != original:
-                raise ValidationError({"country_code": "Changing the store's pricing currency requires an explicit price migration."})
+                raise ValidationError(
+                    {"country_code": "Changing the store's pricing currency requires an explicit price migration."})
         elif self.currency and self.currency != expected:
-            raise ValidationError({"country_code": "Store currency must match its country."})
+            raise ValidationError(
+                {"country_code": "Store currency must match its country."})
         self.currency = expected
 
     def save(self, *args, **kwargs):

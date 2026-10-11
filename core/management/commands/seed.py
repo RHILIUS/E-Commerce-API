@@ -1,4 +1,5 @@
 import re
+import uuid
 from decimal import Decimal
 from pathlib import Path
 
@@ -10,6 +11,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.account.models import RecipientInfo
+from apps.checkout.models import Checkout
+from apps.checkout.services.snapshots import recipient_snapshot
 from apps.ecommerce.models import (
     AttributeValue,
     Category,
@@ -158,6 +161,7 @@ def validate_seed_data():
         source_path(store["profile_image"])
         source_path(store["banner_image"])
         users.extend(member["user"] for member in store["members"])
+    product_stores = {product["name"]: store["name"] for store in STORES_DATA for product in store["products"]}
     order_ids = set()
     for user in users:
         source_path(user["profile_image"])
@@ -170,6 +174,8 @@ def validate_seed_data():
             order_ids.add(order["id"])
             if order["status"] not in Order.Status.values:
                 raise CommandError("Invalid seed order status.")
+            if order.get("payment_status") not in (Order.PaymentStatus.UNPAID, Order.PaymentStatus.PAID):
+                raise CommandError("Seed COD orders require an explicit unpaid or paid payment status.")
             if not order["order_items"]:
                 raise CommandError("Seed orders must contain items.")
             item_names = set()
@@ -179,6 +185,8 @@ def validate_seed_data():
                 item_names.add(item["product_name"])
                 if type(item["quantity"]) is not int or item["quantity"] <= 0:
                     raise CommandError("Order quantities must be positive integers.")
+            if len({product_stores[item["product_name"]] for item in order["order_items"]}) != 1:
+                raise CommandError("Each seed order must contain products from exactly one store.")
     return discover_product_images()
 
 
@@ -304,27 +312,65 @@ class Command(BaseCommand):
         self._seed_product_images(product_images, products, uploaded_files)
 
     def _seed_orders(self, user, orders, products):
-        """Upsert reserved development orders without changing inventory or sales counts."""
+        """Upsert explicit COD fixture purchases without payments, holds or inventory writes.
+
+        Each fixture order gets one stable checkout in its store currency. This
+        bypasses live checkout and FX intentionally; sample history is not a sale.
+        """
         recipient = user.recipient_infos.get(is_default=True)
         for data in orders:
+            lines = [(products[item["product_name"]], item["quantity"]) for item in data["order_items"]]
+            stores = {product.store_id for product, _ in lines}
+            if len(stores) != 1:
+                raise CommandError("Each seed order must contain products from exactly one store.")
+            store = lines[0][0].store
+            total = sum((product.price * quantity for product, quantity in lines), Decimal("0"))
+            key = uuid.uuid5(uuid.NAMESPACE_URL, f"ecommerce:seed:order:{data['id']}")
             order = Order.objects.select_for_update().filter(pk=data["id"]).first()
             if order is not None and order.user_id != user.pk:
                 raise CommandError("Seed order ID already belongs to another user.")
+            checkout = Checkout.objects.select_for_update().filter(reference=key).first()
+            if checkout is not None and checkout.user_id != user.pk:
+                raise CommandError("Seed checkout already belongs to another user.")
+            if order and (checkout is None or order.checkout_id != checkout.pk):
+                raise CommandError("Seed order is linked to a different checkout.")
+            if checkout is None:
+                checkout = Checkout(reference=key, user=user, idempotency_key=key)
+            checkout.payment_method = Checkout.PaymentMethod.COD
+            checkout.currency = store.currency
+            checkout.total_amount = total
+            checkout.status = Checkout.Status.COMPLETED
+            checkout.completed_at = checkout.completed_at or timezone.now()
+            checkout.save()
             if order is None:
                 order = Order(pk=data["id"], user=user)
+            order.checkout = checkout
+            order.store = store
+            order.store_name_at_purchase = store.name
             order.recipient_info = recipient
+            order.recipient_snapshot = recipient_snapshot(recipient)
+            order.source_currency = store.currency
+            order.exchange_rate = Decimal("1")
+            order.exchange_rate_date = None
             order.status = data["status"]
+            order.payment_status = data["payment_status"]
+            order.paid_at = (order.paid_at or checkout.completed_at) if order.payment_status == Order.PaymentStatus.PAID else None
             if order.status in (Order.Status.DELIVERED, Order.Status.CANCELLED):
                 order.concluded_at = order.concluded_at or timezone.now()
             else:
                 order.concluded_at = None
-            order.full_clean()
             order.save()
-            for item in data["order_items"]:
-                product = products[item["product_name"]]
+            if order.items.exclude(product_id__in=[product.pk for product, _ in lines]).exists():
+                raise CommandError("Seed order contains unexpected items; resolve them before reseeding.")
+            for product, quantity in lines:
                 OrderItem.objects.update_or_create(
                     order=order, product=product,
-                    defaults={"quantity": item["quantity"], "price_at_purchase": product.price},
+                    defaults={
+                        "quantity": quantity,
+                        "product_name_at_purchase": product.name,
+                        "original_unit_price": product.price,
+                        "price_at_purchase": product.price,
+                    },
                 )
 
     def _seed_user(self, user_data, uploaded_files):

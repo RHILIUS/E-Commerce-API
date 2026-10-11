@@ -27,6 +27,9 @@ environ.Env.read_env(BASE_DIR / '.env')
 CATALOG_FX_TIMEOUT_SECONDS = env.float("CATALOG_FX_TIMEOUT_SECONDS", default=2)
 
 
+# Checkout uses strict conversion and never falls back to unconverted store totals.
+CHECKOUT_FX_TIMEOUT_SECONDS = env.float("CHECKOUT_FX_TIMEOUT_SECONDS", default=2)
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -59,6 +62,9 @@ INSTALLED_APPS = [
     'apps.authentication',
     'apps.account',
     'apps.store',
+    'apps.checkout',
+    'apps.inventory',
+    'apps.wallet',
 ]
 
 MIDDLEWARE = [
@@ -158,7 +164,7 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'E-Commerce API',
-    'DESCRIPTION': 'Authentication and product catalog endpoints.',
+    'DESCRIPTION': 'Authentication, saved recipients, product catalog, cart, checkout preview, COD placement, and confirmation endpoints.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'SWAGGER_UI_DIST': 'SIDECAR',
@@ -225,3 +231,8 @@ if USE_AZURE_STORAGE:
 else:
     MEDIA_URL = "/media/"
     MEDIA_ROOT = BASE_DIR / "media"
+
+# Test-only hosted checkout. Never expose the secret or webhook key to the frontend.
+STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
+STRIPE_FRONTEND_ORIGIN = env("STRIPE_FRONTEND_ORIGIN", default="http://localhost:5173")

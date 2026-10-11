@@ -42,14 +42,7 @@ exceed reduced stock; reads preserve them so customers can adjust or remove them
 Checkout, order placement, reservations, payment, and delivery are deferred.
 Selection is UI state, not a reservation or a persisted checkout session.
 
-## Migration and admin
-
-Migration 0013 changes the user relation to many carts, adds the store relation,
-splits legacy items by their product's store, and preserves item IDs/quantities.
-Empty legacy cart records (which have no store or products) are removed. Rollback
-merges store carts per user before restoring the one-to-one relation. Invalid
-legacy zero-quantity rows stop the migration explicitly for operator resolution.
-The migration does not change product stock, prices, or orders.
+## Admin
 
 The admin exposes carts and their items for inspection. Model validation prevents
 cross-store items and moving a cart/product to a conflicting store. Raw SQL and

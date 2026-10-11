@@ -23,10 +23,17 @@ Seed data uses two lists: `CUSTOMERS_DATA` contains users, their
 Products are seeded before customer orders. Product names must be unique across
 the seed catalogs because order items and image folders identify them by name.
 
+See [checkout fixture behavior](checkout/development.md#seed-purchase-behavior) and
+[model structures](checkout/models.md) for checkout, payment and reservation details.
+
 Each sample order has a unique negative `id`, reserved for development seeding.
-Keep this ID stable across reruns. Orders use their user's default recipient;
-item purchase prices come from seeded products. Reruns restore the seeded item
-quantities and prices. They do not adjust stock or sold counts to simulate checkout.
+Keep this ID stable across reruns. Each order now gets a stable COD checkout,
+explicit unpaid/paid payment status, one store, rate 1 and complete purchase
+snapshots in that store's currency. A fixture order cannot span stores. The current
+sample explicitly marks payment paid. Orders use their user's default recipient;
+item purchase prices come from seeded products. Identical reruns preserve checkout/order/item IDs and timestamps and restore fixture
+values. Changing the agreed checkout total/currency requires a new fixture ID or
+a disposable reset; populated checkout payment terms cannot be rewritten. They do not adjust stock or sold counts to simulate checkout.
 Delivered and cancelled orders receive a completion timestamp on first seeding,
 which is preserved on reruns. Other statuses have no completion timestamp.
 An existing order ID belonging to another user causes the transaction to fail.

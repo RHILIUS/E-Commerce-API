@@ -95,8 +95,7 @@ Django's default local-memory cache is per process. Configure a shared Django
 cache in production to share tables and refresh gates across workers. Cold pages
 may wait for one provider request up to the configured timeout.
 
-This feature only converts catalog display prices. Checkout conversion and purchase
-currency snapshots are not implemented here. Existing order items retain their
-numeric purchase prices; mixed-currency order totals must not be treated as a
-single-currency amount. Checkout needs an explicit settlement currency and currency
-snapshots before supporting purchases across stores with different currencies.
+This feature only converts catalog display prices. The separate
+[checkout preview API](../checkout/preview-api.md) uses strict single-currency
+conversion and signed price snapshots. Placement remains pending. Mixed-currency
+catalog or historical amounts must not be treated as a single-currency total.

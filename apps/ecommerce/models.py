@@ -1,10 +1,11 @@
-from django.contrib.auth import get_user_model
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from django.db import models
+from django.db import models, transaction
 
 from apps.account.models import RecipientInfo
+from apps.checkout.services.snapshots import validate_recipient_snapshot
 from apps.store.models import Store
 from core.common.images import compress_uploaded_image
 from core.common.models import TimeStampedModel
@@ -177,7 +178,10 @@ class Product(TimeStampedModel):
         if not self.pk:
             return
         if self.cartitem_set.exclude(cart__store_id=self.store_id).exists():
-            raise ValidationError({"store": "A product saved in carts cannot move to another store."})
+            raise ValidationError(
+                {"store": "A product saved in carts cannot move to another store."})
+        if self.orderitem_set.exclude(order__store_id=self.store_id).exists():
+            raise ValidationError({"store": "A purchased product cannot move to another store."})
         allowed_attributes = CategoryAttribute.objects.filter(
             category_id=self.category_id
         ).values("attribute_id")
@@ -187,9 +191,15 @@ class Product(TimeStampedModel):
             })
 
     def save(self, *args, **kwargs):
-        """Check category compatibility when saving a product."""
-        self.clean()
-        return super().save(*args, **kwargs)
+        """Serialize inventory edits and preserve quantities owned by unresolved payments."""
+        with transaction.atomic():
+            if self.pk:
+                type(self).objects.select_for_update().get(pk=self.pk)
+                held = self.stock_reservations.filter(status="held").aggregate(total=models.Sum("quantity"))["total"] or 0
+                if self.stock < held:
+                    raise ValidationError({"stock": "Stock cannot be lower than unresolved payment reservations."})
+            self.clean()
+            return super().save(*args, **kwargs)
 
 
 class ProductImage(TimeStampedModel):
@@ -276,16 +286,19 @@ class ProductAttributeValue(models.Model):
 class Cart(TimeStampedModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='carts')
-    store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='carts')
+    store = models.ForeignKey(
+        Store, on_delete=models.CASCADE, related_name='carts')
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=('user', 'store'), name='unique_user_store_cart')]
+        constraints = [models.UniqueConstraint(
+            fields=('user', 'store'), name='unique_user_store_cart')]
 
     def clean(self):
         """Prevent moving populated carts to a different store."""
         super().clean()
         if self.pk and self.items.exclude(product__store_id=self.store_id).exists():
-            raise ValidationError({"store": "Cart items must belong to the cart's store."})
+            raise ValidationError(
+                {"store": "Cart items must belong to the cart's store."})
 
     def save(self, *args, **kwargs):
         self.clean()
@@ -296,17 +309,20 @@ class CartItem(TimeStampedModel):
     cart = models.ForeignKey(
         Cart, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
+    quantity = models.PositiveIntegerField(
+        default=1, validators=[MinValueValidator(1)])
 
     class Meta:
         unique_together = ('cart', 'product')
-        constraints = [models.CheckConstraint(condition=models.Q(quantity__gte=1), name='cart_item_quantity_positive')]
+        constraints = [models.CheckConstraint(condition=models.Q(
+            quantity__gte=1), name='cart_item_quantity_positive')]
 
     def clean(self):
         """Keep each item inside its product's store cart."""
         super().clean()
         if self.cart_id and self.product_id and self.cart.store_id != self.product.store_id:
-            raise ValidationError({"product": "This product belongs to a different store."})
+            raise ValidationError(
+                {"product": "This product belongs to a different store."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -327,6 +343,13 @@ class Order(TimeStampedModel):
         CANCELLED = "cancelled", "Cancelled"
         DELIVERED = "delivered", "Delivered"
 
+    class PaymentStatus(models.TextChoices):
+        UNPAID = "unpaid", "Unpaid"
+        PENDING = "pending", "Pending"
+        PAID = "paid", "Paid"
+        FAILED = "failed", "Failed"
+        CANCELLED = "cancelled", "Cancelled"
+
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -343,28 +366,136 @@ class Order(TimeStampedModel):
         default=Status.PENDING,
     )
     concluded_at = models.DateTimeField(null=True, blank=True)
+    checkout = models.ForeignKey(
+        "checkout.Checkout",
+        on_delete=models.PROTECT,
+        related_name="orders",
+    )
+    store = models.ForeignKey(
+        Store,
+        on_delete=models.PROTECT,
+        related_name="orders",
+    )
+    store_name_at_purchase = models.CharField(max_length=100)
+
+    payment_status = models.CharField(
+        max_length=10,
+        choices=PaymentStatus.choices,
+        default=PaymentStatus.UNPAID,
+    )
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    recipient_snapshot = models.JSONField(validators=[validate_recipient_snapshot])
+
+    source_currency = models.CharField(max_length=3)
+    exchange_rate = models.DecimalField(
+        max_digits=28,
+        decimal_places=12,
+    )
+    exchange_rate_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["checkout", "store"],
+                name="unique_checkout_store_order",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(exchange_rate__gt=0),
+                name="order_exchange_rate_positive",
+            ),
+        ]
 
     def clean(self):
+        """Keep the checkout, order and recipient owned by the same customer."""
         super().clean()
-        if (
-            self.user_id
-            and self.recipient_info_id
-            and self.recipient_info.user_id != self.user_id
-        ):
-            raise ValidationError({
-                "recipient_info": "The recipient must belong to the order user."
-            })
+        errors = {}
+        recipient_user = RecipientInfo.objects.filter(pk=self.recipient_info_id).values_list(
+            "user_id", flat=True).first()
+        checkout_model = self._meta.get_field("checkout").remote_field.model
+        checkout_user = checkout_model.objects.filter(pk=self.checkout_id).values_list(
+            "user_id", flat=True).first()
+        if self.user_id and recipient_user is not None and recipient_user != self.user_id:
+            errors["recipient_info"] = "The recipient must belong to the order user."
+        if self.user_id and checkout_user is not None and checkout_user != self.user_id:
+            errors["checkout"] = "The checkout must belong to the order user."
+        if self.pk:
+            previous = type(self).objects.filter(pk=self.pk).values("user_id", "store_id", "checkout_id").first()
+            if previous and any(previous[field] != getattr(self, field) for field in previous):
+                errors["checkout"] = "An existing order cannot move to another user, store or checkout."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        """Validate order ownership and purchase snapshots on ordinary writes."""
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
     def get_total(self):
         return sum(item.get_subtotal() for item in self.items.all())
 
 
 class OrderItem(TimeStampedModel):
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
     order = models.ForeignKey(
         Order, on_delete=models.CASCADE, related_name='items')
-    price_at_purchase = models.DecimalField(max_digits=12, decimal_places=2)
+    price_at_purchase = models.DecimalField(max_digits=18, decimal_places=3)
     quantity = models.PositiveIntegerField(default=1)
+    product_name_at_purchase = models.CharField(max_length=255)
+    original_unit_price = models.DecimalField(
+        max_digits=18,
+        decimal_places=3,
+    )
+    source_cart_item = models.ForeignKey(
+        CartItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="checkout_order_items",
+    )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(quantity__gte=1),
+                name="order_item_quantity_positive",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(original_unit_price__gte=0),
+                name="order_item_original_price_nonnegative",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(price_at_purchase__gte=0),
+                name="order_item_purchase_price_nonnegative",
+            ),
+        ]
+
+    def clean(self):
+        """Check store membership, cart ownership and existing reservation consistency."""
+        super().clean()
+        errors = {}
+        order = Order.objects.filter(pk=self.order_id).values("store_id", "user_id").first()
+        product_store = Product.objects.filter(pk=self.product_id).values_list("store_id", flat=True).first()
+        if order and product_store is not None and product_store != order["store_id"]:
+            errors["product"] = "The product must belong to the order store."
+        if self.source_cart_item_id:
+            source = CartItem.objects.filter(pk=self.source_cart_item_id).values(
+                "product_id", "cart__user_id").first()
+            if source and (source["product_id"] != self.product_id or
+                           (order and source["cart__user_id"] != order["user_id"])):
+                errors["source_cart_item"] = "The cart item must match the product and customer."
+        if self.pk:
+            reservation = getattr(self, "stock_reservation", None)
+            if reservation and (reservation.product_id != self.product_id or
+                                reservation.quantity != self.quantity):
+                errors["quantity"] = "An item with a reservation cannot change product or quantity."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        """Validate purchase relationships and required snapshots on ordinary writes."""
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
     def get_subtotal(self):
         return self.price_at_purchase * self.quantity

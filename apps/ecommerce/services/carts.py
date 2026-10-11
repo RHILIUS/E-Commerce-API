@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import APIException, NotFound
 
 from ..models import Cart, CartItem, Product, ProductImage
+from apps.inventory.models import StockReservation
 from ..serializers import CatalogImageSerializer
 from .display_prices import convert_display_price, get_display_rates
 
@@ -78,6 +79,7 @@ def add_item(user, product_id, quantity):
     total = quantity + (item.quantity if item else 0)
     validate_stock(product, total)
     if item:
+        reject_frozen_items([item.pk])
         item.quantity = total
         item.save(update_fields=['quantity', 'updated_at'])
     else:
@@ -89,6 +91,7 @@ def update_item(user, item_id, quantity):
     """Set an owned item's quantity after checking fresh stock."""
     lock_customer(user)
     item = get_object_or_404(CartItem.objects.filter(cart__user=user), pk=item_id)
+    reject_frozen_items([item.pk])
     product = Product.objects.select_for_update().get(pk=item.product_id)
     validate_stock(product, quantity)
     item.quantity = quantity
@@ -103,5 +106,12 @@ def remove_items(user, item_ids):
     items = CartItem.objects.filter(cart__user=user, pk__in=ids)
     if items.count() != len(ids):
         raise NotFound('Some selected items are no longer in your cart. Refresh and try again.')
+    reject_frozen_items(ids)
     items.delete()
     Cart.objects.filter(user=user, items__isnull=True).delete()
+
+
+def reject_frozen_items(item_ids):
+    """Keep selected cart quantities unchanged until their online payment is resolved."""
+    if StockReservation.objects.filter(status="held", order_item__source_cart_item_id__in=item_ids).exists():
+        raise CartConflict('These items have a pending online payment. Resume or cancel that payment before editing them.')

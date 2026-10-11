@@ -25,7 +25,7 @@ class CartItemsView(APIView):
         add_item(request.user, **data.validated_data)
         return Response(read_carts(request))
 
-    @extend_schema(tags=['Cart'], request=CartRemoveSerializer, responses={200: CartResponseSerializer, 400: dict, 401: dict, 404: dict}, description='Remove selected owned items across store carts. The whole request fails if any ID is missing or foreign; remove empty carts.')
+    @extend_schema(tags=['Cart'], request=CartRemoveSerializer, responses={200: CartResponseSerializer, 400: dict, 401: dict, 404: dict, 409: dict}, description='Remove selected owned items across store carts. The whole request fails if any ID is missing or foreign; remove empty carts. Pending online payment items cannot be edited or removed.')
     def delete(self, request):
         data = CartRemoveSerializer(data=request.data)
         data.is_valid(raise_exception=True)
