@@ -22,8 +22,8 @@ CUSTOMERS_DATA = [
         }],
         "orders": [
             {
-                # Negative IDs are reserved for repeatable development orders.
-                "id": -1,
+                # Stable fixture identity; the database assigns the order ID.
+                "key": "customer-delivered-order",
                 "status": Order.Status.DELIVERED,
                 "payment_status": Order.PaymentStatus.PAID,
                 "order_items": [{

@@ -162,16 +162,17 @@ def validate_seed_data():
         source_path(store["banner_image"])
         users.extend(member["user"] for member in store["members"])
     product_stores = {product["name"]: store["name"] for store in STORES_DATA for product in store["products"]}
-    order_ids = set()
+    order_keys = set()
     for user in users:
         source_path(user["profile_image"])
         if sum(recipient["is_default"] for recipient in user["recipient_infos"]) != 1:
             raise CommandError("Each seed user must have exactly one default recipient.")
     for customer in CUSTOMERS_DATA:
         for order in customer["orders"]:
-            if type(order["id"]) is not int or order["id"] >= 0 or order["id"] in order_ids:
-                raise CommandError("Seed order IDs must be unique negative integers.")
-            order_ids.add(order["id"])
+            key = order.get("key")
+            if not isinstance(key, str) or not key.strip() or key in order_keys:
+                raise CommandError("Seed order keys must be unique non-empty strings.")
+            order_keys.add(key)
             if order["status"] not in Order.Status.values:
                 raise CommandError("Invalid seed order status.")
             if order.get("payment_status") not in (Order.PaymentStatus.UNPAID, Order.PaymentStatus.PAID):
@@ -325,15 +326,10 @@ class Command(BaseCommand):
                 raise CommandError("Each seed order must contain products from exactly one store.")
             store = lines[0][0].store
             total = sum((product.price * quantity for product, quantity in lines), Decimal("0"))
-            key = uuid.uuid5(uuid.NAMESPACE_URL, f"ecommerce:seed:order:{data['id']}")
-            order = Order.objects.select_for_update().filter(pk=data["id"]).first()
-            if order is not None and order.user_id != user.pk:
-                raise CommandError("Seed order ID already belongs to another user.")
+            key = uuid.uuid5(uuid.NAMESPACE_URL, f"ecommerce:seed:order:{data['key']}")
             checkout = Checkout.objects.select_for_update().filter(reference=key).first()
             if checkout is not None and checkout.user_id != user.pk:
                 raise CommandError("Seed checkout already belongs to another user.")
-            if order and (checkout is None or order.checkout_id != checkout.pk):
-                raise CommandError("Seed order is linked to a different checkout.")
             if checkout is None:
                 checkout = Checkout(reference=key, user=user, idempotency_key=key)
             checkout.payment_method = Checkout.PaymentMethod.COD
@@ -342,8 +338,11 @@ class Command(BaseCommand):
             checkout.status = Checkout.Status.COMPLETED
             checkout.completed_at = checkout.completed_at or timezone.now()
             checkout.save()
+            order = Order.objects.select_for_update().filter(checkout=checkout, store=store).first()
+            if order is not None and order.user_id != user.pk:
+                raise CommandError("Seed order already belongs to another user.")
             if order is None:
-                order = Order(pk=data["id"], user=user)
+                order = Order(user=user)
             order.checkout = checkout
             order.store = store
             order.store_name_at_purchase = store.name
