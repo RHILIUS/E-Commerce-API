@@ -79,7 +79,7 @@ def reject_session_creation(attempt_id):
     now = timezone.now()
     StockReservation.objects.filter(pk__in=[r.pk for r in reservations]).update(
         status='released', resolved_at=now, updated_at=now)
-    Order.objects.filter(checkout=checkout).update(status='cancelled', payment_status='cancelled', updated_at=now)
+    Order.objects.filter(checkout=checkout).update(status='cancelled', payment_status='cancelled', concluded_at=now, updated_at=now)
     attempt.status = 'failed'
     attempt.failure_code = 'session_creation_rejected'
     attempt.checkout_url = ''
@@ -178,7 +178,7 @@ def apply_session(attempt_id, session):
         StockReservation.objects.filter(pk__in=[r.pk for r in reservations]).update(status='released', resolved_at=now, updated_at=now)
         checkout.status = 'cancelled' if attempt.cancel_requested else 'expired'
         attempt.status = checkout.status
-        Order.objects.filter(checkout=checkout).update(status='cancelled', payment_status='cancelled', updated_at=now)
+        Order.objects.filter(checkout=checkout).update(status='cancelled', payment_status='cancelled', concluded_at=now, updated_at=now)
     attempt.checkout_url = ''
     attempt.failure_code = ''
     attempt.save()

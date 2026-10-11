@@ -3,7 +3,11 @@ from django.urls import path
 from apps.ecommerce import views
 from apps.ecommerce.cart_views import CartListView, CartItemsView, CartItemView
 
+from .order_views import UserOrderListView, UserOrderCancelView
+
 urlpatterns = [
+    path('orders/', UserOrderListView.as_view(), name='user-orders'),
+    path('orders/<int:pk>/cancel/', UserOrderCancelView.as_view(), name='user-order-cancel'),
     path('carts/', CartListView.as_view(), name='cart-list'),
     path('carts/items/', CartItemsView.as_view(), name='cart-items'),
     path('carts/items/<int:pk>/', CartItemView.as_view(), name='cart-item'),

@@ -12,6 +12,7 @@ class OpenAPITests(SimpleTestCase):
         self.assertEqual(set(schema["paths"]), {
             "/api/account/recipients/", "/api/account/recipients/{id}/",
             "/api/shop/checkout/preview/",
+            "/api/shop/orders/", "/api/shop/orders/{id}/cancel/",
             "/api/shop/checkouts/", "/api/shop/checkouts/{reference}/",
             "/api/shop/checkouts/stripe/", "/api/shop/checkouts/{reference}/payment/",
             "/api/shop/checkouts/{reference}/payment/cancel/", "/api/shop/stripe/webhook/",
@@ -61,3 +62,7 @@ class OpenAPITests(SimpleTestCase):
         )
         self.assertEqual(schema["components"]["schemas"]["ProductDetail"]
                          ["properties"]["can_purchase"]["type"], "boolean")
+
+        orders = schema["paths"]["/api/shop/orders/"]["get"]
+        self.assertEqual({p["name"] for p in orders["parameters"]}, {"tab", "page"})
+        self.assertNotIn({}, orders["security"])

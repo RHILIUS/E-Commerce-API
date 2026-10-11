@@ -213,3 +213,42 @@ class ProviderEvent(models.Model):
             models.CheckConstraint(condition=models.Q(environment="test"), name="provider_event_test_only"),
         ]
         indexes = [models.Index(fields=["processing_status", "received_at"], name="provider_event_pending_idx")]
+
+
+class OrderRefund(TimeStampedModel):
+    """One durable full-order refund, representing a partial multi-store Stripe charge."""
+    reference = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    order = models.OneToOneField('ecommerce.Order', on_delete=models.PROTECT, related_name='refund')
+    payment_attempt = models.ForeignKey(PaymentAttempt, on_delete=models.PROTECT, related_name='refunds')
+    amount_cents = models.PositiveBigIntegerField()
+    status = models.CharField(max_length=20, default='pending', choices=[
+        ('pending', 'Pending'), ('requires_action', 'Requires action'), ('succeeded', 'Succeeded'),
+        ('failed', 'Failed'), ('canceled', 'Canceled'),
+    ])
+    stripe_refund_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    reversal = models.OneToOneField('wallet.LedgerTransaction', null=True, blank=True,
+                                   on_delete=models.PROTECT, related_name='order_refund')
+    failure_code = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(amount_cents__gt=0), name='order_refund_positive')]
+
+    def clean(self):
+        """Protect purchase identity and the fixed refund amount on ordinary writes."""
+        super().clean()
+        if self.order_id and self.payment_attempt_id:
+            if self.order.checkout_id != self.payment_attempt.checkout_id:
+                raise ValidationError('The refund payment must belong to the order checkout.')
+        if self.pk:
+            old = type(self).objects.filter(pk=self.pk).values().first()
+            for field in ('reference', 'order_id', 'payment_attempt_id', 'amount_cents'):
+                if old and old[field] != getattr(self, field):
+                    raise ValidationError('Refund identity and amount cannot change.')
+            for field in ('stripe_refund_id', 'reversal_id'):
+                if old and old[field] and old[field] != getattr(self, field):
+                    raise ValidationError('Assigned refund references cannot change.')
+
+    def save(self, *args, **kwargs):
+        """Validate refund terms without performing provider or ledger actions."""
+        self.full_clean()
+        return super().save(*args, **kwargs)
