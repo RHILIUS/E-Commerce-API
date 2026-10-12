@@ -11,6 +11,9 @@ class Store(TimeStampedModel):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
 
+    public_email = models.EmailField(blank=True, help_text="Business email visible to all customers.")
+    public_phone = models.CharField(max_length=40, blank=True, help_text="Business phone visible to all customers.")
+
     country_code = models.CharField(max_length=2)
     currency = models.CharField(
         max_length=3, editable=False,

@@ -216,6 +216,9 @@ class SeedTaxonomyTests(TestCase):
         sold_count = item.product.sold_count
         self.assertFalse(order.user.store_memberships.exists())
         command.handle()
+        store = Store.objects.get(name=STORES_DATA[0]["name"])
+        self.assertEqual(store.public_email, STORES_DATA[0]["public_email"])
+        self.assertEqual(store.public_phone, STORES_DATA[0]["public_phone"])
         order.refresh_from_db()
         self.assertEqual(Order.objects.count(), 1)
         self.assertEqual(OrderItem.objects.count(), 1)

@@ -42,7 +42,7 @@ class StoreAdmin(admin.ModelAdmin):
     form = StoreAdminForm
     list_display = ("name", "country_code", "currency", "created_at", "updated_at")
     list_filter = ("country_code", "currency")
-    search_fields = ("name", "description")
+    search_fields = ("name", "description", "public_email", "public_phone")
     readonly_fields = ("currency", "created_at", "updated_at")
     inlines = (StoreMemberInline,)
 

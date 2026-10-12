@@ -125,10 +125,11 @@ If seeding fails, check the reported source path or naming error, database conne
 
 Store currency is assigned automatically from its country. The PH seed store uses
 PHP, so its product price values are pesos; seeding does not convert these amounts.
+The public contact details are sample business details shown on the customer Store Page.
 
-| name               | description                                                                                                           | country_code | profile_image                                                     | profile_image_crop | banner_image                                                    | banner_image_crop |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------- | ------------------ | --------------------------------------------------------------- | ----------------- |
-| RhiLius Tech Store | We sell gadgets like tablets, mobile phones, laptops, and computers. Make sure to check us out and have fun shopping! | PH           | /static/seed_images/stores/profile/rhilius_tech_store_profile.jpg | N/A                | /static/seed_images/stores/banner/rhilius_tech_store_banner.jpg | N/A               |
+| name               | description                                                                                                           | country_code | profile_image                                                     | profile_image_crop | banner_image                                                    | banner_image_crop | public_email | public_phone |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------- | ------------------ | --------------------------------------------------------------- | ----------------- | ------------ | ------------ |
+| RhiLius Tech Store | We sell gadgets like tablets, mobile phones, laptops, and computers. Make sure to check us out and have fun shopping! | PH           | /static/seed_images/stores/profile/rhilius_tech_store_profile.jpg | N/A                | /static/seed_images/stores/banner/rhilius_tech_store_banner.jpg | N/A               | contact@rhiliustech.example | +63 917 555 0134 |
 
 ## StoreAddress
 

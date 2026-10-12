@@ -20,6 +20,7 @@ class OpenAPITests(SimpleTestCase):
             "/api/auth/register/", "/api/auth/send-otp/",
             "/api/auth/verify-otp/", "/api/auth/verify/",
             "/api/shop/products/", "/api/shop/products/{id}/", "/api/shop/test/",
+            "/api/shop/stores/{id}/", "/api/shop/stores/{id}/home/", "/api/shop/stores/{id}/products/",
             "/api/shop/carts/", "/api/shop/carts/items/", "/api/shop/carts/items/{id}/",
         })
         for component in ("LoginResponse", "RefreshResponse"):
@@ -66,3 +67,11 @@ class OpenAPITests(SimpleTestCase):
         orders = schema["paths"]["/api/shop/orders/"]["get"]
         self.assertEqual({p["name"] for p in orders["parameters"]}, {"tab", "page"})
         self.assertNotIn({}, orders["security"])
+
+        store_catalog = schema["paths"]["/api/shop/stores/{id}/products/"]["get"]
+        self.assertIn({}, store_catalog["security"])
+        self.assertEqual({p["name"] for p in store_catalog["parameters"]}, {"id", "page", "q", "sort", "category"})
+        self.assertEqual(set(store_catalog["responses"]), {"200", "400", "401", "404"})
+        public_store = schema["components"]["schemas"]["PublicStore"]["properties"]
+        self.assertTrue({"public_email", "public_phone", "items_sold"} <= set(public_store))
+        self.assertNotIn("members", public_store)

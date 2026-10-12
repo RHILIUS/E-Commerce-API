@@ -431,6 +431,8 @@ class Command(BaseCommand):
             name=store_data["name"],
             defaults={
                 "description": store_data["description"],
+                "public_email": store_data["public_email"],
+                "public_phone": store_data["public_phone"],
                 "country_code": store_data["country_code"],
             },
         )
