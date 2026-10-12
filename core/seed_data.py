@@ -61,6 +61,8 @@ STORES_DATA = [{
         },
     }],
     "name": "RhiLius Tech Store",
+    "public_email": "contact@rhiliustech.example",
+    "public_phone": "+63 917 555 0134",
     "description": (
         "We sell gadgets like tablets, mobile phones, laptops, and computers. "
         "Make sure to check us out and have fun shopping!"
