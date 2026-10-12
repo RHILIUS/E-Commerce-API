@@ -31,3 +31,7 @@ class RecipientSerializer(serializers.ModelSerializer):
 
 class RecipientListSerializer(serializers.Serializer):
     recipients = RecipientSerializer(many=True)
+
+
+class RecipientDeleteSerializer(serializers.Serializer):
+    replacement_default_id = serializers.IntegerField(required=False, min_value=1)

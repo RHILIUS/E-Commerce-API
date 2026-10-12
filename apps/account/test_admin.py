@@ -140,3 +140,14 @@ class RecipientAdminTests(TestCase):
         self.assertEqual(self.client.post(self.change_url(recipient), self.payload(is_default="on")).status_code, 403)
         self.client.force_login(self.buyer)
         self.assertEqual(self.client.get(self.list_url).status_code, 302)
+
+
+    def test_removed_recipient_is_visible_but_cannot_be_edited_or_restored(self):
+        recipient = RecipientInfo.objects.create(user=self.buyer, is_deleted=True, **recipient_data())
+        response = self.client.get(self.change_url(recipient))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("name", response.context["adminform"].form.fields)
+        self.assertEqual(self.client.post(self.change_url(recipient), self.payload(name="Restored", is_deleted=False)).status_code, 403)
+        recipient.refresh_from_db()
+        self.assertTrue(recipient.is_deleted)
+        self.assertEqual(recipient.name, "Juan Dela Cruz")

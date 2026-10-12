@@ -1,6 +1,6 @@
 # Saved-recipient APIs
 
-**Implemented:** authenticated listing, creation and editing. These endpoints prepare the
+**Implemented:** authenticated listing, creation, editing and removal. These endpoints prepare the
 recipient selection used by the implemented COD checkout flow. Checkout
 [preview](preview-api.md), [placement and confirmation](cod-api.md), and
 [frontend integration](../../../frontend/docs/checkout/README.md) are implemented.
@@ -35,7 +35,7 @@ change ownership. `id` is read-only. No new cookies or token response fields exi
 }
 ```
 
-Only the current customer's rows are returned, with the default first and then
+Only the current customer's active (not removed) rows are returned, with the default first and then
 ascending ID. There is no pagination. An empty list is `{"recipients": []}`.
 Listing does not change the default or create any rows.
 
@@ -60,17 +60,17 @@ Listing does not change the default or create any rows.
 Returns **201** with the single saved recipient object, including its `id` and
 actual `is_default` value. The response is not wrapped in `recipients`.
 
-| Field | Validation |
-| --- | --- |
-| `name` | Required, nonblank, at most 100 characters. |
-| `phone_number` | Required valid international E.164 phone number, such as `+639171234567`. |
-| `country_code` | Required supported two-letter region; normalized to uppercase. |
-| `address_line1` | Required, nonblank, at most 150 characters. |
-| `address_line2` | Optional, blank allowed, at most 150 characters. |
-| `city` | Required, nonblank, at most 100 characters. |
-| `region` | Optional, blank allowed, at most 100 characters. |
-| `postal_code` | Optional, blank allowed, at most 20 characters. |
-| `is_default` | Optional boolean, false unless requested or this is the first recipient. |
+| Field           | Validation                                                                |
+| --------------- | ------------------------------------------------------------------------- |
+| `name`          | Required, nonblank, at most 100 characters.                               |
+| `phone_number`  | Required valid international E.164 phone number, such as `+639171234567`. |
+| `country_code`  | Required supported two-letter region; normalized to uppercase.            |
+| `address_line1` | Required, nonblank, at most 150 characters.                               |
+| `address_line2` | Optional, blank allowed, at most 150 characters.                          |
+| `city`          | Required, nonblank, at most 100 characters.                               |
+| `region`        | Optional, blank allowed, at most 100 characters.                          |
+| `postal_code`   | Optional, blank allowed, at most 20 characters.                           |
+| `is_default`    | Optional boolean, false unless requested or this is the first recipient.  |
 
 Text fields trim surrounding whitespace. Optional address strings are returned as
 empty strings when omitted; null is not accepted. Phone/country validation is
@@ -81,7 +81,7 @@ external address-verification service is used.
 
 ## Default behavior and concurrency
 
-The first saved recipient is automatically default, even if the request supplies
+The first active saved recipient is automatically default, even if the request supplies
 `is_default: false`. Later recipients are non-default unless explicitly requested.
 Creating one with `is_default: true` clears the old default and saves the new one
 in the same transaction. A failed insertion rolls back the old-default change.
@@ -110,25 +110,50 @@ default to false returns **400** with an `is_default` field error; choose anothe
 default instead. Validation or save failure leaves the old data/default unchanged.
 
 Editing changes saved recipient details for future purchases. Existing checkout
-and order recipient snapshots remain unchanged. GET, POST, PUT and DELETE on the
+and order recipient snapshots remain unchanged. GET, POST and PUT on the
 detail endpoint return **405** for authenticated requests.
+
+## Delete a saved recipient
+
+`DELETE /api/account/recipients/{id}/` removes the owned recipient from the saved
+address book. The row is retained with `is_deleted: true` and `is_default: false`
+to preserve protected order links and historical delivery snapshots. Removed
+recipients cannot be listed, edited or selected for a new COD/Stripe purchase.
+Existing checkout retries, pending payments and confirmation snapshots continue
+to work. The public recipient response shape does not expose the internal flag.
+
+When deleting the default with other active recipients, supply the query parameter
+`replacement_default_id=<id>` naming another active recipient owned by the same
+customer. Missing, foreign, removed or self replacements return **400** under
+`replacement_default_id`. A replacement is rejected when it is unnecessary.
+Deleting the last recipient is allowed; the next created recipient becomes default.
+
+Removal and replacement are atomic under the same customer lock used by creation,
+editing and placement. Returns **200** with `{"recipients": [...]}` containing the
+remaining active recipients, default first then ascending ID. Repeating an owned
+removal returns the current list without changing the current default. Missing or
+foreign target IDs return **404**, unauthenticated requests **401**. The operation
+never deletes orders, payments, reservations or purchase snapshots.
+
+Frontend Account and Checkout share the confirmation UI. Checkout clears a removed
+selection and requires explicitly selecting/adding a recipient before placing a
+new order. A network failure triggers a list reload before further mutations.
 
 ## Errors and scope
 
 Validation errors return 400 as field names mapped to message arrays, for example:
 
 ```json
-{"phone_number": ["Enter a valid phone number."]}
+{ "phone_number": ["Enter a valid phone number."] }
 ```
 
 Invalid input is rejected before changing defaults. PUT, PATCH and DELETE on the
-collection return 405 for authenticated requests. Deleting and separate default-switching endpoints are outside this recipient API.
+collection return 405 for authenticated requests. Default switching uses PATCH with `is_default: true`; no separate default endpoint is needed.
 
 Request/response schemas are published in `/api/schema/` and Swagger `/api/docs/`.
 Regression tests cover authentication, owner scoping, normalized response shape,
 required fields/limits, shared phones, defaults, rollback and concurrent creation.
 Concurrency tests require row-lock support and skip on SQLite.
-
 
 ## Django admin
 
@@ -148,5 +173,7 @@ and persistence consistent with concurrent API writes.
 Django's standard view/add/change model permissions and admin change logs apply.
 Customer autocomplete additionally requires view or change permission on the user
 model, following Django's related-object autocomplete permissions.
-Recipient deletion, including bulk deletion, is disabled until default handling
-for deletion is defined. Existing order snapshots are unchanged by admin edits.
+Admin hard deletion, including bulk deletion, remains disabled. Removed recipients
+are visible with an `is_deleted` filter and read-only detail view; staff cannot
+restore or edit them. Customer removal uses the authenticated API above. Existing
+order snapshots are unchanged by admin edits.

@@ -92,6 +92,17 @@ class CODPlacementTests(APITestCase):
         return {'preview_token': preview['preview_token'], 'recipient_id': self.recipient.pk,
                 'payment_method': 'cod', 'idempotency_key': str(uuid.uuid4())}, [a, b], untouched
 
+    def test_removed_recipient_blocks_new_order_but_preserves_retry_and_confirmation(self):
+        from apps.account.services import delete_recipient
+        body = self.body()
+        response = self.place(body)
+        self.assertEqual(response.status_code, 201)
+        delete_recipient(self.user, self.recipient.pk)
+        self.assertEqual(self.place(body).data, response.data)
+        self.assertEqual(self.client.get(f"{PLACE}{response.data['reference']}/").data, response.data)
+        new_body = self.body()
+        self.assertEqual(self.place(new_body).status_code, 404)
+
     def test_direct_cod_creates_completed_checkout_unpaid_order_and_keeps_cart(self):
         cart = CartItem.objects.create(cart=Cart.objects.create(user=self.user, store=self.store), product=self.product, quantity=1)
         with patch('apps.checkout.services.pricing.urlopen', side_effect=AssertionError('No FX needed')):

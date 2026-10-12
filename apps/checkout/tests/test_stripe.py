@@ -73,6 +73,22 @@ class StripeFixtures:
 
 @override_settings(**CONFIG)
 class StripeTests(StripeFixtures, APITestCase):
+    def test_recipient_removal_preserves_pending_payment_and_saved_delivery(self):
+        from apps.account.services import delete_recipient
+        attempt = self.reserve()
+        snapshots = list(Order.objects.order_by('pk').values_list('recipient_snapshot', flat=True))
+        delete_recipient(self.user, self.recipient.pk)
+        replay, created = reserve_online(self.user, self.body)
+        self.assertFalse(created)
+        self.assertEqual(replay.pk, attempt.checkout_id)
+        new_body = {**self.body, 'idempotency_key': str(uuid.uuid4())}
+        from django.http import Http404
+        with self.assertRaises(Http404):
+            reserve_online(self.user, new_body)
+        apply_session(attempt.pk, self.session(attempt, paid=True))
+        self.assertEqual(Order.objects.filter(payment_status='paid').count(), 2)
+        self.assertEqual(list(Order.objects.order_by('pk').values_list('recipient_snapshot', flat=True)), snapshots)
+
     def test_reservation_and_paid_receipt_credit_two_stores_exactly_once(self):
         attempt = self.reserve()
         self.assertEqual(StockReservation.objects.filter(status='held').count(), 2)
