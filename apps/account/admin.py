@@ -55,16 +55,16 @@ class RecipientAdminForm(forms.ModelForm):
 @admin.register(RecipientInfo)
 class RecipientInfoAdmin(admin.ModelAdmin):
     form = RecipientAdminForm
-    list_display = ("name", "user", "phone_number", "city", "country_code", "is_default")
+    list_display = ("name", "user", "phone_number", "city", "country_code", "is_default", "is_deleted")
     list_select_related = ("user",)
     search_fields = ("name", "phone_number", "user__email", "user__full_name",
                      "address_line1", "address_line2", "city", "region", "postal_code")
-    list_filter = ("country_code", "is_default")
+    list_filter = ("country_code", "is_default", "is_deleted")
     autocomplete_fields = ("user",)
     ordering = ("user__email", "-is_default", "pk")
-    readonly_fields = ("id",)
+    readonly_fields = ("id", "is_deleted")
     fieldsets = (
-        ("Customer", {"fields": ("id", "user", "is_default")}),
+        ("Customer", {"fields": ("id", "user", "is_default", "is_deleted")}),
         ("Contact", {"fields": ("name", "phone_number")}),
         ("Address", {"fields": ("country_code", "address_line1", "address_line2",
                                 "city", "region", "postal_code")}),
@@ -73,6 +73,10 @@ class RecipientInfoAdmin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
         """Keep saved recipient ownership fixed after creation."""
         return (*self.readonly_fields, "user") if obj else self.readonly_fields
+
+    def has_change_permission(self, request, obj=None):
+        """Removed addresses remain inspectable for history, but cannot be edited."""
+        return super().has_change_permission(request, obj) and not (obj and obj.is_deleted)
 
     def has_delete_permission(self, request, obj=None):
         return False

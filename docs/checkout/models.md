@@ -7,18 +7,18 @@ See the [feature overview](README.md) for implemented scope and pending workflow
 
 One customer submission, grouping its store orders and payment attempts.
 
-| Field             | Meaning                                                                                                   |
-| ----------------- | --------------------------------------------------------------------------------------------------------- |
-| `reference`       | Unique public UUID, generated once; not proof of authorization.                                           |
-| `user`            | Customer who owns the checkout; deletion is protected.                                                    |
-| `idempotency_key` | UUID supplied to placement; unique per customer. Reuse for retries of the same request. |
+| Field                 | Meaning                                                                                                        |
+| --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `reference`           | Unique public UUID, generated once; not proof of authorization.                                                |
+| `user`                | Customer who owns the checkout; deletion is protected.                                                         |
+| `idempotency_key`     | UUID supplied to placement; unique per customer. Reuse for retries of the same request.                        |
 | `request_fingerprint` | SHA-256 hash of the accepted placement payload. Empty only for legacy/seed records; never returned by the API. |
-| `payment_method`  | `cod` (default) or `stripe`.                                                                              |
-| `status`          | `pending`, `completed`, `cancelled`, or `expired`. Defaults to pending.                                   |
-| `currency`        | Required uppercase three-letter code for the final total.                                                 |
-| `total_amount`    | Nonnegative Decimal with 18 digits, 3 decimal places.                                                     |
-| `expires_at`      | Optional pending-checkout deadline.                                                                       |
-| `completed_at`    | Optional time checkout succeeded.                                                                         |
+| `payment_method`      | `cod` (default) or `stripe`.                                                                                   |
+| `status`              | `pending`, `completed`, `cancelled`, or `expired`. Defaults to pending.                                        |
+| `currency`            | Required uppercase three-letter code for the final total.                                                      |
+| `total_amount`        | Nonnegative Decimal with 18 digits, 3 decimal places.                                                          |
+| `expires_at`          | Optional pending-checkout deadline.                                                                            |
+| `completed_at`        | Optional time checkout succeeded.                                                                              |
 
 Completed means COD order placement or verified online payment, not fulfillment
 or delivery. The current models do not automatically set status/timestamps.
@@ -41,7 +41,7 @@ One store's part of a checkout, with its own fulfillment and payment state.
 | `recipient_info`         | Existing protected saved-recipient reference; must belong to the customer.                                                      |
 | `store_name_at_purchase` | Snapshot for historical display.                                                                                                |
 | `recipient_snapshot`     | Required JSON copy of recipient contact/address fields.                                                                         |
-| `status`                 | Existing fulfillment states: pending, accepted, packed, shipment_arranged, shipped, cancelled, delivered, completed.                       |
+| `status`                 | Existing fulfillment states: pending, accepted, packed, shipment_arranged, shipped, cancelled, delivered, completed.            |
 | `concluded_at`           | Existing optional fulfillment conclusion timestamp.                                                                             |
 | `payment_status`         | unpaid (default), pending, paid, failed, cancelled.                                                                             |
 | `paid_at`                | Optional verified payment/collection timestamp.                                                                                 |
@@ -152,7 +152,6 @@ including for superusers. Manual payment, quantity and deletion controls would
 bypass the COD/Stripe services and financial/inventory invariants. Fulfillment
 workflows remain future work. Catalog and cart admin remain separate.
 
-
 ## Stripe workflow additions
 
 See [Stripe API and setup](stripe-api.md) for implemented behavior and recovery.
@@ -169,7 +168,6 @@ SettlementHold is created yet; paid store shares remain pending in the journal.
 and their immutable compensating ledger entries. `concluded_at` is set by new
 order cancellations and terminal online cancellation/expiry; historical nulls
 remain unknown. Fulfillment Completed is separate from Checkout completed.
-
 
 ## OrderEvent
 

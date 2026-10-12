@@ -6,8 +6,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import RecipientInfo
-from .serializers import RecipientListSerializer, RecipientSerializer
-from .services import create_recipient, update_recipient
+from .serializers import RecipientDeleteSerializer, RecipientListSerializer, RecipientSerializer
+from .services import create_recipient, delete_recipient, update_recipient
 
 
 class RecipientListCreateView(APIView):
@@ -19,7 +19,7 @@ class RecipientListCreateView(APIView):
         description="List the authenticated customer's saved recipients, default first, then by ID. No pagination or writes.",
     )
     def get(self, request):
-        recipients = RecipientInfo.objects.filter(user=request.user).order_by("-is_default", "pk")
+        recipients = RecipientInfo.objects.filter(user=request.user, is_deleted=False).order_by("-is_default", "pk")
         return Response({"recipients": RecipientSerializer(recipients, many=True).data})
 
     @extend_schema(
@@ -60,8 +60,28 @@ class RecipientUpdateView(APIView):
     )
     def patch(self, request, pk):
         # Check ownership before validation so foreign and missing IDs always return 404.
-        recipient = get_object_or_404(RecipientInfo, pk=pk, user=request.user)
+        recipient = get_object_or_404(RecipientInfo, pk=pk, user=request.user, is_deleted=False)
         serializer = RecipientSerializer(recipient, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         recipient = update_recipient(request.user, pk, serializer.validated_data)
         return Response(RecipientSerializer(recipient).data)
+
+
+    @extend_schema(
+        tags=["Recipients"],
+        parameters=[RecipientDeleteSerializer],
+        request=None,
+        responses={
+            200: RecipientListSerializer,
+            400: OpenApiResponse(response=OpenApiTypes.OBJECT, description="Field validation errors, including required replacement_default_id."),
+            401: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        },
+        description="Remove an owned saved recipient from future use, retaining historical orders and pending payments. Supply replacement_default_id as a query parameter when removing a default with other saved recipients. Returns the remaining active recipients. Repeated removal is safe.",
+    )
+    def delete(self, request, pk):
+        get_object_or_404(RecipientInfo, pk=pk, user=request.user)
+        serializer = RecipientDeleteSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        recipients = delete_recipient(request.user, pk, **serializer.validated_data)
+        return Response({"recipients": RecipientSerializer(recipients, many=True).data})

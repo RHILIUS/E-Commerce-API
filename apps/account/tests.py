@@ -201,8 +201,89 @@ class RecipientAPITests(APITestCase):
         self.assertEqual(set(operation["responses"]), {"200", "400", "401", "404"})
         self.assertNotIn({}, operation["security"])
         existing = RecipientInfo.objects.create(user=self.user, **recipient_data())
-        for method in ("get", "post", "put", "delete"):
+        for method in ("get", "post", "put"):
             self.assertEqual(getattr(self.client, method)(f"{self.url}{existing.pk}/", {}, format="json").status_code, 405)
+
+
+    def test_removal_requires_authentication_and_ownership(self):
+        foreign = RecipientInfo.objects.create(user=self.other, **recipient_data())
+        for pk in (foreign.pk, 999999):
+            self.assertEqual(self.client.delete(f"{self.url}{pk}/?replacement_default_id=bad").status_code, 404)
+        self.client.credentials()
+        self.assertEqual(self.client.delete(f"{self.url}{foreign.pk}/").status_code, 401)
+
+    def test_default_removal_requires_valid_replacement_and_is_atomic(self):
+        first = create_recipient(self.user, recipient_data())
+        second = create_recipient(self.user, recipient_data(name="Second"))
+        foreign = create_recipient(self.other, recipient_data())
+        url = f"{self.url}{first.pk}/"
+        for replacement in (None, first.pk, foreign.pk, 999999, "bad"):
+            query = "" if replacement is None else f"?replacement_default_id={replacement}"
+            self.assertEqual(self.client.delete(url + query).status_code, 400)
+            first.refresh_from_db()
+            self.assertFalse(first.is_deleted)
+            self.assertTrue(first.is_default)
+        response = self.client.delete(f"{url}?replacement_default_id={second.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([r["id"] for r in response.data["recipients"]], [second.pk])
+        self.assertTrue(response.data["recipients"][0]["is_default"])
+        first.refresh_from_db()
+        self.assertTrue(first.is_deleted)
+        self.assertFalse(first.is_default)
+        self.assertEqual(self.client.patch(url, {"name": "Restored"}, format="json").status_code, 404)
+        self.assertEqual(self.client.delete(f"{url}?replacement_default_id={second.pk}").data, response.data)
+
+    def test_nondefault_and_last_removal_then_creation(self):
+        first = create_recipient(self.user, recipient_data())
+        second = create_recipient(self.user, recipient_data(name="Second"))
+        response = self.client.delete(f"{self.url}{second.pk}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([r["id"] for r in response.data["recipients"]], [first.pk])
+        response = self.client.delete(f"{self.url}{first.pk}/")
+        self.assertEqual(response.data, {"recipients": []})
+        self.assertEqual(self.client.get(self.url).data, {"recipients": []})
+        new = self.client.post(self.url, recipient_data(), format="json")
+        self.assertTrue(new.data["is_default"])
+        # A delayed repeat must not clear the new default.
+        self.assertEqual(self.client.delete(f"{self.url}{first.pk}/").data["recipients"][0]["id"], new.data["id"])
+
+    def test_removal_preserves_order_links_and_snapshots(self):
+        from apps.ecommerce.models import Product
+        from apps.store.models import Store
+        from core.test_support import create_purchase
+
+        recipient = create_recipient(self.user, recipient_data())
+        store = Store.objects.create(name="Store", country_code="PH")
+        product = Product.objects.create(store=store, name="Camera", price="100", stock=5)
+        order, _ = create_purchase(user=self.user, recipient=recipient, product=product)
+        snapshot = dict(order.recipient_snapshot)
+        self.assertEqual(self.client.delete(f"{self.url}{recipient.pk}/").status_code, 200)
+        order.refresh_from_db()
+        self.assertEqual(order.recipient_info_id, recipient.pk)
+        self.assertEqual(order.recipient_snapshot, snapshot)
+
+    def test_delete_failure_rolls_back_default_and_removal(self):
+        from .services import delete_recipient
+        first = create_recipient(self.user, recipient_data())
+        second = create_recipient(self.user, recipient_data(name="Second"))
+        original_save = RecipientInfo.save
+        def fail_replacement(instance, *args, **kwargs):
+            if instance.pk == second.pk:
+                raise IntegrityError("simulated failure")
+            return original_save(instance, *args, **kwargs)
+        with patch.object(RecipientInfo, "save", fail_replacement):
+            with self.assertRaises(IntegrityError):
+                delete_recipient(self.user, first.pk, second.pk)
+        first.refresh_from_db()
+        self.assertFalse(first.is_deleted)
+        self.assertTrue(first.is_default)
+
+    def test_delete_schema(self):
+        schema = self.client.get("/api/schema/?format=json").json()
+        operation = schema["paths"]["/api/account/recipients/{id}/"]["delete"]
+        self.assertEqual(set(operation["responses"]), {"200", "400", "401", "404"})
+        self.assertNotIn({}, operation["security"])
+        self.assertTrue(any(p["name"] == "replacement_default_id" and p["in"] == "query" for p in operation["parameters"]))
 
 
 class ConcurrentRecipientTests(TransactionTestCase):
@@ -221,6 +302,30 @@ class ConcurrentRecipientTests(TransactionTestCase):
                 close_old_connections()
         with ThreadPoolExecutor(max_workers=2) as pool:
             return list(pool.map(create, range(2)))
+
+    @skipUnlessDBFeature("has_select_for_update")
+    def test_removing_last_recipient_and_creating_concurrently_preserves_default(self):
+        from rest_framework.exceptions import ValidationError
+        from .services import delete_recipient
+        first = create_recipient(self.user, recipient_data())
+        barrier = Barrier(2)
+        def write(index):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                if index:
+                    return create_recipient(self.user, recipient_data(name="New")).pk
+                try:
+                    delete_recipient(self.user, first.pk)
+                except ValidationError:
+                    # Creation won the lock: removal now needs a chosen replacement.
+                    pass
+            finally:
+                close_old_connections()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(write, range(2)))
+        self.assertEqual(RecipientInfo.objects.filter(user=self.user, is_deleted=False, is_default=True).count(), 1)
+        self.assertFalse(RecipientInfo.objects.filter(is_deleted=True, is_default=True).exists())
 
     @skipUnlessDBFeature("has_select_for_update")
     def test_concurrent_first_recipients_have_one_default(self):

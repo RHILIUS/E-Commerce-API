@@ -11,6 +11,7 @@ class RecipientInfo(models.Model):
     phone_number = models.CharField(max_length=20)
 
     is_default = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
 
     country_code = models.CharField(max_length=2)
     address_line1 = models.CharField(max_length=150)
@@ -22,6 +23,10 @@ class RecipientInfo(models.Model):
 
     class Meta:
         constraints = [
+            models.CheckConstraint(
+                condition=Q(is_deleted=False) | Q(is_default=False),
+                name="deleted_recipient_not_default",
+            ),
             models.UniqueConstraint(
                 # Ensures that a user must have at most 1 default RecipientInfo
                 fields=["user"],

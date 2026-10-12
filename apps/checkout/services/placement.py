@@ -68,7 +68,7 @@ def _place(user, data):
         raise PlacementConflict('Review prices for the selected payment method first.')
     if online and (preview['currency'] != 'USD' or not Decimal('0.50') <= Decimal(preview['total_amount']) <= Decimal('999999.99')):
         raise PlacementConflict('Stripe checkout requires a valid USD total.')
-    recipient = get_object_or_404(RecipientInfo.objects.select_for_update(), pk=data['recipient_id'], user=user)
+    recipient = get_object_or_404(RecipientInfo.objects.select_for_update(), pk=data['recipient_id'], user=user, is_deleted=False)
     recipient_data = RecipientSerializer(data=recipient_snapshot(recipient))
     if not recipient_data.is_valid():
         raise ValidationError({'recipient_id': ['The selected recipient has incomplete or invalid contact/address details.']})
