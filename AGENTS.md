@@ -49,6 +49,17 @@ Use serializers for request validation and response transformation. Keep URL con
 
 Preserve existing API request formats, response structures, status codes, permissions, and authentication behavior unless the task explicitly changes the contract.
 
+## Module Organization
+
+When a Django app has multiple files for one responsibility, group them in a matching Python package: `tests/`, `serializers/`, `views/`, `services/`, or another clearly named responsibility directory. For example, account serializers belong in `apps/account/serializers/`, with modules such as `account.py`, `photo.py`, and `password.py`, rather than sibling `photo_serializers.py` and `password_serializers.py` files at the app root.
+
+- Keep a single cohesive module as one file until splitting is useful; do not create packages or empty modules speculatively.
+- When adding a second module for an existing responsibility, move the related modules into the matching package as part of that scoped change. Avoid unrelated repository-wide reorganizations.
+- Add `__init__.py` to Python packages and use descriptive feature names within them. Test modules retain Django discovery names such as `test_profile.py`.
+- Keep package initializers small. Re-export established shared imports when needed; use direct submodule imports for feature-specific consumers and avoid circular imports.
+- Update imports, URL configuration, test patch targets, and documentation references affected by a move. Preserve API behavior and run relevant checks and tests to verify imports, routing, and test discovery.
+- Follow Django's discovery requirements when grouping models or other framework-discovered modules; ensure required definitions remain imported and discoverable.
+
 ## OpenAPI Documentation
 
 The OpenAPI schema is served at `/api/schema/` and Swagger UI at `/api/docs/` using drf-spectacular. Whenever an API endpoint is added or its request, response, status codes, parameters, permissions, or cookie behavior changes, update its schema annotation and the relevant backend documentation in the same change. For `APIView` endpoints, describe request and response serializers explicitly when automatic discovery cannot represent the actual contract. Never document refresh tokens as response-body fields.
@@ -149,3 +160,20 @@ Keep the documentation reviewer-focused: describe observable behavior, important
 - Do not commit `.env`, virtual environments, caches, bytecode, or generated artifacts.
 - Remove debugging output and unused code.
 - Update or report required documentation changes when behavior, data models, API contracts, or workflows change.
+
+## Required ERD Documentation
+
+Whenever creating or updating a Markdown ERD document in the **sibling documentation repository** at `../docs/diagrams/erd/`, include explanations alongside the diagram. This is distinct from the frontend's local `docs/` folder. Use lowercase kebab-case filenames and update an existing document when it already covers the model. Use [Password-change model](../docs/diagrams/erd/password-change.md) as a structural example, not as a source of requirements for unrelated entities.
+
+Before writing, review the central diagramming specification, diagram index, relevant backend models and migrations, and the services and documented contracts that govern the fields. Verify current behavior against implementation; report inconsistencies rather than inventing semantics.
+
+Each ERD Markdown document must:
+
+1. State its scope and implementation status, clearly distinguishing implemented models from proposed designs. Identify omitted entities or fields when the diagram represents only a subset.
+2. Include a fenced Mermaid `erDiagram` showing the relevant entities, fields, keys, and relationship cardinalities.
+3. Explain each entity's purpose, ownership, and role in the feature, with its actual model name when implemented. Explain relationships, optionality, foreign-key ownership, and deletion behavior.
+4. Provide a field table for every entity with columns **Field / column**, **Meaning**, and **Constraints and behavior**. Cover every field shown in the diagram. Explain its business purpose and relevant type, primary/foreign/unique keys, nullability, defaults, validation, and lifecycle behavior. Distinguish model field names from database column names when they differ. Do not merely repeat the field name as its explanation.
+5. Add persistence and lifecycle notes where relevant, covering creation, updates, expiry, resets, counters, sensitive-data handling, transaction boundaries, concurrency, and failure or recovery behavior. Document only verified behavior, and identify unresolved decisions for proposed models.
+6. Include implementation references and links to related business-process documents. Add or update the diagram index entry and ensure relative links resolve.
+
+Keep the diagram, field tables, and lifecycle notes synchronized when the schema or behavior changes. Check that every diagram entity and field has an explanation. For new or changed Mermaid fences, record the Mermaid version used, validate parsing, and inspect the rendered diagram for readable labels and relationships. Check the intended Markdown host when available; report any parsing, rendering, or host-verification limitations without claiming checks that were not performed. Include documentation changes and actual validation results in the handoff.

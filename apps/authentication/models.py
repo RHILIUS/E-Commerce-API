@@ -5,6 +5,7 @@ from django.db import models
 
 class User(AbstractUser):
 
+    authentication_version = models.PositiveIntegerField(default=0)
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=100)
     phone_number = models.CharField(max_length=20, unique=True)
@@ -51,3 +52,23 @@ class OTPVerificationRecord(models.Model):
 
     is_verified = models.BooleanField(default=False)
     verified_at = models.DateTimeField(null=True, blank=True)
+
+
+class PasswordChangeState(models.Model):
+    """One challenge slot per user; account counters survive replacing its UUID."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    challenge_id = models.UUIDField(null=True, unique=True)
+    email = models.EmailField(blank=True)
+    credential_state = models.CharField(max_length=64, blank=True)
+    otp_hash = models.CharField(max_length=255, blank=True)
+    expires_at = models.DateTimeField(null=True)
+    last_sent_at = models.DateTimeField(null=True)
+    consumed = models.BooleanField(default=True)
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
+    send_count = models.PositiveIntegerField(default=0)
+    send_window_started_at = models.DateTimeField()
+    request_count = models.PositiveIntegerField(default=0)
+    request_window_started_at = models.DateTimeField()
+    verification_count = models.PositiveIntegerField(default=0)
+    verification_window_started_at = models.DateTimeField()

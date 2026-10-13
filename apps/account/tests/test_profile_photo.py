@@ -176,5 +176,5 @@ class ProfilePhotoTests(APITestCase):
             self.assertFalse(result.getexif())
 
     def test_oversized_dimensions_are_rejected_before_decode(self):
-        with patch("apps.account.photo_services.MAX_PIXELS", 100):
+        with patch("apps.account.services.photo.MAX_PIXELS", 100):
             self.assertEqual(self.save(upload(size=(20, 10))).status_code, 400)

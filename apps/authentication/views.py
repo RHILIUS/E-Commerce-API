@@ -6,13 +6,15 @@ from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
     TokenVerifyView,
 )
+
+from apps.authentication.token_authentication import VersionedTokenRefreshSerializer, VersionedTokenVerifySerializer
 
 from apps.authentication.openapi import (
     DetailResponseSerializer,
@@ -107,6 +109,7 @@ class LoginView(TokenObtainPairView):
 
 
 class RefreshView(TokenRefreshView):
+    serializer_class = VersionedTokenRefreshSerializer
     authentication_classes = []
     permission_classes = [AllowAny]
 
@@ -116,7 +119,7 @@ class RefreshView(TokenRefreshView):
             "refresh_token", str, location=OpenApiParameter.COOKIE, required=True,
             description="HttpOnly refresh-token cookie set by login or the previous refresh.",
         )],
-        description="Read the refresh_token HttpOnly cookie, rotate it when configured, and return a new access token and public user data. No refresh token is accepted in the request body or returned in the response body.",
+        description="Read the refresh_token HttpOnly cookie, validate the active user and authentication version, rotate it when configured, and return a new access token and public user data. No refresh token is accepted in the request body or returned in the response body.",
         responses={200: RefreshResponseSerializer,
                    401: DetailResponseSerializer},
     )
@@ -133,7 +136,7 @@ class RefreshView(TokenRefreshView):
 
         try:
             serializer.is_valid(raise_exception=True)
-        except TokenError as e:
+        except (TokenError, InvalidToken) as e:
             response = Response({"detail": str(e)},
                                 status=status.HTTP_401_UNAUTHORIZED)
             response.delete_cookie(
@@ -310,9 +313,10 @@ class RegisterView(APIView):
 
 
 class VerifyAccessTokenView(TokenVerifyView):
+    serializer_class = VersionedTokenVerifySerializer
     @extend_schema(
         tags=["Authentication"], request=VerifyTokenRequestSerializer, auth=[],
-        description="Validate a JWT using SimpleJWT. Returns an empty object on success.",
+        description="Validate a JWT signature, expiry, active user and authentication version. Legacy versionless tokens are accepted only for accounts at version zero. Returns an empty object on success.",
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT,
                    401: DetailResponseSerializer},
     )

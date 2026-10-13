@@ -6,15 +6,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import RecipientInfo
-from .serializers import (
+from ..models import RecipientInfo
+from ..serializers import (
     ProfileSerializer,
     ProfileUpdateSerializer,
     RecipientDeleteSerializer,
     RecipientListSerializer,
     RecipientSerializer,
 )
-from .services import create_recipient, delete_recipient, update_recipient, update_profile
+from ..services import create_recipient, delete_recipient, update_recipient, update_profile
 
 
 class RecipientListCreateView(APIView):

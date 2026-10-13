@@ -200,6 +200,12 @@ class UserPublicSerializer(serializers.ModelSerializer):
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token["auth_version"] = user.authentication_version
+        return token
+
     def validate(self, attrs):
         data = super().validate(attrs)
         data["user"] = UserPublicSerializer(self.user).data

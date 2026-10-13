@@ -137,7 +137,7 @@ class RecipientAPITests(APITestCase):
     def test_creation_failure_rolls_back_default_replacement(self):
         existing = RecipientInfo.objects.create(
             user=self.user, is_default=True, **recipient_data())
-        with patch("apps.account.services.RecipientInfo.objects.create", side_effect=IntegrityError("simulated failure")):
+        with patch("apps.account.services.account.RecipientInfo.objects.create", side_effect=IntegrityError("simulated failure")):
             with self.assertRaises(IntegrityError):
                 create_recipient(self.user, recipient_data(is_default=True))
         existing.refresh_from_db()
