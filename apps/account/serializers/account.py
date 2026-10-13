@@ -5,7 +5,7 @@ from rest_framework import serializers
 
 from apps.authentication.models import UserAddress
 from core.common.contact import validate_country_code, validate_phone_number
-from .models import RecipientInfo
+from ..models import RecipientInfo
 
 
 class RecipientSerializer(serializers.ModelSerializer):

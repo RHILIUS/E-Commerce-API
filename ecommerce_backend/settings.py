@@ -153,9 +153,11 @@ STATIC_URL = 'static/'
 # JWT
 
 REST_FRAMEWORK = {
+    # Ignore forwarded addresses unless a trusted proxy count is explicitly configured.
+    'NUM_PROXIES': env.int('TRUSTED_PROXY_COUNT', default=0),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'apps.authentication.token_authentication.VersionedJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -236,3 +238,13 @@ else:
 STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
 STRIPE_FRONTEND_ORIGIN = env("STRIPE_FRONTEND_ORIGIN", default="http://localhost:5173")
+
+
+# Separate from registration OTPs; account budgets are durable database state.
+PASSWORD_CHANGE_EXPIRY_SECONDS = 300
+PASSWORD_CHANGE_COOLDOWN_SECONDS = 60
+PASSWORD_CHANGE_WINDOW_SECONDS = 900
+PASSWORD_CHANGE_MAX_SENDS = 5
+PASSWORD_CHANGE_MAX_ATTEMPTS = 5
+PASSWORD_CHANGE_MAX_REQUESTS = 20
+PASSWORD_CHANGE_MAX_VERIFICATIONS = 20

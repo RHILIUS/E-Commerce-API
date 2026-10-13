@@ -7,7 +7,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.authentication.models import UserAddress
 
-from .models import RecipientInfo
+from ..models import RecipientInfo
 
 
 @transaction.atomic

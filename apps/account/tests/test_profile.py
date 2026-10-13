@@ -150,7 +150,7 @@ class ProfileTests(APITestCase):
         self.assertEqual(self.other.full_name, "Other")
 
     def test_address_failure_rolls_back_user_and_address_updates(self):
-        with patch("apps.account.services.UserAddress.objects.update_or_create", side_effect=IntegrityError("address failed")):
+        with patch("apps.account.services.account.UserAddress.objects.update_or_create", side_effect=IntegrityError("address failed")):
             with self.assertRaises(IntegrityError):
                 self.client.put(URL, self.data, format="json")
         self.user.refresh_from_db()
@@ -163,7 +163,7 @@ class ProfileTests(APITestCase):
             self.other.phone_number = data["phone_number"]
             self.other.save(update_fields=["phone_number"])
             return update_profile(user, data)
-        with patch("apps.account.views.update_profile", side_effect=claim_then_save):
+        with patch("apps.account.views.account.update_profile", side_effect=claim_then_save):
             response = self.client.put(URL, self.data, format="json")
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data, {"phone_number": ["Phone number is already taken."]})

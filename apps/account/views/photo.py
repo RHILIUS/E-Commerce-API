@@ -9,8 +9,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .photo_serializers import PhotoSaveSerializer, PhotoSerializer, PhotoUploadSerializer, PhotoRecropSerializer, photo_data
-from .photo_services import remove_photo, save_photo
+from ..serializers.photo import PhotoSaveSerializer, PhotoSerializer, PhotoUploadSerializer, PhotoRecropSerializer, photo_data
+from ..services.photo import remove_photo, save_photo
 
 RESPONSES = {200: PhotoSerializer, 400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT}
 
