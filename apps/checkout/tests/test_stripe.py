@@ -245,17 +245,23 @@ class StripeTests(StripeFixtures, APITestCase):
                   stripe.InvalidRequestError('invalid payment method', param='payment_method_types', http_status=400)]
         for error in errors:
             with self.subTest(error=type(error).__name__), patch(
-                    'apps.checkout.services.stripe_provider.create_session', side_effect=error):
+                    'apps.checkout.services.stripe_provider.create_session', side_effect=error), self.assertLogs(
+                    'apps.checkout.services.online', level='WARNING') as logs:
                 self.assertEqual(self.client.post(START, self.body, format='json').status_code, 503)
                 attempt.refresh_from_db()
                 self.assertEqual(attempt.status, 'pending')
                 self.assertEqual(StockReservation.objects.filter(status='held').count(), 2)
+            self.assertEqual([record.getMessage() for record in logs.records], [
+                f'Stripe reconciliation failed: attempt={attempt.pk} error_type={type(error).__name__}'])
 
     def test_retrieval_rejection_cannot_release_an_existing_session(self):
         attempt = self.legacy_attempt()
         apply_session(attempt.pk, self.session(attempt))
-        with patch('apps.checkout.services.stripe_provider.retrieve_session', side_effect=self.rejection()):
+        with patch('apps.checkout.services.stripe_provider.retrieve_session', side_effect=self.rejection()), self.assertLogs(
+                'apps.checkout.services.online', level='WARNING') as logs:
             self.assertEqual(self.client.post(START, self.body, format='json').status_code, 503)
+        self.assertEqual([record.getMessage() for record in logs.records], [
+            f'Stripe reconciliation failed: attempt={attempt.pk} error_type=InvalidRequestError'])
         self.assertEqual(StockReservation.objects.filter(status='held').count(), 2)
 
     def test_rejection_release_is_atomic_on_local_failure(self):
@@ -277,10 +283,13 @@ class StripeTests(StripeFixtures, APITestCase):
         self.assertEqual(StockReservation.objects.filter(status='held').count(), 2)
 
     def test_uncertain_create_keeps_holds_and_same_attempt(self):
-        with patch('apps.checkout.services.stripe_provider.create_session', side_effect=stripe.APIConnectionError('timeout')):
+        with patch('apps.checkout.services.stripe_provider.create_session', side_effect=stripe.APIConnectionError('timeout')), self.assertLogs(
+                'apps.checkout.services.online', level='WARNING') as logs:
             response = self.client.post(START, self.body, format='json')
         self.assertEqual(response.status_code, 503)
         attempt = PaymentAttempt.objects.get()
+        self.assertEqual([record.getMessage() for record in logs.records], [
+            f'Stripe reconciliation failed: attempt={attempt.pk} error_type=APIConnectionError'])
         self.assertEqual(StockReservation.objects.filter(status='held').count(), 2)
         with patch('apps.checkout.services.stripe_provider.create_session', return_value=self.session(attempt)), patch(
                 'apps.checkout.services.stripe_provider.retrieve_session', return_value=self.session(attempt)):
@@ -290,9 +299,12 @@ class StripeTests(StripeFixtures, APITestCase):
     def test_session_id_survives_failure_of_followup_retrieval(self):
         attempt = self.reserve()
         with patch('apps.checkout.services.stripe_provider.create_session', return_value=self.session(attempt)), patch(
-                'apps.checkout.services.stripe_provider.retrieve_session', side_effect=stripe.APIConnectionError('timeout')):
+                'apps.checkout.services.stripe_provider.retrieve_session', side_effect=stripe.APIConnectionError('timeout')), self.assertLogs(
+                'apps.checkout.services.online', level='WARNING') as logs:
             with self.assertRaises(PaymentUnavailable):
                 reconcile_attempt(attempt.pk)
+        self.assertEqual([record.getMessage() for record in logs.records], [
+            f'Stripe reconciliation failed: attempt={attempt.pk} error_type=APIConnectionError'])
         attempt.refresh_from_db()
         self.assertEqual(attempt.stripe_checkout_session_id, self.session(attempt)['id'])
         with patch('apps.checkout.services.stripe_provider.create_session') as create, patch(
@@ -428,9 +440,13 @@ class StripeTests(StripeFixtures, APITestCase):
         attempt = self.reserve()
         event = {'id':'evt_retry','type':'checkout.session.completed','livemode':False,
                  'data':{'object':self.session(attempt,paid=True)}}
-        with patch('apps.checkout.services.stripe_provider.retrieve_session',side_effect=stripe.APIConnectionError('timeout')):
+        with patch('apps.checkout.services.stripe_provider.retrieve_session',side_effect=stripe.APIConnectionError('timeout')), self.assertLogs(
+                'apps.checkout.stripe_views', level='WARNING') as logs:
             self.assertEqual(self.webhook(event).status_code,200)
-        self.assertEqual(ProviderEvent.objects.get().processing_status,'failed')
+        saved_event = ProviderEvent.objects.get()
+        self.assertEqual([record.getMessage() for record in logs.records], [
+            f'Stripe event {saved_event.pk} queued for recovery'])
+        self.assertEqual(saved_event.processing_status,'failed')
         with patch('apps.checkout.services.stripe_provider.retrieve_session',return_value=self.session(attempt,paid=True)):
             call_command('reconcile_stripe',stdout=StringIO())
         self.assertEqual(ProviderEvent.objects.get().processing_status,'processed')
@@ -439,9 +455,12 @@ class StripeTests(StripeFixtures, APITestCase):
     def test_old_unknown_session_is_not_recreated_after_idempotency_retention(self):
         attempt = self.reserve()
         PaymentAttempt.objects.filter(pk=attempt.pk).update(created_at=timezone.now()-timedelta(days=2))
-        with patch('apps.checkout.services.stripe_provider.create_session') as create:
+        with patch('apps.checkout.services.stripe_provider.create_session') as create, self.assertLogs(
+                'apps.checkout.services.online', level='WARNING') as logs:
             with self.assertRaises(PaymentUnavailable):
                 reconcile_attempt(attempt.pk)
+        self.assertEqual([record.getMessage() for record in logs.records], [
+            f'Stripe reconciliation failed: attempt={attempt.pk} error_type=PaymentMismatch'])
         create.assert_not_called()
         self.assertEqual(StockReservation.objects.filter(status='held').count(),2)
 
