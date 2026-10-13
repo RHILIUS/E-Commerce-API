@@ -4,7 +4,7 @@ With the backend running, open `/api/docs/` for Swagger UI. `/api/schema/`
 returns the OpenAPI schema; append `?format=json` for JSON. The UI assets are
 included in the project dependencies so the page does not require a CDN.
 
-The schema covers authentication, [saved recipients](checkout/recipients-api.md),
+The schema covers authentication, [account profile](account/profile-api.md), [saved recipients](checkout/recipients-api.md),
 [cart](ecommerce/carts.md), [customer orders/refunds](ecommerce/user-orders.md), [checkout preview](checkout/preview-api.md), [COD placement/confirmation](checkout/cod-api.md), product catalog, and
 [product detail](ecommerce/product-detail.md) routes. Use
 Swagger UI's **Authorize** button with a Bearer access token for protected
@@ -41,5 +41,5 @@ UserAddress is a one-to-one personal address in the authentication app. The new
 migration removes User.country_code without backfilling, as authorized for the
 current disposable development database. Reset/reseed that database; this migration
 must not be used to preserve an existing production country's data. A restored
-schema on rollback cannot recover discarded country values. Profile editing and
-photo cropping are deferred to the Profile-tab implementation.
+schema on rollback cannot recover discarded country values. The profile read/update API is implemented; Profile-tab UI and photo cropping
+remain deferred.

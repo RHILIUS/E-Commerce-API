@@ -1,3 +1,4 @@
+from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiResponse, OpenApiTypes, extend_schema
 from rest_framework import status
@@ -6,8 +7,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import RecipientInfo
-from .serializers import RecipientDeleteSerializer, RecipientListSerializer, RecipientSerializer
-from .services import create_recipient, delete_recipient, update_recipient
+from .serializers import (
+    ProfileSerializer,
+    ProfileUpdateSerializer,
+    RecipientDeleteSerializer,
+    RecipientListSerializer,
+    RecipientSerializer,
+)
+from .services import create_recipient, delete_recipient, update_recipient, update_profile
 
 
 class RecipientListCreateView(APIView):
@@ -85,3 +92,38 @@ class RecipientUpdateView(APIView):
         serializer.is_valid(raise_exception=True)
         recipients = delete_recipient(request.user, pk, **serializer.validated_data)
         return Response({"recipients": RecipientSerializer(recipients, many=True).data})
+
+
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Profile"],
+        responses={200: ProfileSerializer, 401: OpenApiTypes.OBJECT},
+        description="Read the authenticated account's profile. Address is null when absent. No writes.",
+    )
+    def get(self, request):
+        user = get_user_model().objects.select_related("address").get(pk=request.user.pk)
+        return Response(ProfileSerializer(user, context={"request": request}).data)
+
+    @extend_schema(
+        tags=["Profile"],
+        request=ProfileUpdateSerializer,
+        responses={
+            200: ProfileSerializer,
+            400: OpenApiResponse(response=OpenApiTypes.OBJECT,
+                                 description="Field errors; address errors are nested under address."),
+            401: OpenApiTypes.OBJECT,
+        },
+        description=(
+            "Save full_name, unique E.164 phone_number and a complete personal address atomically. "
+            "Country, address_line1 and city are required; omitted optional address fields become empty strings. "
+            "Create the personal address if absent. Username, email, ownership and photo fields are read-only. "
+            "No phone verification or delivery-recipient synchronization. Saved purchases remain unchanged."
+        ),
+    )
+    def put(self, request):
+        serializer = ProfileUpdateSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = update_profile(request.user, serializer.validated_data)
+        return Response(ProfileSerializer(user, context={"request": request}).data)

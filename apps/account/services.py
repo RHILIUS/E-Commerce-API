@@ -1,9 +1,11 @@
-"""Transactional recipient creation, editing and default selection."""
+"""Transactional account profile and recipient updates."""
 
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import ValidationError
+
+from apps.authentication.models import UserAddress
 
 from .models import RecipientInfo
 
@@ -70,3 +72,26 @@ def delete_recipient(user, recipient_id, replacement_default_id=None):
             replacement.is_default = True
             replacement.save(update_fields=["is_default"])
     return list(active.order_by("-is_default", "pk"))
+
+
+def update_profile(user, validated_data):
+    """Save personal details and a complete address under the shared account lock.
+
+    Delivery recipients and purchase snapshots are independent. Handle a phone
+    claimed after validation only after rolling back both profile writes.
+    """
+    User = get_user_model()
+    try:
+        with transaction.atomic():
+            account = User.objects.select_for_update().get(pk=user.pk)
+            account.full_name = validated_data["full_name"]
+            account.phone_number = validated_data["phone_number"]
+            account.save(update_fields=["full_name", "phone_number"])
+            UserAddress.objects.update_or_create(
+                user=account, defaults=validated_data["address"])
+    except IntegrityError:
+        if User.objects.filter(phone_number=validated_data["phone_number"]).exclude(pk=user.pk).exists():
+            raise ValidationError({"phone_number": ["Phone number is already taken."]})
+        raise
+    # Reload the address as well, avoiding stale reverse-relation caches on the request user.
+    return User.objects.select_related("address").get(pk=user.pk)
