@@ -4,10 +4,10 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from core.test_support import create_customer
 from apps.account.models import RecipientInfo
 from apps.checkout.models import Checkout, OrderRefund, PaymentAttempt
 from apps.ecommerce.models import Category, Order, Product, ProductImage
@@ -23,7 +23,7 @@ class StoreCatalogTests(APITestCase):
         self.addCleanup(rates.stop)
         self.store = Store.objects.create(name="Public shop", country_code="PH", public_email="shop@example.com", public_phone="+63 917 123 4567")
         self.other = Store.objects.create(name="Other shop", country_code="PH")
-        self.user = get_user_model().objects.create_user(username="buyer", email="private@example.com", full_name="Private member", country_code="PH", phone_number="+639171234567")
+        self.user = create_customer(username="buyer", email="private@example.com", full_name="Private member", country_code="PH", phone_number="+639171234567")
         self.recipient = RecipientInfo.objects.create(user=self.user, name="Buyer", phone_number="+639171234567", country_code="PH", address_line1="Private home", city="Manila")
         self.category = Category.objects.create(name="Shoes", taxonomy_id="shoes")
         self.url = f"/api/shop/stores/{self.store.pk}/"

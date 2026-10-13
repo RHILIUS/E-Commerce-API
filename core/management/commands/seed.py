@@ -11,6 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.account.models import RecipientInfo
+from apps.authentication.models import UserAddress
 from apps.checkout.models import Checkout
 from apps.checkout.services.snapshots import recipient_snapshot
 from apps.ecommerce.models import (
@@ -383,14 +384,12 @@ class Command(BaseCommand):
                 full_name=user_data["full_name"],
                 password=user_data["password"],
                 phone_number=user_data["phone_number"],
-                country_code=user_data["country_code"],
             )
         else:
             for field_name in (
                 "username",
                 "full_name",
                 "phone_number",
-                "country_code",
             ):
                 setattr(user, field_name, user_data[field_name])
             user.save(
@@ -398,9 +397,9 @@ class Command(BaseCommand):
                     "username",
                     "full_name",
                     "phone_number",
-                    "country_code",
                 ]
             )
+        UserAddress.objects.update_or_create(user=user, defaults=user_data["address"])
         attach_image_if_missing(
             user,
             "profile_image",

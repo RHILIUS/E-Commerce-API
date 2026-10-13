@@ -52,7 +52,8 @@ def _fetch_rates(target, now):
 
 def get_display_rates(user, source_currencies):
     """Resolve a page's conversions in at most one HTTP call, falling back to source."""
-    target = currency_for_country(user.country_code) if user.is_authenticated else None
+    address = getattr(user, "address", None) if user.is_authenticated else None
+    target = currency_for_country(address.country_code) if address else None
     target = target or "USD"
     conversions = {source: (source, Decimal(1)) for source in source_currencies}
     if not source_currencies or set(source_currencies) == {target}:

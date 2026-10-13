@@ -26,3 +26,20 @@ python manage.py spectacular --validate --fail-on-warn
 ```
 
 Review the affected operation in `/api/schema/` as well as the validator output.
+
+## Personal-address country
+
+Registration keeps its existing flat address request (`country_code`, address lines,
+city, optional region/postal code). It creates User, UserAddress and the default
+RecipientInfo in one transaction. Their addresses are independent after creation.
+Login and refresh now return `user.address_country_code` (two-letter country or null)
+instead of `user.country_code`. This value comes from UserAddress, not the phone
+number or default delivery recipient. Accounts created without a personal address
+use USD for display conversions. Authentication cookies are unchanged.
+
+UserAddress is a one-to-one personal address in the authentication app. The new
+migration removes User.country_code without backfilling, as authorized for the
+current disposable development database. Reset/reseed that database; this migration
+must not be used to preserve an existing production country's data. A restored
+schema on rollback cannot recover discarded country values. Profile editing and
+photo cropping are deferred to the Profile-tab implementation.

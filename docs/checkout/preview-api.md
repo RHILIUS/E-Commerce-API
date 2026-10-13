@@ -14,13 +14,13 @@ never changes quantities or stock. FX responses may be cached.
 Direct product checkout:
 
 ```json
-{"source": "product", "product_id": 12, "quantity": 2}
+{ "source": "product", "product_id": 12, "quantity": 2 }
 ```
 
 Selected cart items:
 
 ```json
-{"source": "cart", "item_ids": [31, 45]}
+{ "source": "cart", "item_ids": [31, 45] }
 ```
 
 Either shape accepts optional `payment_method` (`cod` by default, or `stripe`).
@@ -41,19 +41,23 @@ A reviewable preview returns 200, for example:
 {
   "source": "product",
   "currency": "PHP",
-  "stores": [{
-    "store": {"id": 4, "name": "Camera store", "profile_image": null},
-    "items": [{
-      "cart_item_id": null,
-      "product": {"id": 12, "name": "Camera", "image": null},
-      "quantity": 2,
-      "available_stock": 5,
-      "unit_price": {"amount": "12.34", "currency": "PHP"},
-      "subtotal": {"amount": "24.68", "currency": "PHP"}
-    }],
-    "subtotal": {"amount": "24.68", "currency": "PHP"}
-  }],
-  "total": {"amount": "24.68", "currency": "PHP"},
+  "stores": [
+    {
+      "store": { "id": 4, "name": "Camera store", "profile_image": null },
+      "items": [
+        {
+          "cart_item_id": null,
+          "product": { "id": 12, "name": "Camera", "image": null },
+          "quantity": 2,
+          "available_stock": 5,
+          "unit_price": { "amount": "12.34", "currency": "PHP" },
+          "subtotal": { "amount": "24.68", "currency": "PHP" }
+        }
+      ],
+      "subtotal": { "amount": "24.68", "currency": "PHP" }
+    }
+  ],
+  "total": { "amount": "24.68", "currency": "PHP" },
   "can_place_order": true,
   "issues": [],
   "preview_token": "<opaque-signed-preview>",
@@ -97,7 +101,8 @@ placement. A grand total overflow is represented by a null total.
 ## Currency and FX policy
 
 The source currency is always `Store.currency`. The target comes from the
-customer account country using Babel, defaulting to USD if unresolved/ambiguous.
+customer personal-address country (`UserAddress.country_code`) using Babel,
+defaulting to USD when the address is missing or its currency is unresolved/ambiguous.
 Requests cannot override it. Same-currency purchases need no FX service: any known
 source currency can be used without conversion.
 
@@ -146,13 +151,13 @@ for placement requests and confirmation responses.
 
 ## Status codes
 
-| Status | Meaning |
-| --- | --- |
-| 200 | Preview, including item issues that block placement |
-| 400 | Invalid request shape, IDs or quantity |
-| 401 | Missing/invalid Bearer authentication |
-| 404 | Missing/unpublished direct product or missing/foreign selected cart item |
-| 503 | Required conversion/capabilities unavailable or invalid source currency |
+| Status | Meaning                                                                  |
+| ------ | ------------------------------------------------------------------------ |
+| 200    | Preview, including item issues that block placement                      |
+| 400    | Invalid request shape, IDs or quantity                                   |
+| 401    | Missing/invalid Bearer authentication                                    |
+| 404    | Missing/unpublished direct product or missing/foreign selected cart item |
+| 503    | Required conversion/capabilities unavailable or invalid source currency  |
 
 Validation errors map field names to message lists. Other HTTP errors use DRF's
 `{"detail": "..."}` envelope. Item issues are inside the 200 preview body.
@@ -163,15 +168,3 @@ Focused tests cover ownership, input shapes, decimal totals, selected cart lines
 current price/quantity reads, image serialization, redaction, stock holds,
 no application writes, signed-token tampering/ownership/expiry, FX caching and
 failures, USD fallback, amount limits and OpenAPI.
-
-Run `python manage.py test apps.checkout.tests.test_preview` and
-`python manage.py spectacular --validate --fail-on-warn`. No model changes or
-migrations are required.
-
-Implementation verification: Django system checks and OpenAPI validation passed.
-The focused preview suite passed 20 tests on an isolated SQLite database with
-real migrations. Related checkout, inventory, recipient, ecommerce and core
-suites passed 130 tests with four skips (three PostgreSQL row-lock tests and
-one removed historical migration test). Configured PostgreSQL testing was
-blocked by password authentication failure. Provider responses were mocked; no
-live payment or order-placement behavior was tested.

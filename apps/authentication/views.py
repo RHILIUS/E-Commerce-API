@@ -285,7 +285,7 @@ class RegisterView(APIView):
             "registration_token", str, location=OpenApiParameter.COOKIE, required=True,
             description="HttpOnly registration cookie set by OTP verification.",
         )],
-        description="Create a user and default recipient using the verified registration_token HttpOnly cookie. Email comes from that cookie, not the request body. The cookie is cleared on success.",
+        description="Create a user, personal address and default recipient atomically using the verified registration_token HttpOnly cookie. Email comes from that cookie, not the request body. The cookie is cleared on success.",
         responses={201: MessageResponseSerializer, 400: OpenApiTypes.OBJECT,
                    401: DetailResponseSerializer},
     )

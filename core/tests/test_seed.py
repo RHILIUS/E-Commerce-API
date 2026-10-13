@@ -3,6 +3,7 @@ from copy import deepcopy
 from unittest.mock import patch
 
 from apps.account.models import RecipientInfo
+from apps.authentication.models import UserAddress
 from apps.checkout.models import Checkout, PaymentAttempt
 from apps.checkout.services.snapshots import recipient_snapshot
 from apps.ecommerce.models import (
@@ -94,6 +95,8 @@ class SeedCustomerTests(TestCase):
         self.assertTrue(customer.check_password(
             CUSTOMER_USER_DATA["password"]))
         customer.set_password("customer-changed-password")
+        customer.address.city = "Changed personal city"
+        customer.address.save()
         customer.full_name = "Changed name"
         customer.save()
         recipient = customer.recipient_infos.get(is_default=True)
@@ -107,6 +110,8 @@ class SeedCustomerTests(TestCase):
 
         self.assertEqual(get_user_model().objects.count(), 1)
         self.assertEqual(RecipientInfo.objects.count(), 1)
+        self.assertEqual(UserAddress.objects.count(), 1)
+        self.assertEqual(same_customer.address.city, CUSTOMER_USER_DATA["address"]["city"])
         self.assertEqual(same_customer.pk, customer.pk)
         self.assertEqual(same_customer.full_name,
                          CUSTOMER_USER_DATA["full_name"])

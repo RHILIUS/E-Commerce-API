@@ -3,13 +3,13 @@ from decimal import Decimal
 from threading import Barrier
 from unittest.mock import patch
 
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import close_old_connections, connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase, skipUnlessDBFeature
 from rest_framework.test import APITestCase
 
+from core.test_support import create_customer
 from apps.ecommerce.models import Cart, CartItem, Product
 from apps.ecommerce.services.carts import CartConflict, add_item
 from apps.store.models import Store
@@ -20,8 +20,8 @@ class CartTests(APITestCase):
         rates = patch('apps.ecommerce.services.carts.get_display_rates', return_value={'PHP': ('PHP', Decimal(1))})
         rates.start()
         self.addCleanup(rates.stop)
-        self.user = get_user_model().objects.create_user(username='buyer', email='buyer@example.com', phone_number='+639111111111', full_name='Buyer', country_code='PH')
-        self.other = get_user_model().objects.create_user(username='other', email='other@example.com', phone_number='+639222222222', full_name='Other', country_code='PH')
+        self.user = create_customer(username='buyer', email='buyer@example.com', phone_number='+639111111111', full_name='Buyer', country_code='PH')
+        self.other = create_customer(username='other', email='other@example.com', phone_number='+639222222222', full_name='Other', country_code='PH')
         self.store = Store.objects.create(name='First store', country_code='PH')
         self.store2 = Store.objects.create(name='Second store', country_code='US')
         self.product = Product.objects.create(store=self.store, name='Camera', price='12.34', stock=5, status='active')
@@ -116,7 +116,7 @@ class CartTests(APITestCase):
 class ConcurrentCartTests(TransactionTestCase):
     @skipUnlessDBFeature("has_select_for_update")
     def test_concurrent_additions_do_not_lose_updates_or_exceed_stock(self):
-        user = get_user_model().objects.create_user(username='parallel', email='parallel@example.com', phone_number='+639333333333', full_name='Buyer', country_code='PH')
+        user = create_customer(username='parallel', email='parallel@example.com', phone_number='+639333333333', full_name='Buyer', country_code='PH')
         store = Store.objects.create(name='Concurrent store', country_code='PH')
         product = Product.objects.create(store=store, name='Camera', price='10', stock=3, status='active')
         barrier = Barrier(2)
@@ -149,7 +149,7 @@ class StoreCartMigrationTests(TransactionTestCase):
         executor.migrate(old)
         try:
             apps = executor.loader.project_state(old).apps
-            user = apps.get_model('authentication', 'User').objects.create(username='legacy', email='legacy@example.com', phone_number='+639444444444', full_name='Legacy', country_code='PH')
+            user = apps.get_model('authentication', 'User').objects.create(username='legacy', email='legacy@example.com', phone_number='+639444444444', full_name='Legacy')
             stores = [apps.get_model('store', 'Store').objects.create(name=name, country_code='PH', currency='PHP') for name in ['One', 'Two']]
             products = [apps.get_model('ecommerce', 'Product').objects.create(store_id=store.pk, name=store.name, price='10', stock=5) for store in stores]
             cart = apps.get_model('ecommerce', 'Cart').objects.create(user_id=user.pk)

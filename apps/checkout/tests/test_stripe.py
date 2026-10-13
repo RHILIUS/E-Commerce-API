@@ -18,6 +18,7 @@ from threading import Barrier
 from django.utils import timezone
 from rest_framework.test import APITestCase, APITransactionTestCase
 
+from core.test_support import create_customer
 from apps.account.models import RecipientInfo
 from apps.checkout.models import Checkout, PaymentAttempt, ProviderEvent
 from apps.checkout.services.online import PaymentMismatch, apply_session, reconcile_attempt
@@ -38,7 +39,7 @@ WEBHOOK = '/api/shop/stripe/webhook/'
 
 class StripeFixtures:
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username='buyer', email='buyer@example.com',
+        self.user = create_customer(username='buyer', email='buyer@example.com',
             full_name='Buyer', phone_number='+12025550123', country_code='US')
         self.recipient = RecipientInfo.objects.create(user=self.user, name='Buyer', phone_number=self.user.phone_number,
             country_code='US', address_line1='10 Main Street', city='Boston')

@@ -12,8 +12,8 @@ from rest_framework import status
 from rest_framework.test import APIClient, APIRequestFactory
 
 from apps.account.models import RecipientInfo
-from apps.authentication.models import OTPVerificationRecord
-from apps.authentication.serializers import RegisterSerializer
+from apps.authentication.models import OTPVerificationRecord, UserAddress
+from apps.authentication.serializers import RegisterSerializer, UserPublicSerializer
 from apps.authentication.services.otp_service import (
     OTPRateLimitExceeded,
     issue_otp,
@@ -258,6 +258,16 @@ class RegisterViewTests(TestCase):
         self.assertEqual(user.phone_number, "+639171234567")
         self.assertTrue(user.check_password("StrongPass1"))
 
+        address = UserAddress.objects.get(user=user)
+        self.assertEqual(address.country_code, "PH")
+        self.assertEqual(address.address_line1, "123 Example Street")
+        self.assertEqual(address.city, "Manila")
+        self.assertEqual(address.region, "Metro Manila")
+        self.assertEqual(address.postal_code, "1000")
+        self.assertEqual(address.address_line2, "")
+        self.assertNotIn("country_code", {field.name for field in user._meta.fields})
+        self.assertEqual(UserPublicSerializer(user).data["address_country_code"], "PH")
+
         recipient = RecipientInfo.objects.get(user=user)
         self.assertEqual(recipient.name, "Person One")
         self.assertEqual(recipient.phone_number, "+639171234567")
@@ -280,6 +290,19 @@ class RegisterViewTests(TestCase):
         self.assertFalse(
             get_user_model().objects.filter(email="person@example.com").exists()
         )
+        self.assertEqual(UserAddress.objects.count(), 0)
+        self.assertEqual(RecipientInfo.objects.count(), 0)
+
+    @patch(
+        "apps.authentication.serializers.UserAddress.objects.create",
+        side_effect=IntegrityError("personal address creation failed"),
+    )
+    def test_address_failure_rolls_back_registration(self, _):
+        with self.assertRaises(IntegrityError):
+            self.post_registration()
+        self.assertFalse(get_user_model().objects.filter(email="person@example.com").exists())
+        self.assertEqual(UserAddress.objects.count(), 0)
+        self.assertEqual(RecipientInfo.objects.count(), 0)
 
     @patch(
         "apps.authentication.serializers._registration_conflict_errors",

@@ -1,11 +1,11 @@
 import uuid
 from decimal import Decimal
 
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
+from core.test_support import create_customer
 from apps.account.models import RecipientInfo
 from apps.checkout.models import Checkout, PaymentAttempt
 from apps.ecommerce.models import Cart, CartItem, Order, OrderItem, Product
@@ -15,11 +15,11 @@ from core.test_support import create_purchase
 
 class CheckoutModelTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(
+        self.user = create_customer(
             username="buyer", email="buyer@example.com", full_name="Buyer",
             phone_number="+639111111111", country_code="PH",
         )
-        self.other = get_user_model().objects.create_user(
+        self.other = create_customer(
             username="other", email="other@example.com", full_name="Other",
             phone_number="+639222222222", country_code="PH",
         )

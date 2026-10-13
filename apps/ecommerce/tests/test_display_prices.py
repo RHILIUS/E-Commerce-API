@@ -5,12 +5,12 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from urllib.error import URLError
 
-from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
 from django.test import SimpleTestCase
 from rest_framework.test import APITestCase
 
+from core.test_support import create_customer
 from apps.ecommerce.models import Product
 from apps.ecommerce.services.display_prices import convert_display_price, get_display_rates
 from apps.store.models import Store
@@ -20,7 +20,7 @@ class DisplayPriceTests(SimpleTestCase):
     def setUp(self):
         cache.clear()
         self.addCleanup(cache.clear)
-        self.user = SimpleNamespace(is_authenticated=True, country_code="PH")
+        self.user = SimpleNamespace(is_authenticated=True, address=SimpleNamespace(country_code="PH"))
 
     def response(self, **updates):
         """Mock a daily table quoted against the viewer currency."""
@@ -60,7 +60,7 @@ class DisplayPriceTests(SimpleTestCase):
     @patch("apps.ecommerce.services.display_prices.urlopen")
     def test_unknown_viewer_country_uses_usd(self, fetch):
         fetch.return_value = self.response()
-        viewer = SimpleNamespace(is_authenticated=True, country_code="XX")
+        viewer = SimpleNamespace(is_authenticated=True, address=SimpleNamespace(country_code="XX"))
         self.assertEqual(get_display_rates(viewer, {"PHP"}), {"PHP": ("USD", Decimal(56))})
 
     @patch("apps.ecommerce.services.display_prices.urlopen", side_effect=URLError("offline"))
@@ -113,7 +113,7 @@ class CatalogDisplayPriceTests(APITestCase):
                 (ph, "PH product", "5600.00"), (us, "US product", "100.00"),
                 (ph, "Another PH product", "2800.00"),
             ]]
-        self.user = get_user_model().objects.create_user(username="buyer", email="buyer@example.com",
+        self.user = create_customer(username="buyer", email="buyer@example.com",
             phone_number="+639111111111", full_name="Buyer", country_code="PH")
 
     @patch("apps.ecommerce.services.display_prices.urlopen")

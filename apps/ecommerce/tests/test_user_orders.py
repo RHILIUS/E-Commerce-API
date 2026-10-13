@@ -78,7 +78,7 @@ class UserOrdersTests(APITestCase):
 
     def test_cod_cancel_replays_restore_inventory_once(self):
         # Exercise real COD placement so the original stock reduction is verified too.
-        self.user.country_code = 'US'; self.user.save()
+        self.user.address.country_code = 'US'; self.user.address.save()
         response = self.client.post('/api/shop/checkouts/', product_request(self.client, self.product, self.recipient), format='json')
         self.assertEqual(response.status_code, 201, response.data)
         pk = response.data['orders'][0]['id']

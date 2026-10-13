@@ -6,13 +6,13 @@ from decimal import Decimal
 from threading import Barrier
 from unittest.mock import patch
 
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as ModelValidationError
 from django.db import close_old_connections
 from django.test import TransactionTestCase, skipUnlessDBFeature
 from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
 
+from core.test_support import create_customer
 from apps.account.models import RecipientInfo
 from apps.checkout.models import Checkout, PaymentAttempt
 from apps.checkout.services.placement import PlacementConflict, place_cod
@@ -35,7 +35,7 @@ def product_request(client, product, recipient, quantity=2, key=None):
 
 # Shared fixtures keep the API and independent-connection concurrency scenarios equivalent.
 def customer(number):
-    user = get_user_model().objects.create_user(username=f'buyer{number}', email=f'buyer{number}@example.com',
+    user = create_customer(username=f'buyer{number}', email=f'buyer{number}@example.com',
         phone_number=f'+63911111111{number}', full_name='Buyer', country_code='PH')
     recipient = RecipientInfo.objects.create(user=user, name='Original recipient', phone_number=user.phone_number,
         country_code='PH', address_line1='Original address', city='Manila')
