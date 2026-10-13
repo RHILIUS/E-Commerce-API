@@ -27,6 +27,8 @@ class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
         ("Contact details", {"fields": ("full_name", "phone_number")}),
     )
+    readonly_fields = ("profile_image", "profile_image_original", "profile_image_crop")
+    fieldsets += (("Profile photo (managed through the account API)", {"fields": readonly_fields}),)
     add_fieldsets = UserAdmin.add_fieldsets + (
         ("Contact details", {"fields": ("email", "full_name", "phone_number")}),
     )

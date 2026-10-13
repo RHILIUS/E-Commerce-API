@@ -43,8 +43,7 @@ independent. This endpoint does not verify phone ownership.
 
 Address country, address_line1 and city are required and nonblank. Country is
 normalized to uppercase using registration's supported-country validation.
-Address line limits are 150 characters; city and region are 100; postal_code is
-20. Address_line2, region and postal_code are optional and default to empty
+Address line limits are 150 characters; city and region are 100; postal_code is 20. Address_line2, region and postal_code are optional and default to empty
 strings when omitted. Address cannot be null or deleted through PUT.
 
 Username, email, ownership, password, permissions and photo fields cannot be
@@ -60,7 +59,7 @@ unrelated database failures propagate and roll back both writes.
 ```json
 {
   "phone_number": ["Phone number is already taken."],
-  "address": {"city": ["This field may not be blank."]}
+  "address": { "city": ["This field may not be blank."] }
 }
 ```
 
@@ -72,19 +71,12 @@ currency from the updated personal-address country; Stripe retains its explicit
 USD target and strict FX checks remain unchanged. Previously issued checkout
 previews and saved purchases retain their existing signed/saved currency values.
 
-The future Profile tab should consume the authoritative PUT response and update
+The Profile tab consumes the authoritative PUT response and updates
 AuthContext's `fullName` from `full_name` and `address_country_code` from
 `address.country_code`. Existing frontend resource dependencies will refresh
 country-dependent data. Login/refresh also return the updated name/country.
 
-The API is implemented; Profile-tab UI and Figma refinement are pending. Photo
-upload, removal, crop validation and storage cleanup will use a separate flow.
+The API and Profile-tab UI are implemented. [Photo management](profile-photo-api.md)
+uses a separate authenticated upload/re-crop/removal flow with compression and
+storage cleanup. Figma refinement remains pending.
 Change Password and verified email/phone changes are outside this endpoint.
-
-## Validation
-
-`apps/account/tests/test_profile.py` covers authentication, ownership, read-only
-fields, missing-address creation, repeat saves, required fields, country/phone
-validation, phone conflict after validation, rollback, recipient independence and
-country-dependent pricing. The shared OpenAPI test checks route/security, write
-shape and documented response statuses.

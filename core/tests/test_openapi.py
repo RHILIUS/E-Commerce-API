@@ -10,7 +10,7 @@ class OpenAPITests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         schema = response.json()
         self.assertEqual(set(schema["paths"]), {
-            "/api/account/profile/", "/api/account/recipients/", "/api/account/recipients/{id}/",
+            "/api/account/profile/photo/", "/api/account/profile/", "/api/account/recipients/", "/api/account/recipients/{id}/",
             "/api/shop/checkout/preview/",
             "/api/shop/orders/", "/api/shop/orders/{id}/cancel/", "/api/shop/orders/{id}/history/",
             "/api/shop/checkouts/", "/api/shop/checkouts/{reference}/",
@@ -85,3 +85,11 @@ class OpenAPITests(SimpleTestCase):
                          {"$ref": "#/components/schemas/ProfileUpdate"})
         self.assertEqual(set(schema["components"]["schemas"]["ProfileUpdate"]["required"]),
                          {"full_name", "phone_number", "address"})
+
+        photo = schema["paths"]["/api/account/profile/photo/"]
+        self.assertEqual(set(photo), {"get", "put", "delete"})
+        for operation in photo.values():
+            self.assertNotIn({}, operation["security"])
+        upload_schema = schema["components"]["schemas"]["PhotoUpload"]
+        self.assertEqual(upload_schema["properties"]["image"]["format"], "binary")
+        self.assertEqual(upload_schema["properties"]["crop"]["type"], "string")
