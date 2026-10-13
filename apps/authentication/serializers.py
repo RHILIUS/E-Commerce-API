@@ -16,7 +16,7 @@ from apps.authentication.exceptions import (
     InvalidRegistrationTokenError,
     MaxAttemptError,
 )
-from apps.authentication.models import OTPVerificationRecord
+from apps.authentication.models import OTPVerificationRecord, UserAddress
 from apps.authentication.services.registration_token_service import (
     REGISTRATION_TOKEN_COOKIE_NAME,
     InvalidRegistrationToken,
@@ -143,7 +143,7 @@ class RegisterSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
-        """Create an account and its default recipient as one transaction."""
+        """Create an account, personal address and default recipient atomically."""
         try:
             with transaction.atomic():
                 user = User.objects.create_user(
@@ -152,7 +152,16 @@ class RegisterSerializer(serializers.Serializer):
                     full_name=validated_data["full_name"],
                     password=validated_data["password"],
                     phone_number=validated_data["phone_number"],
-                    country_code=validated_data["country_code"]
+                )
+
+                UserAddress.objects.create(
+                    user=user,
+                    country_code=validated_data["country_code"],
+                    address_line1=validated_data["address_line1"],
+                    address_line2=validated_data.get("address_line2", ""),
+                    city=validated_data["city"],
+                    region=validated_data.get("region", ""),
+                    postal_code=validated_data.get("postal_code", ""),
                 )
 
                 RecipientInfo.objects.create(
@@ -180,10 +189,14 @@ class RegisterSerializer(serializers.Serializer):
 
 class UserPublicSerializer(serializers.ModelSerializer):
     fullName = serializers.CharField(source="full_name")
+    address_country_code = serializers.CharField(
+        source="address.country_code", read_only=True, default=None, allow_null=True,
+        help_text="Personal-address country; null when no personal address exists.",
+    )
 
     class Meta:
         model = User
-        fields = ["id", "fullName", "email", "country_code"]
+        fields = ["id", "fullName", "email", "address_country_code"]
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

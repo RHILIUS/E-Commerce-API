@@ -1,10 +1,10 @@
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from core.test_support import create_customer
 from apps.account.models import RecipientInfo
 from apps.ecommerce.models import Order, Product, ProductImage
 from apps.store.models import Store, StoreMember
@@ -25,7 +25,7 @@ class ProductDetailTests(APITestCase):
             sold_count=12, status=Product.Status.ACTIVE,
         )
         self.url = f"/api/shop/products/{self.product.pk}/"
-        self.user = get_user_model().objects.create_user(
+        self.user = create_customer(
             username="viewer", email="viewer@example.com", phone_number="+639111111111",
             full_name="Viewer", country_code="PH",
         )

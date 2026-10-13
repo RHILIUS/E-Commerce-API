@@ -58,13 +58,13 @@ Each product record in `core/seed_data.py` contains a `category_taxonomy_id` and
 handle, and its value by Shopify value ID. Local database primary keys are resolved
 at runtime.
 
-| Seed products | Shopify category | Category ID suffix |
-| --- | --- | --- |
-| Six phones | Smart Phones | `el-4-8-5-2` |
-| Six tablets | Tablet Computers | `el-6-8` |
-| Six laptops | Laptops | `el-6-6` |
-| VisionDesk 24 | All-in-One Computers | `el-6-12` |
-| Other five desktop products | Desktop Computers | `el-6-3` |
+| Seed products               | Shopify category     | Category ID suffix |
+| --------------------------- | -------------------- | ------------------ |
+| Six phones                  | Smart Phones         | `el-4-8-5-2`       |
+| Six tablets                 | Tablet Computers     | `el-6-8`           |
+| Six laptops                 | Laptops              | `el-6-6`           |
+| VisionDesk 24               | All-in-One Computers | `el-6-12`          |
+| Other five desktop products | Desktop Computers    | `el-6-3`           |
 
 Specifications use official choices such as OLED/AMOLED/LCD, rugged/foldable phone
 form, SSD/NVMe storage, integrated/dedicated graphics, Full HD, DDR5, and computer
@@ -109,17 +109,17 @@ If seeding fails, check the reported source path or naming error, database conne
 
 > The customer and the owner of the store
 
-| username | email            | full_name             | password   | profile_image                                      | profile_image_crop | phone_number  | country_code |
-| -------- | ---------------- | --------------------- | ---------- | -------------------------------------------------- | ------------------ | ------------- | ------------ |
-| rjbaldomar | rjbaldomar23@gmail.com | RJ Baldomar | rjbaldomar123 | static/seed_images/users/profile/rj_profile.jpg | | +639987654321 | PH |
-| rhilius  | rhilius@test.com | Rhian Jolius Baldomar | rhilius123 | static/seed_images/users/profile/rhian_profile.jpg |                    | +639123456789 | PH           |
+| username   | email                  | full_name             | password      | profile_image                                      | profile_image_crop | phone_number  |
+| ---------- | ---------------------- | --------------------- | ------------- | -------------------------------------------------- | ------------------ | ------------- |
+| rjbaldomar | rjbaldomar23@gmail.com | RJ Baldomar           | rjbaldomar123 | static/seed_images/users/profile/rj_profile.jpg    |                    | +639987654321 |
+| rhilius    | rhilius@test.com       | Rhian Jolius Baldomar | rhilius123    | static/seed_images/users/profile/rhian_profile.jpg |                    | +639123456789 |
 
 ## RecipientInfo
 
-| name                  | phone_number  | is_default | country_code | address_line1                     | address_line2 | city       | region       | postal_code | user_id              |
-| --------------------- | ------------- | ---------- | ------------ | --------------------------------- | ------------- | ---------- | ------------ | ----------- | -------------------- |
-| RJ Baldomar | +639987654321 | true | PH | 123 Rizal St. Brgy. Mabuhay | | Mindanao City | Metro Hirang | 1234 | _references rjbaldomar_ |
-| Rhian Jolius Baldomar | +639123456789 | true       | PH           | 200 Magsaysay St. Brgy. Makabayan |               | Luzon City | Metro Hirang | 1234        | _references rhilius_ |
+| name                  | phone_number  | is_default | country_code | address_line1                     | address_line2 | city          | region       | postal_code | user_id                 |
+| --------------------- | ------------- | ---------- | ------------ | --------------------------------- | ------------- | ------------- | ------------ | ----------- | ----------------------- |
+| RJ Baldomar           | +639987654321 | true       | PH           | 123 Rizal St. Brgy. Mabuhay       |               | Mindanao City | Metro Hirang | 1234        | _references rjbaldomar_ |
+| Rhian Jolius Baldomar | +639123456789 | true       | PH           | 200 Magsaysay St. Brgy. Makabayan |               | Luzon City    | Metro Hirang | 1234        | _references rhilius_    |
 
 ## Store
 
@@ -127,8 +127,8 @@ Store currency is assigned automatically from its country. The PH seed store use
 PHP, so its product price values are pesos; seeding does not convert these amounts.
 The public contact details are sample business details shown on the customer Store Page.
 
-| name               | description                                                                                                           | country_code | profile_image                                                     | profile_image_crop | banner_image                                                    | banner_image_crop | public_email | public_phone |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------- | ------------------ | --------------------------------------------------------------- | ----------------- | ------------ | ------------ |
+| name               | description                                                                                                           | country_code | profile_image                                                     | profile_image_crop | banner_image                                                    | banner_image_crop | public_email                | public_phone     |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------- | ------------------ | --------------------------------------------------------------- | ----------------- | --------------------------- | ---------------- |
 | RhiLius Tech Store | We sell gadgets like tablets, mobile phones, laptops, and computers. Make sure to check us out and have fun shopping! | PH           | /static/seed_images/stores/profile/rhilius_tech_store_profile.jpg | N/A                | /static/seed_images/stores/banner/rhilius_tech_store_banner.jpg | N/A               | contact@rhiliustech.example | +63 917 555 0134 |
 
 ## StoreAddress

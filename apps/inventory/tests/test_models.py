@@ -1,10 +1,10 @@
 from datetime import timedelta
 
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
+from core.test_support import create_customer
 from apps.account.models import RecipientInfo
 from apps.ecommerce.models import Product
 from apps.inventory.models import StockReservation
@@ -14,7 +14,7 @@ from core.test_support import create_purchase
 
 class StockReservationTests(TestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(
+        user = create_customer(
             username="buyer", email="buyer@example.com", full_name="Buyer",
             phone_number="+639111111111", country_code="PH",
         )

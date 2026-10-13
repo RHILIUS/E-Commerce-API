@@ -99,3 +99,7 @@ This feature only converts catalog display prices. The separate
 [checkout preview API](../checkout/preview-api.md) uses strict single-currency
 conversion and signed price snapshots. Placement remains pending. Mixed-currency
 catalog or historical amounts must not be treated as a single-currency total.
+
+Viewer country now comes from `UserAddress.country_code`, rather than User.
+Accounts without a personal address use the existing USD target. Store source
+currency, recipient country and saved purchase amounts are unchanged.

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
@@ -7,15 +8,31 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=100)
     phone_number = models.CharField(max_length=20, unique=True)
-    country_code = models.CharField(max_length=2)
     profile_image = models.ImageField(upload_to="users/profile/", blank=True)
     profile_image_crop = models.JSONField(default=dict, blank=True)
+    profile_image_original = models.ImageField(upload_to="users/profile/originals/", blank=True)
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["username", "full_name", "phone_number", "country_code"]
+    REQUIRED_FIELDS = ["username", "full_name", "phone_number"]
 
     def __str__(self):
         return self.full_name or self.email
+
+
+class UserAddress(models.Model):
+    """Personal address owned by the account, independent of delivery recipients."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="address")
+    country_code = models.CharField(max_length=2)
+    address_line1 = models.CharField(max_length=150)
+    address_line2 = models.CharField(max_length=150, blank=True)
+    city = models.CharField(max_length=100)
+    region = models.CharField(max_length=100, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+
+    def __str__(self):
+        return f"{self.address_line1}, {self.city}"
 
 
 class OTPVerificationRecord(models.Model):

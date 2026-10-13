@@ -86,7 +86,8 @@ def _rate_table(target, now):
 
 def checkout_rates(user, source_currencies, *, target_currency=None):
     """Return one currency and source multipliers; fail if required conversion is missing."""
-    target = target_currency or currency_for_country(user.country_code) or 'USD'
+    address = getattr(user, 'address', None)
+    target = target_currency or (currency_for_country(address.country_code) if address else None) or 'USD'
     if any(not is_currency(source) for source in source_currencies):
         raise ConversionUnavailable()
     # Same-currency purchases require no exchange service or capability lookup.

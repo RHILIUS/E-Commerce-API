@@ -8,7 +8,14 @@ CUSTOMERS_DATA = [
         "password": "rjbaldomar123",
         "profile_image": "static/seed_images/users/profile/rj_profile.jpg",
         "phone_number": "+639987654321",
-        "country_code": "PH",
+        "address": {
+            "country_code": "PH",
+            "address_line1": "123 Rizal St. Brgy. Mabuhay",
+            "address_line2": "",
+            "city": "Mindanao City",
+            "region": "Metro Hirang",
+            "postal_code": "1234",
+        },
         "recipient_infos": [{
             "name": "RJ Baldomar",
             "phone_number": "+639987654321",
@@ -46,7 +53,14 @@ STORES_DATA = [{
             "password": "rhilius123",
             "profile_image": "static/seed_images/users/profile/rhian_profile.jpg",
             "phone_number": "+639123456789",
-            "country_code": "PH",
+            "address": {
+                "country_code": "PH",
+                "address_line1": "200 Magsaysay St. Brgy. Makabayan",
+                "address_line2": "",
+                "city": "Luzon City",
+                "region": "Metro Hirang",
+                "postal_code": "1234",
+            },
             "recipient_infos": [{
                 "name": "Rhian Jolius Baldomar",
                 "phone_number": "+639123456789",

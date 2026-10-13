@@ -10,7 +10,7 @@ class OpenAPITests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         schema = response.json()
         self.assertEqual(set(schema["paths"]), {
-            "/api/account/recipients/", "/api/account/recipients/{id}/",
+            "/api/account/profile/photo/", "/api/account/profile/", "/api/account/recipients/", "/api/account/recipients/{id}/",
             "/api/shop/checkout/preview/",
             "/api/shop/orders/", "/api/shop/orders/{id}/cancel/", "/api/shop/orders/{id}/history/",
             "/api/shop/checkouts/", "/api/shop/checkouts/{reference}/",
@@ -75,3 +75,21 @@ class OpenAPITests(SimpleTestCase):
         public_store = schema["components"]["schemas"]["PublicStore"]["properties"]
         self.assertTrue({"public_email", "public_phone", "items_sold"} <= set(public_store))
         self.assertNotIn("members", public_store)
+
+        profile = schema["paths"]["/api/account/profile/"]
+        self.assertEqual(set(profile), {"get", "put"})
+        self.assertNotIn({}, profile["get"]["security"])
+        self.assertNotIn({}, profile["put"]["security"])
+        self.assertEqual(set(profile["put"]["responses"]), {"200", "400", "401"})
+        self.assertEqual(profile["put"]["requestBody"]["content"]["application/json"]["schema"],
+                         {"$ref": "#/components/schemas/ProfileUpdate"})
+        self.assertEqual(set(schema["components"]["schemas"]["ProfileUpdate"]["required"]),
+                         {"full_name", "phone_number", "address"})
+
+        photo = schema["paths"]["/api/account/profile/photo/"]
+        self.assertEqual(set(photo), {"get", "put", "delete"})
+        for operation in photo.values():
+            self.assertNotIn({}, operation["security"])
+        upload_schema = schema["components"]["schemas"]["PhotoUpload"]
+        self.assertEqual(upload_schema["properties"]["image"]["format"], "binary")
+        self.assertEqual(upload_schema["properties"]["crop"]["type"], "string")

@@ -6,23 +6,23 @@ from threading import Barrier
 from unittest.mock import patch
 
 from django.contrib import admin
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, close_old_connections, connections, models, transaction
 from django.db.models.deletion import ProtectedError
 from django.test import RequestFactory, TestCase, TransactionTestCase, skipUnlessDBFeature
 from django.urls import reverse
 
+from core.test_support import create_customer
 from apps.store.models import Store
-from .models import LedgerAccount, LedgerEntry, LedgerTransaction, Wallet
-from .services import Posting, account_balance, create_wallet, get_treasury_account, post_transaction
+from apps.wallet.models import LedgerAccount, LedgerEntry, LedgerTransaction, Wallet
+from apps.wallet.services import Posting, account_balance, create_wallet, get_treasury_account, post_transaction
 
 
 class WalletFixtures:
     """Create isolated zero-balance identities for financial behavior tests."""
 
     def setUp(self):
-        self.user = get_user_model().objects.create_user(
+        self.user = create_customer(
             username="wallet-owner", email="wallet@example.com", phone_number="+639123456789",
             country_code="PH", full_name="Wallet owner",
         )

@@ -15,7 +15,7 @@ class OrderAdminTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_superuser(
             username="admin", email="admin@example.com", password="test-only",
-            phone_number="+639111111111", full_name="Admin", country_code="PH",
+            phone_number="+639111111111", full_name="Admin",
         )
         recipient = RecipientInfo.objects.create(
             user=self.user, name="Buyer", phone_number=self.user.phone_number,

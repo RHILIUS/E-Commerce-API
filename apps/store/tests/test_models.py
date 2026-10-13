@@ -1,10 +1,10 @@
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.forms import Select
 from django.test import SimpleTestCase, TestCase, TransactionTestCase
 
+from core.test_support import create_customer
 from apps.store.admin import StoreAdminForm
 from apps.store.models import Store, StoreMember
 
@@ -73,7 +73,7 @@ class StoreAdminFormTests(SimpleTestCase):
 class StoreMemberTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user = get_user_model().objects.create_user(
+        cls.user = create_customer(
             username="store-member",
             email="member@example.com",
             full_name="Store Member",

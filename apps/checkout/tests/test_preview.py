@@ -5,13 +5,13 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 from urllib.error import URLError
 
-from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import SimpleTestCase
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
+from core.test_support import create_customer
 from apps.account.models import RecipientInfo
 from apps.checkout.models import Checkout, PaymentAttempt
 from apps.checkout.services.pricing import ConversionUnavailable, checkout_rates, rounded_unit_price
@@ -28,9 +28,9 @@ class PreviewAPITests(APITestCase):
     def setUp(self):
         cache.clear()
         self.addCleanup(cache.clear)
-        self.user = get_user_model().objects.create_user(username='buyer', email='buyer@example.com',
+        self.user = create_customer(username='buyer', email='buyer@example.com',
             phone_number='+639111111111', full_name='Buyer', country_code='PH')
-        self.other = get_user_model().objects.create_user(username='other', email='other@example.com',
+        self.other = create_customer(username='other', email='other@example.com',
             phone_number='+639222222222', full_name='Other', country_code='PH')
         self.store = Store.objects.create(name='Camera store', country_code='PH')
         self.store2 = Store.objects.create(name='Accessory store', country_code='PH')
@@ -212,7 +212,7 @@ class PreviewAPITests(APITestCase):
 class CheckoutPricingTests(SimpleTestCase):
     def setUp(self):
         from types import SimpleNamespace
-        self.user = SimpleNamespace(country_code='US')
+        self.user = SimpleNamespace(address=SimpleNamespace(country_code='US'))
         cache.clear()
         self.addCleanup(cache.clear)
 
@@ -237,13 +237,13 @@ class CheckoutPricingTests(SimpleTestCase):
 
     @patch('apps.checkout.services.pricing._fetch_json')
     def test_unknown_and_unsupported_country_fallback_without_relabelling(self, fetch):
-        self.user.country_code = 'XX'
+        self.user.address.country_code = 'XX'
         fetch.return_value = [self.row()]
         currency, rates = checkout_rates(self.user, {'PHP'})
         self.assertEqual(currency, 'USD')
         self.assertNotEqual(rates['PHP']['rate'], 1)
         cache.clear()
-        self.user.country_code = 'PH'
+        self.user.address.country_code = 'PH'
         fetch.side_effect = [[{'iso_code': 'USD'}]]
         self.assertEqual(checkout_rates(self.user, {'USD'}), ('USD', {'USD': {'rate': Decimal(1), 'date': None}}))
 
@@ -253,7 +253,7 @@ class CheckoutPricingTests(SimpleTestCase):
             with self.assertRaises(ConversionUnavailable):
                 checkout_rates(self.user, {'PHP'})
         fetch.assert_called_once()
-        self.user.country_code = 'PH'
+        self.user.address.country_code = 'PH'
         with self.assertRaises(ConversionUnavailable):
             checkout_rates(self.user, {'USD'})
 

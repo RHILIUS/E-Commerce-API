@@ -1,8 +1,10 @@
 import uuid
+from io import StringIO
 from copy import deepcopy
 from unittest.mock import patch
 
 from apps.account.models import RecipientInfo
+from apps.authentication.models import UserAddress
 from apps.checkout.models import Checkout, PaymentAttempt
 from apps.checkout.services.snapshots import recipient_snapshot
 from apps.ecommerce.models import (
@@ -24,6 +26,7 @@ from core.management.commands.seed import (
 from core.seed_data import CUSTOMERS_DATA, STORES_DATA
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import transaction
 from django.test import SimpleTestCase, TestCase
@@ -94,6 +97,8 @@ class SeedCustomerTests(TestCase):
         self.assertTrue(customer.check_password(
             CUSTOMER_USER_DATA["password"]))
         customer.set_password("customer-changed-password")
+        customer.address.city = "Changed personal city"
+        customer.address.save()
         customer.full_name = "Changed name"
         customer.save()
         recipient = customer.recipient_infos.get(is_default=True)
@@ -107,6 +112,8 @@ class SeedCustomerTests(TestCase):
 
         self.assertEqual(get_user_model().objects.count(), 1)
         self.assertEqual(RecipientInfo.objects.count(), 1)
+        self.assertEqual(UserAddress.objects.count(), 1)
+        self.assertEqual(same_customer.address.city, CUSTOMER_USER_DATA["address"]["city"])
         self.assertEqual(same_customer.pk, customer.pk)
         self.assertEqual(same_customer.full_name,
                          CUSTOMER_USER_DATA["full_name"])
@@ -182,8 +189,8 @@ class SeedTaxonomyTests(TestCase):
     @patch("core.management.commands.seed.attach_image_if_missing")
     def test_nested_seed_repeats_orders_without_duplicates(self, _):
         from apps.ecommerce.models import Order, OrderItem
-        command = Command()
-        command.handle()
+        output = StringIO()
+        call_command("seed", stdout=output)
         key = uuid.uuid5(
             uuid.NAMESPACE_URL, f"ecommerce:seed:order:{CUSTOMER_USER_DATA['orders'][0]['key']}")
         order = Order.objects.get(checkout__reference=key)
@@ -215,7 +222,9 @@ class SeedTaxonomyTests(TestCase):
         stock = item.product.stock
         sold_count = item.product.sold_count
         self.assertFalse(order.user.store_memberships.exists())
-        command.handle()
+        call_command("seed", stdout=output)
+        self.assertEqual(output.getvalue().count("Seed complete:"), 2)
+        self.assertEqual(output.getvalue().count("New files uploaded: 0."), 2)
         store = Store.objects.get(name=STORES_DATA[0]["name"])
         self.assertEqual(store.public_email, STORES_DATA[0]["public_email"])
         self.assertEqual(store.public_phone, STORES_DATA[0]["public_phone"])
@@ -249,11 +258,14 @@ class SeedTaxonomyTests(TestCase):
         second_store = deepcopy(stores[0])
         second_store.update(name="Second store", products=[])
         stores.append(second_store)
+        output = StringIO()
         with patch("core.management.commands.seed.CUSTOMERS_DATA", customers), patch(
             "core.management.commands.seed.STORES_DATA", stores
         ):
-            Command().handle()
-            Command().handle()
+            call_command("seed", stdout=output)
+            call_command("seed", stdout=output)
+        self.assertEqual(output.getvalue().count("Seed complete: 2 customers, 2 stores, 2 orders"), 2)
+        self.assertEqual(output.getvalue().count("New files uploaded: 0."), 2)
         from apps.ecommerce.models import Order
         self.assertEqual(Order.objects.count(), 2)
         first_user = get_user_model().objects.get(email=customers[0]["email"])
@@ -267,7 +279,7 @@ class SeedTaxonomyTests(TestCase):
         AttributeValue.objects.all().delete()
         with patch.object(Command, "_seed") as seed, patch("core.management.commands.seed.attach_image_if_missing") as upload:
             with self.assertRaisesMessage(CommandError, "import_taxonomy"):
-                Command().handle()
+                call_command("seed", stdout=StringIO())
             seed.assert_not_called()
             upload.assert_not_called()
         self.assertFalse(Product.objects.exists())

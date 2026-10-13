@@ -1,12 +1,12 @@
 from datetime import timedelta
 from unittest.mock import patch
 
-from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from core.test_support import create_customer
 from apps.account.models import RecipientInfo
 from apps.ecommerce.models import Category, Order, Product
 from apps.ecommerce.services.product_recommendations import rank_products_for_user
@@ -19,11 +19,11 @@ class ProductRecommendationTests(APITestCase):
         rate_lookup = patch("apps.ecommerce.views.get_display_rates", return_value={})
         rate_lookup.start()
         self.addCleanup(rate_lookup.stop)
-        self.user = get_user_model().objects.create_user(
+        self.user = create_customer(
             username="buyer", email="buyer@example.com", phone_number="+639111111111",
             full_name="Buyer", country_code="PH",
         )
-        self.other_user = get_user_model().objects.create_user(
+        self.other_user = create_customer(
             username="other", email="other@example.com", phone_number="+639222222222",
             full_name="Other", country_code="PH",
         )
