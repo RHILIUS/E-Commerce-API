@@ -66,8 +66,11 @@ class DisplayPriceTests(SimpleTestCase):
     @patch("apps.ecommerce.services.display_prices.urlopen", side_effect=URLError("offline"))
     def test_failure_retains_store_currencies_and_backs_off(self, fetch):
         expected = {"PHP": ("PHP", Decimal(1)), "EUR": ("EUR", Decimal(1))}
-        self.assertEqual(get_display_rates(AnonymousUser(), {"PHP", "EUR"}), expected)
-        self.assertEqual(get_display_rates(AnonymousUser(), {"PHP", "EUR"}), expected)
+        with self.assertLogs("apps.ecommerce.services.display_prices", level="WARNING") as logs:
+            self.assertEqual(get_display_rates(AnonymousUser(), {"PHP", "EUR"}), expected)
+            self.assertEqual(get_display_rates(AnonymousUser(), {"PHP", "EUR"}), expected)
+        self.assertEqual([record.getMessage() for record in logs.records], [
+            "Catalog rates unavailable for USD; using cached rates or store currencies"])
         fetch.assert_called_once()
 
     @patch("apps.ecommerce.services.display_prices.urlopen", side_effect=TimeoutError)
@@ -78,8 +81,11 @@ class DisplayPriceTests(SimpleTestCase):
             "rates": {"PHP": {"rate": Decimal(55), "expires_at": now + 3600},
                       "EUR": {"rate": Decimal("0.9"), "expires_at": now - 1}},
         }, timeout=600)
-        self.assertEqual(get_display_rates(AnonymousUser(), {"PHP", "EUR"}),
-                         {"PHP": ("USD", Decimal(55)), "EUR": ("EUR", Decimal(1))})
+        with self.assertLogs("apps.ecommerce.services.display_prices", level="WARNING") as logs:
+            self.assertEqual(get_display_rates(AnonymousUser(), {"PHP", "EUR"}),
+                             {"PHP": ("USD", Decimal(55)), "EUR": ("EUR", Decimal(1))})
+        self.assertEqual([record.getMessage() for record in logs.records], [
+            "Catalog rates unavailable for USD; using cached rates or store currencies"])
 
     @patch("apps.ecommerce.services.display_prices.urlopen")
     def test_bad_or_old_provider_data_is_not_used(self, fetch):
@@ -89,7 +95,10 @@ class DisplayPriceTests(SimpleTestCase):
             with self.subTest(update=update):
                 cache.clear()
                 fetch.return_value = self.response(**update)
-                self.assertEqual(get_display_rates(AnonymousUser(), {"PHP"}), {"PHP": ("PHP", Decimal(1))})
+                with self.assertLogs("apps.ecommerce.services.display_prices", level="WARNING") as logs:
+                    self.assertEqual(get_display_rates(AnonymousUser(), {"PHP"}), {"PHP": ("PHP", Decimal(1))})
+                self.assertEqual([record.getMessage() for record in logs.records], [
+                    "Catalog rates unavailable for USD; using cached rates or store currencies"])
 
     def test_decimal_rounding_uses_currency_precision(self):
         for price, currency, divisor, amount in [
