@@ -218,8 +218,12 @@ class PasswordChangeTests(TestCase):
 
     def test_notification_failure_does_not_undo_success(self):
         challenge,code=self.issue()
-        with patch('apps.account.services.password.send_password_changed_email',side_effect=OTPDeliveryError), self.captureOnCommitCallbacks(execute=True):
-            response=self.confirm(challenge,code)
+        with self.assertLogs('apps.account.services.password', level='WARNING') as logs:
+            with patch('apps.account.services.password.send_password_changed_email',side_effect=OTPDeliveryError), self.captureOnCommitCallbacks(execute=True):
+                response=self.confirm(challenge,code)
+        self.assertEqual(logs.output, [
+            'WARNING:apps.account.services.password:Password-change notification delivery failed',
+        ])
         self.assertEqual(response.status_code,200)
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password(NEW))
