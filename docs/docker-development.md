@@ -208,3 +208,16 @@ avoids parallel exporters competing for the same image tag. The existing
 `up --build` and separate `build` then `up` commands remain valid. Before running
 `migrate` alone on a fresh machine, build the image with the documented `build`
 command first.
+### Git over SSH
+
+The development image includes Git and `openssh-client` for SSH remotes. After
+changing the image, run **Dev Containers: Rebuild Container**. A missing SSH
+executable causes `cannot run ssh: No such file or directory` before Git can
+attempt authentication.
+
+Dev Containers can forward a running host SSH agent. Load your existing key in
+the host/WSL agent before opening VS Code, then check `ssh-add -l` in the container
+terminal to confirm agent access. Private keys should remain on the host, not in
+the repository or image. If authentication still fails, inspect agent forwarding
+and the Git remote; installing the client alone does not supply credentials.
+See [sharing Git credentials](https://code.visualstudio.com/remote/advancedcontainers/sharing-git-credentials).
