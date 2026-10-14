@@ -189,6 +189,8 @@ class RegisterSerializer(serializers.Serializer):
 
 class UserPublicSerializer(serializers.ModelSerializer):
     fullName = serializers.CharField(source="full_name")
+    profile_image = serializers.ImageField(read_only=True, allow_null=True,
+        help_text="Saved cropped avatar URL; null when no profile photo exists.")
     address_country_code = serializers.CharField(
         source="address.country_code", read_only=True, default=None, allow_null=True,
         help_text="Personal-address country; null when no personal address exists.",
@@ -196,7 +198,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "fullName", "email", "address_country_code"]
+        fields = ["id", "fullName", "email", "address_country_code", "profile_image"]
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -208,7 +210,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         data = super().validate(attrs)
-        data["user"] = UserPublicSerializer(self.user).data
+        data["user"] = UserPublicSerializer(self.user, context=self.context).data
         return data
 
 

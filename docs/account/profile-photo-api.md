@@ -65,3 +65,12 @@ other unexpected failures remain server errors. The frontend reloads the current
 photo after an uncertain save/removal rather than blindly replaying the request;
 if reload fails, photo actions wait for a successful reload. Personal-detail drafts
 remain unchanged. Stale-source errors also reload the current photo.
+
+## Header synchronization
+
+Login and refresh expose the cropped avatar as `user.profile_image`. Confirmed
+photo reads, saves, removals and recovery reloads update that field in the
+frontend's AuthContext for the same account. The header uses the bundled avatar
+when the URL is null or fails to load. A failed recovery read retains the last
+confirmed shared URL until a successful read; photo editor actions remain blocked.
+The header does not make a separate photo request.
