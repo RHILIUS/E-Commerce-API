@@ -43,3 +43,12 @@ current disposable development database. Reset/reseed that database; this migrat
 must not be used to preserve an existing production country's data. A restored
 schema on rollback cannot recover discarded country values. The profile read/update API and Profile-tab UI are implemented. Photo upload,
 re-cropping, removal, and compression use the separate profile-photo API.
+
+## Account avatar
+
+Login and refresh return `user.profile_image`: the saved cropped avatar URL, or
+null when absent. Relative local-storage URLs are made absolute using the request;
+cloud-storage URLs retain their configured access behavior. This read-only field
+also appears in the shared OpenAPI user response. It does not change token claims,
+cookies, or the database schema. The frontend stores the URL in AuthContext and
+uses the bundled avatar when absent or when loading the image fails.

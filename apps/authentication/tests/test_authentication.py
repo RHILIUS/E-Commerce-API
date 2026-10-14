@@ -801,3 +801,30 @@ class VerifyOTPViewTests(TestCase):
         self.assertFalse(
             OTPVerificationRecord.objects.filter(pk=record.pk).exists()
         )
+
+
+class AuthAvatarTests(TestCase):
+    """Login and refresh expose the current cropped avatar without token changes."""
+
+    def test_login_and_refresh_avatar_url_and_removal(self):
+        with override_settings(STORAGES={"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"}}, MEDIA_URL="/media/"):
+            user = get_user_model().objects.create_user(
+                username="avatar", email="avatar@example.com", full_name="Avatar User",
+                phone_number="+639171234567", password="StrongPass1")
+            client = APIClient()
+            response = client.post("/api/auth/login/", {"email": user.email, "password": "StrongPass1"})
+            self.assertEqual(response.status_code, 200)
+            self.assertIsNone(response.data["user"]["profile_image"])
+            user.profile_image = "users/profile/avatar.webp"
+            user.save(update_fields=["profile_image"])
+            for route in ["/api/auth/login/", "/api/auth/refresh/"]:
+                payload = {"email": user.email, "password": "StrongPass1"} if "login" in route else {}
+                response = client.post(route, payload)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data["user"]["profile_image"], "http://testserver/media/users/profile/avatar.webp")
+                self.assertNotIn("refresh", response.data)
+            user.profile_image = ""
+            user.save(update_fields=["profile_image"])
+            response = client.post("/api/auth/refresh/")
+            self.assertEqual(response.status_code, 200)
+            self.assertIsNone(response.data["user"]["profile_image"])

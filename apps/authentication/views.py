@@ -165,7 +165,7 @@ class RefreshView(TokenRefreshView):
 
         response = Response(
             {"access": access_token,
-             "user": UserPublicSerializer(user).data},
+             "user": UserPublicSerializer(user, context={"request": request}).data},
             status=status.HTTP_200_OK)
 
         # if ROTATE_REFRESH_TOKENS is True, simplejwt returns a new refresh token too —
