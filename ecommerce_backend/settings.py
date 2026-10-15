@@ -42,6 +42,8 @@ DEBUG = env('DEBUG')
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
 
+# Celery
+CELERY_BROKER_URL = env("CELERY_BROKER_URL")
 
 # Application definition
 
@@ -251,3 +253,11 @@ PASSWORD_CHANGE_MAX_SENDS = 5
 PASSWORD_CHANGE_MAX_ATTEMPTS = 5
 PASSWORD_CHANGE_MAX_REQUESTS = 20
 PASSWORD_CHANGE_MAX_VERIFICATIONS = 20
+
+# CELERY BEAT
+CELERY_BEAT_SCHEDULE = {
+    "reconcile-stripe-every-minute": {
+        "task": "apps.checkout.tasks.reconcile_stripe_payments",
+        "schedule": 60.0,
+    },
+}

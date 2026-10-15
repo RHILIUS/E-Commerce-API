@@ -8,19 +8,18 @@ remain separate future features. No real funds or connected accounts are involve
 
 ## Local setup
 
-From the backend repository, install requirements and apply migrations:
+Configure `.env` as described below before starting. From the backend repository,
+build the image, apply migrations and start the development services:
 
 ```bash
-source venv/bin/activate
-pip install -r requirements.txt
-python manage.py migrate
+docker compose -f compose.dev.yaml up -d --build
 ```
 
 Set these values in backend `.env` (never in frontend variables or Git):
 
 ```dotenv
 STRIPE_SECRET_KEY=sk_test_your_test_secret
-STRIPE_WEBHOOK_SECRET=whsec_your_endpoint_signing_secret
+STRIPE_WEBHOOK_SECRET=
 STRIPE_FRONTEND_ORIGIN=http://localhost:5173
 ```
 
@@ -29,14 +28,21 @@ localhost/127.0.0.1/::1 development. Do not change Stripe test accounts while
 attempts are pending. No frontend Stripe SDK or publishable key is required for
 this hosted redirect flow.
 
-For local webhook forwarding, use Stripe CLI authenticated to that same test account:
+Local development uses scheduled payment reconciliation without webhook delivery.
+Keep `STRIPE_WEBHOOK_SECRET` empty for that workflow and keep API, Redis, worker
+and Beat running. Payment updates may wait until the next recovery run; provider
+latency and queue backlog can add delay. The frontend can also request an explicit
+payment-status check.
 
-```bash
-stripe listen --events checkout.session.completed,checkout.session.expired,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed --forward-to localhost:8000/api/shop/stripe/webhook/
-```
+For deployment, register the public HTTPS `/api/shop/stripe/webhook/` endpoint
+with Stripe for `checkout.session.completed`, `checkout.session.expired`,
+`checkout.session.async_payment_succeeded` and `checkout.session.async_payment_failed`.
+Set `STRIPE_WEBHOOK_SECRET` to that endpoint's signing secret and recreate affected
+containers to reload environment values. Keep scheduled reconciliation as recovery
+for missed deliveries or failed processing. Current payment code accepts only test
+keys/events; live payments and production containerization remain outside scope.
 
-Use the signing secret printed by this listener for `STRIPE_WEBHOOK_SECRET`, then
-restart Django. In that test account/sandbox's Dashboard payment-method settings,
+In that test account/sandbox's Dashboard payment-method settings,
 enable Cards and disable other methods for this cards-only demo. Checkout uses
 Dashboard-managed dynamic payment methods; do not send `payment_method_types`
 with API version 2026-09-30.endive. See
@@ -52,22 +58,34 @@ provider reconciliation establish completion. Verify two store orders become pai
 stock decreases once, and each store's pending account receives its exact share.
 Inspect PaymentAttempt, ProviderEvent and wallet journal records in Django admin.
 
-## Recovery scheduling is required
+## Scheduled payment recovery
 
-Schedule the following management command every minute in the deployment's job
-scheduler, using the same settings/environment as Django:
+Implemented: Django's `CELERY_BEAT_SCHEDULE` dispatches
+`apps.checkout.tasks.reconcile_stripe_payments` every 60 seconds through Redis.
+The worker calls `reconcile_stripe` with `limit=100`. Run one Beat instance and
+at least one worker using the [Docker development stack](../docker-development.md#celery-payment-recovery).
+Scheduling is periodic, not a guarantee of completion within exactly 60 seconds.
+
+For a manual recovery run from the backend directory:
 
 ```bash
-python manage.py reconcile_stripe --limit 100
+docker compose -f compose.dev.yaml exec api python manage.py reconcile_stripe --limit 100
 ```
 
-Each run retries unfinished inbox events and pending attempts in bounded batches.
-Failed attempts/events remain in PostgreSQL; row ordering rotates attempted work.
-Overlapping runs are safe through row locks and unique payment posting keys.
-This phase does not require Celery or Redis. The later settlement scheduler can
-invoke the same recovery services from Celery when that infrastructure is added.
-Without a scheduled runner, webhooks and the customer's **Check payment status**
-button can reconcile payments, but abandoned-payment recovery is not automatic.
+Each run selects up to 100 unfinished inbox events and, separately, up to 100
+pending payment attempts. Events are ordered by last-attempt time and attempts by
+update time; attempted pending rows rotate to allow later batches to progress.
+Overlapping payment recovery is protected by existing row locks and unique payment
+posting keys. Durable pending state stays in PostgreSQL across worker downtime.
+An unpaid session remains pending; successful task execution alone does not prove
+payment completion. Exceptions caught per row increment the reported unresolved
+count without failing the Celery task. Inspect that count and admin records.
+
+This task does not schedule refund recovery or seven-day settlement. See the
+[refund recovery contract](../ecommerce/user-orders.md#refund-recovery) for the
+separate command. Without worker/Beat, local abandoned-payment recovery stops;
+explicit customer status checks can still reconcile payments.
+
 
 ## API contract
 

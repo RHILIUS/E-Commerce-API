@@ -3,23 +3,26 @@
 This guide covers the backend development stack defined in
 [`compose.dev.yaml`](../compose.dev.yaml) and [`Dockerfile.dev`](../Dockerfile.dev).
 The frontend runs locally. Production containerization is a separate implementation.
-Celery integration, scheduled payment/refund recovery, and seven-day settlement are
-not implemented by this setup.
+Celery workers and Beat provide scheduled Stripe payment recovery. Scheduled refund
+recovery and seven-day settlement are not implemented by this setup.
 
 ## Services and storage
 
 | Service   | Purpose                                                               | Access                           |
 | --------- | --------------------------------------------------------------------- | -------------------------------- |
 | `db`      | PostgreSQL 17 development database                                    | Compose network: `db:5432`       |
-| `redis`   | Redis 7 with append-only persistence; reserved for future integration | Compose network: `redis:6379`    |
+| `redis`   | Redis 7 broker with append-only persistence | Compose network: `redis:6379`    |
 | `migrate` | One-shot Django migrations                                            | Exits after successful migration |
 | `api`     | Django development server with source reload                          | <http://localhost:8000>          |
+| `worker`  | Celery worker executing Stripe payment recovery | Compose network only |
+| `beat`    | Celery scheduler dispatching payment recovery every 60 seconds | Compose network only |
 | `pgadmin` | Database administration UI                                            | <http://localhost:5050>          |
 
 PostgreSQL readiness gates migrations; successful migrations gate API startup.
-pgAdmin waits for PostgreSQL readiness. Redis has its own health check but is not
-currently consumed by Django or Celery. A successfully exited `migrate` container
-is expected, not an application failure.
+pgAdmin waits for PostgreSQL readiness. Worker and Beat wait for healthy Redis
+and successful migrations. API, migrations, worker and Beat reuse the same backend
+image in separate containers. A successfully exited `migrate` container is expected,
+not an application failure.
 
 The backend source directory is mounted at `/app`. Python edits trigger Django's
 reload; dependency changes require an image rebuild. The development image installs
@@ -59,15 +62,16 @@ PostgreSQL instance. PostgreSQL initializes its database and login from `DB_NAME
 `DB_USER`, and `DB_PASSWORD` only when its data volume is empty. Editing those values later
 does not change the existing database or login.
 
-For optional Stripe checkout, explicitly set `STRIPE_SECRET_KEY`,
-`STRIPE_WEBHOOK_SECRET`, and `STRIPE_FRONTEND_ORIGIN`; use test credentials only.
-Keep the two keys explicitly empty when checkout is unused. Containerization does
-not configure Stripe webhook forwarding: follow the
-[Stripe setup guide](checkout/stripe-api.md) for the CLI/webhook configuration.
+For optional Stripe checkout, set `STRIPE_SECRET_KEY` to a test key and
+`STRIPE_FRONTEND_ORIGIN` to the actual frontend origin. Local payment recovery
+uses Celery without webhook delivery; `STRIPE_WEBHOOK_SECRET` can remain empty
+for that workflow. Deployment webhook configuration is described in the
+[Stripe setup guide](checkout/stripe-api.md).
 
+Set `CELERY_BROKER_URL=redis://redis:6379/0` in `.env` for the container services.
+The hostname `redis` resolves inside Compose; Redis is not exposed to host Django.
 Keep `USE_AZURE_STORAGE=False` for persistent filesystem uploads and the console
-email backend for local email testing. Redis remains reserved for future
-integration; current Django settings do not consume a broker URL.
+email backend for local email testing.
 
 `.env` is ignored by Git and excluded from image builds by `.dockerignore`.
 Compose reads it automatically for interpolation and passes it into backend
@@ -143,7 +147,7 @@ docker compose -f compose.dev.yaml up -d --build
 
 # Service status and logs
 docker compose -f compose.dev.yaml ps -a
-docker compose -f compose.dev.yaml logs -f api migrate
+docker compose -f compose.dev.yaml logs -f api migrate worker beat
 
 # Django checks and tests
 docker compose -f compose.dev.yaml exec api python manage.py check
@@ -162,12 +166,49 @@ docker compose -f compose.dev.yaml up -d --build
 docker compose -f compose.dev.yaml down
 ```
 
+## Celery payment recovery
+
+The Celery application is configured in `ecommerce_backend/celery.py` and imported
+by the project package. Django settings read `CELERY_BROKER_URL` and define
+`reconcile-stripe-every-minute`. Every 60 seconds, Beat dispatches
+`apps.checkout.tasks.reconcile_stripe_payments` through Redis. The worker invokes
+`reconcile_stripe` with `limit=100`; see the [recovery contract](checkout/stripe-api.md#scheduled-payment-recovery).
+No Celery result backend is configured.
+
+Run only one Beat instance for this schedule. Its schedule file is
+`/tmp/celerybeat-schedule`, writable by the container user. It survives a restart
+but is lost when the container is recreated; pending business state remains in
+PostgreSQL and is scanned again after startup.
+
+```bash
+# Start the scheduler and worker with their dependencies
+docker compose -f compose.dev.yaml up -d worker beat
+
+# Reload task code or schedule changes; these processes do not auto-reload
+docker compose -f compose.dev.yaml restart worker beat
+
+# Inspect execution
+docker compose -f compose.dev.yaml logs --tail=100 worker beat
+```
+
+After `.env` changes, recreate affected containers rather than only restarting:
+
+```bash
+docker compose -f compose.dev.yaml up -d --force-recreate api worker beat
+```
+
+Dependency or Dockerfile changes require rebuilding the image. A successful task
+means the command returned; inspect its unresolved-operation count and durable
+payment state too. Command output may appear at WARNING level even on success.
+
 ## VS Code Dev Container
 
 The shared configuration in [devcontainer.json](../.devcontainer/devcontainer.json)
 connects VS Code to the existing `api` service and starts its database/migration
 dependencies, Redis, and pgAdmin. It uses the same Compose project and volumes as
-terminal startup. The frontend remains local. There is no Celery service.
+terminal startup. The frontend remains local. Its `runServices` list does not
+start worker or Beat; start them explicitly from a host terminal using
+`docker compose -f compose.dev.yaml up -d worker beat` when testing payments.
 
 1. Install Microsoft's **Dev Containers** extension in your local VS Code.
 2. Configure `.env` as described above.

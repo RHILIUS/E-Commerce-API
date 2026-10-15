@@ -65,6 +65,25 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+        
+  worker:
+    <<: *backend
+    pull_policy: never
+    command: celery -A ecommerce_backend worker --loglevel=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+  beat:
+    <<: *backend
+    pull_policy: never
+    command: celery -A ecommerce_backend beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   pgadmin:
     image: dpage/pgadmin4:9.15
