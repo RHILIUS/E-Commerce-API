@@ -3,7 +3,7 @@
 This guide covers the backend development stack defined in
 [`compose.dev.yaml`](../compose.dev.yaml) and [`Dockerfile.dev`](../Dockerfile.dev).
 The frontend runs locally. Production containerization is a separate implementation.
-Celery workers and Beat provide scheduled Stripe payment recovery. Scheduled refund
+Celery workers deliver registration OTP emails and, with Beat, provide scheduled Stripe payment recovery. Scheduled refund
 recovery and seven-day settlement are not implemented by this setup.
 
 ## Services and storage
@@ -15,6 +15,7 @@ recovery and seven-day settlement are not implemented by this setup.
 | `migrate` | One-shot Django migrations                                            | Exits after successful migration |
 | `api`     | Django development server with source reload                          | <http://localhost:8000>          |
 | `worker`  | Celery worker executing Stripe payment recovery | Compose network only |
+| `email-worker` | Dedicated registration OTP delivery worker | Compose network only |
 | `beat`    | Celery scheduler dispatching payment recovery every 60 seconds | Compose network only |
 | `pgadmin` | Database administration UI                                            | <http://localhost:5050>          |
 
@@ -274,3 +275,21 @@ terminal to confirm agent access. Private keys should remain on the host, not in
 the repository or image. If authentication still fails, inspect agent forwarding
 and the Git remote; installing the client alone does not supply credentials.
 See [sharing Git credentials](https://code.visualstudio.com/remote/advancedcontainers/sharing-git-credentials).
+
+## Registration email worker
+
+Compose starts `email-worker` on the `registration-email` queue, separately from
+payment recovery. For host development run:
+
+```bash
+celery -A ecommerce_backend worker --loglevel=info --queues=registration-email --concurrency=2
+```
+
+Restart workers after source changes. Production must provision a consumer for
+this queue, monitor queue age and terminal delivery warnings, restrict Redis
+access and use encrypted broker transport where required. Task argument display
+is redacted and results are disabled, but the broker payload contains the OTP
+and destination address. Do not enable payload logging or retain broker dumps
+without appropriate access controls. OTP tasks expire and check database validity
+before each delivery attempt. Broker acceptance does not establish worker health
+or inbox delivery. SMTP must have a finite connection timeout (`EMAIL_TIMEOUT`).

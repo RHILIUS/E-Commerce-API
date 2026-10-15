@@ -261,3 +261,7 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 60.0,
     },
 }
+# Keep registration mail independent of scheduled payment recovery.
+CELERY_TASK_ROUTES = {
+    "apps.authentication.tasks.deliver_registration_otp": {"queue": "registration-email"},
+}

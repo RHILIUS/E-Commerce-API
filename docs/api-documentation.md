@@ -52,3 +52,5 @@ cloud-storage URLs retain their configured access behavior. This read-only field
 also appears in the shared OpenAPI user response. It does not change token claims,
 cookies, or the database schema. The frontend stores the URL in AuthContext and
 uses the bundled avatar when absent or when loading the image fails.
+
+Registration OTP email now uses [background delivery](authentication/registration-otp-api.md); HTTP 200 confirms queuing rather than email-provider acceptance.
