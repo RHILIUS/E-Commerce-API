@@ -136,6 +136,8 @@ celerybeat.pid
 
 # Environments
 .env
+# Keep the retired Docker file ignored to prevent accidental credential commits.
+.env.docker
 .envrc
 .venv
 env/

@@ -1,5 +1,6 @@
 Django==6.0.3
 Babel==2.18.0
+celery[redis]==5.6.3
 django-cors-headers==4.9.0
 django-environ==0.14.0
 django-storages[azure]==1.14.6

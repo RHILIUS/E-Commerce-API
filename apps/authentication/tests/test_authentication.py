@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
 from django.core import mail, signing
 from django.db import IntegrityError
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APIRequestFactory
@@ -591,10 +591,13 @@ class IssueOTPServiceTests(TestCase):
     OTP_MAX_SENDS_PER_WINDOW=5,
     OTP_EXPIRATION_SECONDS=600,
 )
-class SendOTPViewTests(TestCase):
+class SendOTPViewTests(TransactionTestCase):
     def setUp(self):
         self.client = APIClient()
         self.url = "/api/auth/send-otp/"
+        publisher = patch("apps.authentication.services.otp_delivery.deliver_registration_otp.apply_async")
+        self.publish = publisher.start()
+        self.addCleanup(publisher.stop)
 
     def test_success_response_preserves_email_contract_without_exposing_otp(self):
         response = self.client.post(
@@ -607,17 +610,13 @@ class SendOTPViewTests(TestCase):
         self.assertEqual(response.data["email"], "person@example.com")
         self.assertEqual(response.data["retry_after"], 60)
         self.assertNotIn("otp", response.data)
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, ["person@example.com"])
-        self.assertEqual(
-            mail.outbox[0].subject,
-            "Your E-Commerce verification code",
-        )
-
-        record = OTPVerificationRecord.objects.get(email="person@example.com")
-        otp = mail.outbox[0].body.split(
-            "Your verification code is: ", 1)[1][:6]
+        self.assertEqual(response.data["message"], "Verification email queued.")
+        self.assertEqual(len(mail.outbox), 0)
+        self.publish.assert_called_once()
+        email, otp = self.publish.call_args.kwargs["args"]
+        record = OTPVerificationRecord.objects.get(email=email)
         self.assertTrue(check_password(otp, record.otp_hash))
+        self.assertNotIn(otp, self.publish.call_args.kwargs["argsrepr"])
 
     def test_throttled_response_includes_retry_after_header(self):
         self.client.post(
@@ -637,10 +636,10 @@ class SendOTPViewTests(TestCase):
         )
 
     @patch(
-        "apps.authentication.services.email_service.send_mail",
-        side_effect=OSError("SMTP unavailable"),
+        "apps.authentication.services.otp_delivery.deliver_registration_otp.apply_async",
+        side_effect=OSError("Broker unavailable"),
     )
-    def test_delivery_failure_returns_service_unavailable_without_exposing_otp(
+    def test_publish_failure_returns_service_unavailable_without_exposing_otp(
         self,
         _,
     ):
@@ -655,6 +654,7 @@ class SendOTPViewTests(TestCase):
         self.assertEqual(response.data["retry_after"], 60)
         self.assertEqual(response.headers["Retry-After"], "60")
         self.assertNotIn("otp", response.data)
+        self.assertTrue(OTPVerificationRecord.objects.filter(email="person@example.com").exists())
 
 
 @override_settings(

@@ -42,6 +42,8 @@ DEBUG = env('DEBUG')
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
 
+# Celery
+CELERY_BROKER_URL = env("CELERY_BROKER_URL")
 
 # Application definition
 
@@ -214,6 +216,9 @@ REGISTRATION_TOKEN_EXPIRATION_SECONDS = 900  # 15 minutes
 # Rolling window for catalog popularity, measured from order creation time.
 PRODUCT_POPULARITY_DAYS = env.int("PRODUCT_POPULARITY_DAYS", default=7)
 
+# Explicit opt-in for destructive resets of disposable environments.
+ALLOW_DEV_RESET = env.bool("ALLOW_DEV_RESET", default=False)
+
 # Storage config
 USE_AZURE_STORAGE = env.bool("USE_AZURE_STORAGE", default=False)
 if USE_AZURE_STORAGE:
@@ -248,3 +253,16 @@ PASSWORD_CHANGE_MAX_SENDS = 5
 PASSWORD_CHANGE_MAX_ATTEMPTS = 5
 PASSWORD_CHANGE_MAX_REQUESTS = 20
 PASSWORD_CHANGE_MAX_VERIFICATIONS = 20
+
+# CELERY BEAT
+CELERY_BEAT_SCHEDULE = {
+    "reconcile-stripe-every-minute": {
+        "task": "apps.checkout.tasks.reconcile_stripe_payments",
+        "schedule": 60.0,
+    },
+}
+# Keep verification mail independent of scheduled payment recovery.
+CELERY_TASK_ROUTES = {
+    "apps.authentication.tasks.deliver_registration_otp": {"queue": "registration-email"},
+    "apps.authentication.tasks.deliver_password_change_otp": {"queue": "registration-email"},
+}

@@ -1,4 +1,5 @@
 from django.conf import settings
+from kombu.exceptions import OperationalError
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
@@ -33,11 +34,8 @@ from apps.authentication.serializers import (
     UserPublicSerializer,
     VerifyOTPSerializer,
 )
-from apps.authentication.services.email_service import (
-    OTPDeliveryError,
-    send_otp_email,
-)
-from apps.authentication.services.otp_service import OTPRateLimitExceeded, issue_otp
+from apps.authentication.services.otp_delivery import queue_registration_otp
+from apps.authentication.services.otp_service import OTPRateLimitExceeded
 from apps.authentication.services.registration_token_service import (
     REGISTRATION_TOKEN_COOKIE_NAME,
     issue_registration_token,
@@ -190,7 +188,7 @@ class SendOTPView(APIView):
 
     @extend_schema(
         tags=["Authentication"], request=SendOTPSerializer, auth=[],
-        description="Send a registration OTP to the supplied email. The OTP is never returned in the response.",
+        description="Queue a registration OTP email after committing issuance. Success confirms broker acceptance, not delivery. The OTP is never returned in the response.",
         responses={200: SendOTPResponseSerializer, 400: OpenApiTypes.OBJECT,
                    429: RetryErrorResponseSerializer, 503: RetryErrorResponseSerializer},
     )
@@ -204,7 +202,7 @@ class SendOTPView(APIView):
         # Issue OTP
         email = serializer.validated_data["email"]
         try:
-            otp = issue_otp(email)
+            queue_registration_otp(email)
         except OTPRateLimitExceeded as error:
             return Response(
                 {
@@ -215,14 +213,11 @@ class SendOTPView(APIView):
                 headers={"Retry-After": str(error.retry_after)},
             )
 
-        # Send OTP to email
-        try:
-            send_otp_email(email, otp)
-        except OTPDeliveryError:
+        except (OperationalError, OSError):
             return Response(
                 {
                     "detail": (
-                        "Unable to send the verification code. "
+                        "Unable to queue the verification email. "
                         "Please try again later."
                     ),
                     "retry_after": settings.OTP_RESEND_COOLDOWN_SECONDS,
@@ -236,7 +231,7 @@ class SendOTPView(APIView):
         return Response(
             {
                 "email": email,
-                "message": "OTP sent successfully.",
+                "message": "Verification email queued.",
                 "retry_after": settings.OTP_RESEND_COOLDOWN_SECONDS,
             },
             status=status.HTTP_200_OK,

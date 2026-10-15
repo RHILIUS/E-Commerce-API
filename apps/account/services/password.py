@@ -1,23 +1,22 @@
 """Serialized, user-bound password challenges with durable account limits."""
-import logging
 import math
 import re
 import secrets
 import uuid
 from datetime import timedelta
+from functools import partial
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
 from django.utils import timezone
-from django.utils.crypto import salted_hmac
 from rest_framework.exceptions import APIException, ValidationError
+from kombu.exceptions import OperationalError
 
 from apps.authentication.models import PasswordChangeState
-from apps.authentication.services.email_service import OTPDeliveryError, send_password_change_code, send_password_changed_email
-
-logger = logging.getLogger(__name__)
+from apps.authentication.tasks import deliver_password_change_otp
+from .password_challenge import credential_state
 
 
 class PasswordChangeUnavailable(APIException):
@@ -32,11 +31,6 @@ class PasswordChangeUnavailable(APIException):
         super().__init__(data)
         if retry_after is not None:
             self.detail["retry_after"] = retry_after
-
-
-def _credential_state(user):
-    """Bind challenges to the password without duplicating its reusable hash."""
-    return salted_hmac("password-change-state", user.password).hexdigest()
 
 
 def _check_passwords(user, data):
@@ -67,17 +61,24 @@ def _eligible(user, state, challenge_id):
     """Reject stale identifiers, consumed challenges and changed account credentials."""
     if state.challenge_id != challenge_id or state.consumed:
         raise PasswordChangeUnavailable()
-    if state.email != user.email or state.credential_state != _credential_state(user):
+    if state.email != user.email or state.credential_state != credential_state(user):
         state.consumed = True
         raise PasswordChangeUnavailable()
 
 
-def _notify(email):
-    """Notification failures never undo a committed password change or expose secrets."""
+def _publish_password_code(user_id, challenge_id, code, expires_at):
+    """Publish only committed challenges; broker failure retains issuance and budgets."""
     try:
-        send_password_changed_email(email)
-    except OTPDeliveryError:
-        logger.warning("Password-change notification delivery failed")
+        deliver_password_change_otp.apply_async(
+            args=[user_id, str(challenge_id), code],
+            argsrepr="[<redacted>, <redacted>, <redacted>]",
+            expires=expires_at, retry=False,
+        )
+    except (OperationalError, OSError) as error:
+        raise PasswordChangeUnavailable(
+            "delivery_unavailable", "We couldn't queue the verification email. Please try again later.",
+            503, settings.PASSWORD_CHANGE_COOLDOWN_SECONDS,
+        ) from error
 
 
 def change_password(user_id, action, data):
@@ -109,7 +110,6 @@ def change_password(user_id, action, data):
                 user.save(update_fields=["password", "authentication_version"])
                 state.consumed = True
                 state.otp_hash = make_password(None)
-                transaction.on_commit(lambda: _notify(user.email))
             else:
                 _limit(state, now, "request_count", "request_window_started_at", settings.PASSWORD_CHANGE_MAX_REQUESTS)
                 if action == "request":
@@ -126,7 +126,7 @@ def change_password(user_id, action, data):
                     state.failed_attempts = 0
                     state.consumed = False
                     state.email = user.email
-                    state.credential_state = _credential_state(user)
+                    state.credential_state = credential_state(user)
                 code = f"{secrets.randbelow(1_000_000):06d}"
                 state.otp_hash = make_password(code)
                 state.expires_at = now + timedelta(seconds=settings.PASSWORD_CHANGE_EXPIRY_SECONDS)
@@ -134,14 +134,14 @@ def change_password(user_id, action, data):
         except (ValidationError, PasswordChangeUnavailable) as exc:
             error = exc
         state.save()
+        if code is not None and error is None:
+            transaction.on_commit(partial(
+                _publish_password_code, user.pk, state.challenge_id, code, state.expires_at,
+            ))
     if error:
         raise error
     if action == "confirm":
         return {"message": "Password changed successfully. Sign in with your new password."}
-    try:
-        send_password_change_code(state.email, code)
-    except OTPDeliveryError as exc:
-        raise PasswordChangeUnavailable("delivery_unavailable", "We couldn't send the verification code. Please try again later.", 503, settings.PASSWORD_CHANGE_COOLDOWN_SECONDS) from exc
     local, domain = state.email.rsplit("@", 1)
     return {"challenge_id": state.challenge_id, "masked_email": f"{local[:1]}***@{domain}",
             "expires_at": state.expires_at, "retry_after": settings.PASSWORD_CHANGE_COOLDOWN_SECONDS}

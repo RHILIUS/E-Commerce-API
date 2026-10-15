@@ -1,0 +1,115 @@
+name: ecommerce-backend-dev
+
+x-backend: &backend
+  image: ecommerce-backend-dev
+  env_file:
+    - .env
+  # Match PostgreSQL's interpolation, including any shell environment overrides.
+  environment:
+    DB_NAME: ${DB_NAME:?Set DB_NAME}
+    DB_USER: ${DB_USER:?Set DB_USER}
+    DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+    DB_HOST: db
+    DB_PORT: "5432"
+  volumes:
+    - .:/app
+    - media_data:/app/media
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${DB_NAME:?Set DB_NAME}
+      POSTGRES_USER: ${DB_USER:?Set DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *backend
+    pull_policy: never
+    command: python manage.py migrate --noinput
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *backend
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        DEV_UID: ${DEV_UID:-1000}
+        DEV_GID: ${DEV_GID:-1000}
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+        
+  worker:
+    <<: *backend
+    pull_policy: never
+    command: celery -A ecommerce_backend worker --loglevel=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+  email-worker:
+    <<: *backend
+    pull_policy: never
+    command: celery -A ecommerce_backend worker --loglevel=info --queues=registration-email --concurrency=2
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+  beat:
+    <<: *backend
+    pull_policy: never
+    command: celery -A ecommerce_backend beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  pgadmin:
+    image: dpage/pgadmin4:9.15
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?Set PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?Set PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_DISABLE_POSTFIX: "1"
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_data:
+  pgadmin_data:

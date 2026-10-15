@@ -49,10 +49,3 @@ def send_password_change_code(email, otp):
         f"Your password-change verification code is: {otp}\n\n"
         f"This code expires in {settings.PASSWORD_CHANGE_EXPIRY_SECONDS // 60} minutes.\n\n"
         "If you did not request this change, secure your account. Your password has not changed.")
-
-
-def send_password_changed_email(email):
-    """Notify the owner after a committed password change, without sending the password."""
-    _send_password_email(email, "Your E-Commerce password was changed",
-        "Your password was changed and existing sessions were signed out.\n\n"
-        "If you did not make this change, contact support and secure your email account.")

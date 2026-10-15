@@ -55,7 +55,7 @@ ERRORS = {400: PasswordChangeErrorSerializer, 401: PasswordChangeErrorSerializer
 class PasswordChangeRequestView(PasswordChangeView):
     @extend_schema(tags=["Password change"], request=PasswordChangeRequestSerializer,
                    responses={200: PasswordChangeChallengeSerializer, **ERRORS},
-                   description="Validate current and new passwords, issue a user-bound OTP and email it to the registered account. Account limits persist across restarts. No password is changed.")
+                   description="Validate current and new passwords, issue a user-bound OTP and queue its email to the registered account. Success confirms broker acceptance, not delivery. Account limits persist across restarts. No password is changed.")
     def post(self, request):
         return self.perform(request, "request", PasswordChangeRequestSerializer)
 
@@ -63,7 +63,7 @@ class PasswordChangeRequestView(PasswordChangeView):
 class PasswordChangeResendView(PasswordChangeView):
     @extend_schema(tags=["Password change"], request=PasswordChangeResendSerializer,
                    responses={200: PasswordChangeChallengeSerializer, **ERRORS},
-                   description="Replace the owned challenge's code. The previous code is invalidated even if delivery fails. Preserve failed attempts and account limits.")
+                   description="Replace the owned challenge's code. Queue email delivery after commit. The previous code is invalidated even if queuing or delivery fails. Preserve failed attempts and account limits.")
     def post(self, request):
         return self.perform(request, "resend", PasswordChangeResendSerializer)
 
@@ -71,6 +71,6 @@ class PasswordChangeResendView(PasswordChangeView):
 class PasswordChangeConfirmView(PasswordChangeView):
     @extend_schema(tags=["Password change"], request=PasswordChangeConfirmSerializer,
                    responses={200: MessageResponseSerializer, **ERRORS},
-                   description="Consume an owned, valid OTP and atomically change the password and authentication version. Old access and refresh tokens fail. Clear the HttpOnly refresh_token cookie and attempt a post-commit notification; notification failure does not undo success.")
+                   description="Consume an owned, valid OTP and atomically change the password and authentication version. Old access and refresh tokens fail. Clear the HttpOnly refresh_token cookie. No completion email is sent.")
     def post(self, request):
         return self.perform(request, "confirm", PasswordChangeConfirmSerializer)

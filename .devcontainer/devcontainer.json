@@ -1,0 +1,29 @@
+{
+  "name": "E-Commerce Backend Development",
+  "dockerComposeFile": "compose.yaml",
+  "service": "api",
+  "runServices": [
+    "api",
+    "redis",
+    "pgadmin",
+    "worker",
+    "beat"
+  ],
+  "workspaceFolder": "/app",
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+  "overrideCommand": false,
+  "shutdownAction": "none",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.envFile": "/dev/null"
+      }
+    }
+  }
+}

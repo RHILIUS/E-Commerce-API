@@ -5,7 +5,7 @@ account. Current-password errors are HTTP 400 field errors, not HTTP 401.
 
 | POST endpoint                           | Required JSON fields                                      | Success                                     |
 | --------------------------------------- | --------------------------------------------------------- | ------------------------------------------- |
-| `/api/account/change-password/request/` | `current_password`, `new_password`                        | 200 challenge                               |
+| `/api/account/change-password/request/` | `current_password`, `new_password`                        | 200 challenge with queued verification email|
 | `/api/account/change-password/resend/`  | `challenge_id` UUID                                       | 200 replacement code for the same challenge |
 | `/api/account/change-password/confirm/` | `challenge_id`, `otp`, `current_password`, `new_password` | 200 message, refresh cookie cleared         |
 
@@ -30,7 +30,7 @@ password matching belongs to the frontend. Destination email comes from the user
 | 400    | `detail`, `code: code_expired`                                | Request a replacement code if challenge remains eligible                                                           |
 | 401    | `detail` with JWT error metadata when applicable              | Authentication invalid; refresh/sign in                                                                            |
 | 429    | `detail`, `code: rate_limited`, integer `retry_after`         | Account or IP budget/cooldown reached                                                                              |
-| 503    | `detail`, `code: delivery_unavailable`, integer `retry_after` | Provider did not accept verification email; wait and retry                                                         |
+| 503    | `detail`, `code: delivery_unavailable`, integer `retry_after` | Broker did not confirm verification email queuing; wait and retry                                                         |
 | 503    | `detail`, `code: operation_unavailable`                       | Database operation failed and rolled back; confirmation UI treats the response as uncertain and directs to sign-in |
 
 Account cooldown and delivery errors include Retry-After. IP throttle errors use
@@ -64,9 +64,21 @@ raising validation errors. Successful confirmation atomically hashes/saves the
 password, increments authentication version and consumes the challenge. Database
 failure rolls back the update, version and consumption together.
 
-Verification email is delivered after challenge commit. Completion notification
-is an on-commit callback: delivery failure is logged without secrets and does not
-undo success. No background job or provider delivery guarantee is implemented.
+Verification email is queued after challenge commit. Request/resend HTTP 200
+confirms broker acceptance, not email-provider acceptance or inbox delivery.
+The Celery worker uses the existing `registration-email` queue and rechecks the
+user, challenge ID, current email/password binding, OTP hash, expiry and consumed
+state before sending. Temporary transport failures retry the same code up to
+three times (5, 10, 20 seconds), within expiry; terminal failures are logged with
+a task ID and no secrets. Passwords never enter the broker payload. OTP argument
+displays are redacted, including retries; protect the plaintext broker payload.
+
+Publication failure retains issuance and budgets and returns the existing 503
+`delivery_unavailable` contract with cooldown. Lost publish responses may still
+result in delivery; a crash between commit and publish can lose dispatch. There
+is no outbox or delivery-status endpoint. Later worker failures do not change the
+original response; customers can resend after cooldown. Expiry begins at issuance.
+No completion notification email is sent after a successful password change.
 
 ## Session revocation and rollout
 
