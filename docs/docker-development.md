@@ -205,10 +205,9 @@ payment state too. Command output may appear at WARNING level even on success.
 
 The shared configuration in [devcontainer.json](../.devcontainer/devcontainer.json)
 connects VS Code to the existing `api` service and starts its database/migration
-dependencies, Redis, and pgAdmin. It uses the same Compose project and volumes as
-terminal startup. The frontend remains local. Its `runServices` list does not
-start worker or Beat; start them explicitly from a host terminal using
-`docker compose -f compose.dev.yaml up -d worker beat` when testing payments.
+dependencies, Redis, pgAdmin, the Celery worker and Beat. Its `runServices` list
+starts payment recovery automatically. It uses the same Compose project and volumes
+as terminal startup. The frontend remains local.
 
 1. Install Microsoft's **Dev Containers** extension in your local VS Code.
 2. Configure `.env` as described above.

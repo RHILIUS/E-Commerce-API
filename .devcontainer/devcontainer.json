@@ -5,7 +5,9 @@
   "runServices": [
     "api",
     "redis",
-    "pgadmin"
+    "pgadmin",
+    "worker",
+    "beat"
   ],
   "workspaceFolder": "/app",
   "remoteUser": "vscode",
