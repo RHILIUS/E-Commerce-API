@@ -3,7 +3,7 @@
 This guide covers the backend development stack defined in
 [`compose.dev.yaml`](../compose.dev.yaml) and [`Dockerfile.dev`](../Dockerfile.dev).
 The frontend runs locally. Production containerization is a separate implementation.
-Celery workers deliver registration OTP emails and, with Beat, provide scheduled Stripe payment recovery. Scheduled refund
+Celery workers deliver registration and password-change OTP emails and, with Beat, provide scheduled Stripe payment recovery. Scheduled refund
 recovery and seven-day settlement are not implemented by this setup.
 
 ## Services and storage
@@ -15,7 +15,7 @@ recovery and seven-day settlement are not implemented by this setup.
 | `migrate` | One-shot Django migrations                                            | Exits after successful migration |
 | `api`     | Django development server with source reload                          | <http://localhost:8000>          |
 | `worker`  | Celery worker executing Stripe payment recovery | Compose network only |
-| `email-worker` | Dedicated registration OTP delivery worker | Compose network only |
+| `email-worker` | Dedicated verification OTP delivery worker | Compose network only |
 | `beat`    | Celery scheduler dispatching payment recovery every 60 seconds | Compose network only |
 | `pgadmin` | Database administration UI                                            | <http://localhost:5050>          |
 
@@ -278,7 +278,8 @@ See [sharing Git credentials](https://code.visualstudio.com/remote/advancedconta
 
 ## Registration email worker
 
-Compose starts `email-worker` on the `registration-email` queue, separately from
+Compose starts `email-worker` for registration and password-change OTPs on the
+existing `registration-email` queue, separately from
 payment recovery. For host development run:
 
 ```bash

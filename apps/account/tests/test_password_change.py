@@ -8,14 +8,14 @@ from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.cache import cache
 from django.db import close_old_connections, IntegrityError
-from django.test import TestCase, TransactionTestCase, override_settings
+from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.account.services.password import change_password
 from apps.authentication.models import PasswordChangeState, OTPVerificationRecord
-from apps.authentication.services.email_service import OTPDeliveryError
+from apps.authentication.tasks import deliver_password_change_otp
 from apps.authentication.serializers import CustomTokenObtainPairSerializer
 
 ROOT = "/api/account/change-password/"
@@ -29,9 +29,13 @@ def user(name="buyer"):
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
-class PasswordChangeTests(TestCase):
+class PasswordChangeTests(TransactionTestCase):
     def setUp(self):
         cache.clear()
+        publisher = patch('apps.account.services.password.deliver_password_change_otp.apply_async',
+                          side_effect=lambda **options: deliver_password_change_otp.run(*options['args']))
+        self.publish = publisher.start()
+        self.addCleanup(publisher.stop)
         self.user = user()
         self.client = APIClient()
         self.client.force_authenticate(self.user)
@@ -86,15 +90,16 @@ class PasswordChangeTests(TestCase):
         self.assertTrue(self.user.check_password(OLD))
         self.assertEqual(OTPVerificationRecord.objects.count(), 0)
 
-    def test_success_consumes_code_clears_cookie_notifies_and_revokes_other_device(self):
+    def test_success_consumes_code_clears_cookie_without_email_and_revokes_other_device(self):
         refresh = CustomTokenObtainPairSerializer.get_token(self.user)
         old_access = str(refresh.access_token)
         challenge, code = self.issue()
-        with self.captureOnCommitCallbacks(execute=True):
-            response = self.confirm(challenge, code)
+        queued_before = self.publish.call_count
+        response = self.confirm(challenge, code)
+        self.assertEqual(self.publish.call_count, queued_before)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.cookies["refresh_token"]["max-age"], 0)
-        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(len(mail.outbox), 1)
         self.assertNotIn(NEW, mail.outbox[-1].body)
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password(NEW))
@@ -199,34 +204,33 @@ class PasswordChangeTests(TestCase):
         self.assertEqual(self.confirm(first,code).status_code,400)
         self.assertEqual(PasswordChangeState.objects.get(user=self.user).send_count,5)
 
-    def test_cooldown_and_delivery_failure_preserve_limits(self):
-        with patch('apps.account.services.password.send_password_change_code',side_effect=OTPDeliveryError):
+    def test_cooldown_and_publish_failure_preserve_limits(self):
+        with patch('apps.account.services.password.deliver_password_change_otp.apply_async',side_effect=OSError('Broker unavailable')):
             response=self.client.post(ROOT+'request/',self.payload,format='json')
         self.assertEqual(response.status_code,503)
         self.assertEqual(response.data['retry_after'],60)
         self.assertEqual(PasswordChangeState.objects.get(user=self.user).send_count,1)
         self.assertEqual(self.client.post(ROOT+'request/',self.payload,format='json').status_code,429)
 
-    def test_resend_delivery_failure_still_invalidates_old_code(self):
+    def test_resend_publish_failure_still_invalidates_old_code(self):
         challenge,code=self.issue()
         self.ready_to_resend()
-        with patch('apps.account.services.password.send_password_change_code',side_effect=OTPDeliveryError), patch('apps.account.services.password.secrets.randbelow',return_value=654321):
+        with patch('apps.account.services.password.deliver_password_change_otp.apply_async',side_effect=OSError('Broker unavailable')), patch('apps.account.services.password.secrets.randbelow',return_value=654321):
             response=self.client.post(ROOT+'resend/',{'challenge_id':str(challenge)},format='json')
         self.assertEqual(response.status_code,503)
         if code != '654321':
             self.assertEqual(self.confirm(challenge,code).status_code,400)
 
-    def test_notification_failure_does_not_undo_success(self):
-        challenge,code=self.issue()
-        with self.assertLogs('apps.account.services.password', level='WARNING') as logs:
-            with patch('apps.account.services.password.send_password_changed_email',side_effect=OTPDeliveryError), self.captureOnCommitCallbacks(execute=True):
-                response=self.confirm(challenge,code)
-        self.assertEqual(logs.output, [
-            'WARNING:apps.account.services.password:Password-change notification delivery failed',
-        ])
-        self.assertEqual(response.status_code,200)
-        self.user.refresh_from_db()
-        self.assertTrue(self.user.check_password(NEW))
+    def test_request_returns_after_queueing_without_sending_synchronously(self):
+        with patch('apps.account.services.password.deliver_password_change_otp.apply_async') as publish:
+            response = self.client.post(ROOT+'request/', self.payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+        publish.assert_called_once()
+        options = publish.call_args.kwargs
+        self.assertEqual(options['args'][0], self.user.pk)
+        self.assertNotIn(options['args'][2], options['argsrepr'])
+        self.assertFalse(options['retry'])
 
     def test_write_failure_rolls_back_password_version_and_challenge(self):
         challenge,code=self.issue()
@@ -276,7 +280,9 @@ class PasswordConcurrencyTests(TransactionTestCase):
         cache.clear()
         owner=user()
         payload={'current_password':OLD,'new_password':NEW}
-        issued=change_password(owner.pk,'request',payload)
+        with patch('apps.account.services.password.deliver_password_change_otp.apply_async',
+                   side_effect=lambda **options: deliver_password_change_otp.run(*options['args'])):
+            issued=change_password(owner.pk,'request',payload)
         code=mail.outbox[-1].body.split('code is: ')[1].splitlines()[0]
         def confirm():
             close_old_connections()
