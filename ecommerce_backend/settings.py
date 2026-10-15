@@ -214,6 +214,9 @@ REGISTRATION_TOKEN_EXPIRATION_SECONDS = 900  # 15 minutes
 # Rolling window for catalog popularity, measured from order creation time.
 PRODUCT_POPULARITY_DAYS = env.int("PRODUCT_POPULARITY_DAYS", default=7)
 
+# Explicit opt-in for destructive resets of disposable environments.
+ALLOW_DEV_RESET = env.bool("ALLOW_DEV_RESET", default=False)
+
 # Storage config
 USE_AZURE_STORAGE = env.bool("USE_AZURE_STORAGE", default=False)
 if USE_AZURE_STORAGE:

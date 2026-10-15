@@ -250,3 +250,7 @@ The public contact details are sample business details shown on the customer Sto
 | false      | 1     | Rhilius OfficeBox S product image 1              | _references Rhilius OfficeBox S_        |      | static/seed_images/products/image/Rhilius OfficeBox S/rhiliusofficeboxs_1.png                     |
 | false      | 2     | Rhilius OfficeBox S product image 2              | _references Rhilius OfficeBox S_        |      | static/seed_images/products/image/Rhilius OfficeBox S/rhiliusofficeboxs_2.png                     |
 | false      | 3     | Rhilius OfficeBox S product image 3              | _references Rhilius OfficeBox S_        |      | static/seed_images/products/image/Rhilius OfficeBox S/rhiliusofficeboxs_3.png                     |
+
+## Full development reset
+
+For disposable environments, see [reset_dev](reset-dev.md) to rebuild the schema and clear uploaded media before migrating, importing taxonomy and seeding.
