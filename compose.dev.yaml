@@ -3,7 +3,7 @@ name: ecommerce-backend-dev
 x-backend: &backend
   image: ecommerce-backend-dev
   env_file:
-    - .env.docker
+    - .env
   # Match PostgreSQL's interpolation, including any shell environment overrides.
   environment:
     DB_NAME: ${DB_NAME:?Set DB_NAME}

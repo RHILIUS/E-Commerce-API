@@ -47,13 +47,16 @@ Run all subsequent commands from the backend repository root. Copy the template
 without overwriting an existing configuration:
 
 ```bash
-cp -n .env.docker.example .env.docker
+cp -n .env.example .env
 ```
 
-Edit `.env.docker`: replace the Django secret and database/pgAdmin password
-placeholders. Keep `DEBUG=True`, `DB_HOST=db`, and `DB_PORT=5432` for this local
-setup. PostgreSQL initializes its database and login from `DB_NAME`, `DB_USER`,
-and `DB_PASSWORD` only when its data volume is empty. Editing those values later
+Edit `.env`: replace the Django secret and database/pgAdmin password
+placeholders. Keep `DEBUG=True` for local development. The same `.env` is used by host
+Django, Compose and VS Code. Compose overrides `DB_HOST=db` and `DB_PORT=5432`
+inside backend containers; host Django uses the `.env` host and port. The Docker
+database is not exposed to the host, so host Django needs a separately reachable
+PostgreSQL instance. PostgreSQL initializes its database and login from `DB_NAME`,
+`DB_USER`, and `DB_PASSWORD` only when its data volume is empty. Editing those values later
 does not change the existing database or login.
 
 For optional Stripe checkout, explicitly set `STRIPE_SECRET_KEY`,
@@ -63,25 +66,34 @@ not configure Stripe webhook forwarding: follow the
 [Stripe setup guide](checkout/stripe-api.md) for the CLI/webhook configuration.
 
 Keep `USE_AZURE_STORAGE=False` for persistent filesystem uploads and the console
-email backend for local email testing. The broker URL is reserved configuration;
-current Django settings do not consume it.
+email backend for local email testing. Redis remains reserved for future
+integration; current Django settings do not consume a broker URL.
 
-`.env.docker` is ignored by Git. `.dockerignore` excludes environment files from
-image builds, but the source mount still makes the host `.env` visible at runtime.
-Django reads that file without overriding existing environment variables. Values
-explicitly supplied in `.env.docker`, including empty values, take precedence;
-omitted settings can still be populated by `.env`. Explicitly configure any
-additional environment-specific setting you use.
+`.env` is ignored by Git and excluded from image builds by `.dockerignore`.
+Compose reads it automatically for interpolation and passes it into backend
+containers with `env_file`. Django reads the same file during host execution.
+Exported shell variables take precedence over Compose interpolation, so clear
+unwanted `DB_NAME`, `DB_USER` and `DB_PASSWORD` exports before starting the stack.
+The explicit backend `environment` entries keep API/migrations and PostgreSQL
+aligned even when shell overrides are used.
+
+If upgrading from the former two-file setup, keep existing `.env` credentials
+that match the initialized database, copy any missing settings such as
+`PGADMIN_DEFAULT_EMAIL` and `PGADMIN_DEFAULT_PASSWORD` from the old Docker file,
+and retire that old file. Do not reset volumes to switch configuration files.
+Changing credentials in `.env` does not update an existing PostgreSQL role.
+Recreate containers after environment changes using `up -d --force-recreate`;
+`restart` alone does not reload their environment. Named volumes are preserved.
 
 Validate without printing resolved credentials, then start:
 
 ```bash
-docker compose --env-file .env.docker -f compose.dev.yaml config --quiet
-docker compose --env-file .env.docker -f compose.dev.yaml up --build
+docker compose -f compose.dev.yaml config --quiet
+docker compose -f compose.dev.yaml up --build
 ```
 
-`--env-file` supplies Compose interpolation values; the YAML `env_file` passes
-values into backend containers. Keep both. Open <http://localhost:8000/api/docs/>.
+Compose automatically loads the backend `.env`; no environment-file flag is
+required. Open <http://localhost:8000/api/docs/>.
 Use `up -d --build` instead to run in the background. No host Python virtual
 environment activation is needed for container commands.
 
@@ -121,33 +133,33 @@ variables do not reset an account already stored in that volume.
 
 ```bash
 # Build the backend image without starting services
-docker compose --env-file .env.docker -f compose.dev.yaml build
+docker compose -f compose.dev.yaml build
 
 # Start services using existing images
-docker compose --env-file .env.docker -f compose.dev.yaml up -d
+docker compose -f compose.dev.yaml up -d
 
 # Build and start services in one command
-docker compose --env-file .env.docker -f compose.dev.yaml up -d --build
+docker compose -f compose.dev.yaml up -d --build
 
 # Service status and logs
-docker compose --env-file .env.docker -f compose.dev.yaml ps -a
-docker compose --env-file .env.docker -f compose.dev.yaml logs -f api migrate
+docker compose -f compose.dev.yaml ps -a
+docker compose -f compose.dev.yaml logs -f api migrate
 
 # Django checks and tests
-docker compose --env-file .env.docker -f compose.dev.yaml exec api python manage.py check
-docker compose --env-file .env.docker -f compose.dev.yaml exec api python manage.py test
+docker compose -f compose.dev.yaml exec api python manage.py check
+docker compose -f compose.dev.yaml exec api python manage.py test
 
 # Administrator account
-docker compose --env-file .env.docker -f compose.dev.yaml exec api python manage.py createsuperuser
+docker compose -f compose.dev.yaml exec api python manage.py createsuperuser
 
 # Apply new migrations while the API is running
-docker compose --env-file .env.docker -f compose.dev.yaml exec api python manage.py migrate
+docker compose -f compose.dev.yaml exec api python manage.py migrate
 
 # Rebuild after requirements.txt or requirements-dev.txt changes
-docker compose --env-file .env.docker -f compose.dev.yaml up -d --build
+docker compose -f compose.dev.yaml up -d --build
 
 # Stop and remove containers while retaining named volumes
-docker compose --env-file .env.docker -f compose.dev.yaml down
+docker compose -f compose.dev.yaml down
 ```
 
 ## VS Code Dev Container
@@ -158,19 +170,20 @@ dependencies, Redis, and pgAdmin. It uses the same Compose project and volumes a
 terminal startup. The frontend remains local. There is no Celery service.
 
 1. Install Microsoft's **Dev Containers** extension in your local VS Code.
-2. Configure `.env.docker` as described above.
+2. Configure `.env` as described above.
 3. Open the backend repository in VS Code (in WSL for a WSL checkout).
 4. Select **Dev Containers: Reopen in Container**. Use **Dev Containers: Rebuild
    and Reopen in Container** when replacing a previously created configuration.
 
 [The Dev Container Compose wrapper](../.devcontainer/compose.yaml) includes the
-existing development stack and explicitly supplies `.env.docker` for interpolation.
+existing development stack and explicitly supplies the same backend `.env` for
+interpolation, including when VS Code runs from another directory.
 It uses Compose's `include` support (Compose 2.20.0 or later), so no launcher,
 `COMPOSE_ENV_FILES` export, or copied credentials are needed. The included file
 retains its backend-relative build and mount paths, project name, and volumes.
-The normal terminal workflow with `--env-file .env.docker` still works. Exported
+The normal terminal workflow automatically loads `.env`. Exported
 shell variables can override file values; clear unwanted database overrides before
-opening VS Code as described below.
+opening VS Code.
 
 Python and Pylance extensions are configured for the container, with interpreter
 `/usr/local/bin/python`. Python tooling's separate `.env` loading is disabled so

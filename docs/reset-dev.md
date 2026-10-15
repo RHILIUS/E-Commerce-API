@@ -24,13 +24,13 @@ python manage.py reset_dev --directory data/taxonomy/2026-08
 ```
 
 For Docker Compose, stop the API first, then use a one-off container with the same
-configuration and media volume. Enable the setting in `.env.docker` before running:
+configuration and media volume. Enable the setting in `.env` before running:
 
 ```bash
-docker compose --env-file .env.docker -f compose.dev.yaml stop api
-docker compose --env-file .env.docker -f compose.dev.yaml run --rm --no-deps api python manage.py reset_dev
+docker compose -f compose.dev.yaml stop api
+docker compose -f compose.dev.yaml run --rm --no-deps api python manage.py reset_dev
 # Restart only after successful completion:
-docker compose --env-file .env.docker -f compose.dev.yaml start api
+docker compose -f compose.dev.yaml start api
 ```
 
 The database must already exist, PostgreSQL must be running, and the connection

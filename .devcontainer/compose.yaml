@@ -3,4 +3,4 @@ name: ecommerce-backend-dev
 # Load interpolation values explicitly when VS Code invokes Compose without --env-file.
 include:
   - path: ../compose.dev.yaml
-    env_file: ../.env.docker
+    env_file: ../.env

@@ -30,6 +30,12 @@ Do not assume the code, frontend, and documentation are synchronized. Report inc
 
 ## Backend Conventions
 
+Use one backend `.env` for host Django, Docker Compose and VS Code Dev Containers.
+Keep `.env.example` as the shared template. Compose overrides only internal
+connection addressing (`DB_HOST=db`, `DB_PORT=5432`); never introduce a second
+environment file for Docker. Existing PostgreSQL volume credentials are not
+changed by editing `.env` or recreating containers.
+
 This project uses Python, Django, Django REST Framework, PostgreSQL, SimpleJWT, and `django-environ`. Treat `requirements.txt` and the current source code as the source of truth for implementation details.
 
 - `ecommerce_backend/` contains project settings and root routing.
