@@ -1,0 +1,35 @@
+FROM python:3.12-slim-bookworm AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+RUN groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid app --no-create-home app \
+    && mkdir -p /app/media /app/staticfiles \
+    && chown app:app /app/media /app/staticfiles
+
+# Copy only runtime source; environment files and development tools stay outside.
+COPY manage.py ./
+COPY ecommerce_backend/ ./ecommerce_backend/
+COPY apps/ ./apps/
+COPY core/ ./core/
+
+USER app
+
+EXPOSE 8000
+
+# Keep the API internal behind Nginx; migrations are a separate release step.
+CMD ["gunicorn", "ecommerce_backend.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--worker-tmp-dir", "/dev/shm", "--error-logfile", "-"]
+
+# Explicit maintenance target includes offline fixture inputs, not generated media.
+FROM runtime AS maintenance
+COPY data/taxonomy/2026-08/ /app/data/taxonomy/2026-08/
+COPY static/seed_images/ /app/static/seed_images/
+
+# Keep the ordinary API build free of demo asset layers.
+FROM runtime AS production

@@ -2,7 +2,8 @@
 
 This guide covers the backend development stack defined in
 [`compose.dev.yaml`](../compose.dev.yaml) and [`Dockerfile.dev`](../Dockerfile.dev).
-The frontend runs locally. Production containerization is a separate implementation.
+The frontend runs locally. The production runtime image is documented in [docker-production.md](docker-production.md);
+production orchestration remains a separate implementation.
 Celery workers deliver registration and password-change OTP emails and, with Beat, provide scheduled Stripe payment recovery. Scheduled refund
 recovery and seven-day settlement are not implemented by this setup.
 

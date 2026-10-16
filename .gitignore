@@ -210,3 +210,7 @@ __marimo__/
 
 # Development Storage Directory
 media/
+
+# Deployment TLS material and generated Django static assets
+deploy/certs/
+staticfiles/

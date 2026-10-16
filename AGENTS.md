@@ -31,9 +31,10 @@ Do not assume the code, frontend, and documentation are synchronized. Report inc
 ## Backend Conventions
 
 Use one backend `.env` for host Django, Docker Compose and VS Code Dev Containers.
-Keep `.env.example` as the shared template. Compose overrides only internal
-connection addressing (`DB_HOST=db`, `DB_PORT=5432`); never introduce a second
-environment file for Docker. Existing PostgreSQL volume credentials are not
+Keep `.env.example` as the shared template. Compose supplies internal connection addressing (`DB_HOST=db`, `DB_PORT=5432`);
+production Compose also fixes the internal Celery broker URL and selects
+`ecommerce_backend.settings_production` for HTTPS proxy and deployment settings.
+Never introduce a second environment file for Docker. Existing PostgreSQL volume credentials are not
 changed by editing `.env` or recreating containers.
 
 This project uses Python, Django, Django REST Framework, PostgreSQL, SimpleJWT, and `django-environ`. Treat `requirements.txt` and the current source code as the source of truth for implementation details.
@@ -183,3 +184,12 @@ Each ERD Markdown document must:
 6. Include implementation references and links to related business-process documents. Add or update the diagram index entry and ensure relative links resolve.
 
 Keep the diagram, field tables, and lifecycle notes synchronized when the schema or behavior changes. Check that every diagram entity and field has an explanation. For new or changed Mermaid fences, record the Mermaid version used, validate parsing, and inspect the rendered diagram for readable labels and relationships. Check the intended Markdown host when available; report any parsing, rendering, or host-verification limitations without claiming checks that were not performed. Include documentation changes and actual validation results in the handoff.
+
+## Disposable demo maintenance
+
+`scripts/reset-demo.sh` uses production Compose and the explicit maintenance image
+for disposable portfolio resets. `--dry-run` checks prerequisites without
+stopping services or deleting data. Keep
+seed inputs in the maintenance target, not the normal API target. Never run a
+reset or clear broker tasks as part of routine verification; use mocked wrapper
+tests unless the user explicitly authorizes execution against disposable data.

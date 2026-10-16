@@ -10,7 +10,10 @@ Enable explicitly in the backend environment:
 ALLOW_DEV_RESET=True
 ```
 
-Leave this disabled in production and any environment containing valuable data.
+Leave this disabled in environments containing valuable data. A deployed
+disposable portfolio may explicitly opt in; use the
+[production demo reset wrapper](docker-production.md#one-command-disposable-demo-reset)
+so active services and old broker jobs are handled before rebuilding.
 Stop API servers and workers before running the command. Ensure the database and
 entire media container/directory are dedicated to disposable application data.
 
