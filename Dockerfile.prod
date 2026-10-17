@@ -24,7 +24,7 @@ USER app
 EXPOSE 8000
 
 # Keep the API internal behind Nginx; migrations are a separate release step.
-CMD ["gunicorn", "ecommerce_backend.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--worker-tmp-dir", "/dev/shm", "--error-logfile", "-"]
+CMD ["gunicorn", "ecommerce_backend.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "1", "--worker-tmp-dir", "/dev/shm", "--error-logfile", "-"]
 
 # Explicit maintenance target includes offline fixture inputs, not generated media.
 FROM runtime AS maintenance

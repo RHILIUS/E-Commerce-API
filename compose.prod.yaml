@@ -83,7 +83,13 @@ services:
         condition: service_healthy
     healthcheck:
       # Process readiness only; this does not prove database or worker health.
-      test: [CMD, python, -c, "import socket; socket.create_connection(('127.0.0.1', 8000), timeout=3).close()"]
+      test:
+        [
+          CMD,
+          python,
+          -c,
+          "import socket; socket.create_connection(('127.0.0.1', 8000), timeout=3).close()",
+        ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -92,7 +98,8 @@ services:
   worker:
     <<: *backend
     pull_policy: never
-    command: [celery, -A, ecommerce_backend, worker, --loglevel=info, --concurrency=2]
+    command:
+      [celery, -A, ecommerce_backend, worker, --loglevel=info, --concurrency=1]
     restart: unless-stopped
     depends_on:
       migrate:
@@ -103,7 +110,16 @@ services:
   email-worker:
     <<: *backend
     pull_policy: never
-    command: [celery, -A, ecommerce_backend, worker, --loglevel=info, --queues=registration-email, --concurrency=2]
+    command:
+      [
+        celery,
+        -A,
+        ecommerce_backend,
+        worker,
+        --loglevel=info,
+        --queues=registration-email,
+        --concurrency=1,
+      ]
     restart: unless-stopped
     depends_on:
       migrate:
@@ -114,7 +130,15 @@ services:
   beat:
     <<: *backend
     pull_policy: never
-    command: [celery, -A, ecommerce_backend, beat, --loglevel=info, --schedule=/tmp/celerybeat-schedule]
+    command:
+      [
+        celery,
+        -A,
+        ecommerce_backend,
+        beat,
+        --loglevel=info,
+        --schedule=/tmp/celerybeat-schedule,
+      ]
     restart: unless-stopped
     depends_on:
       migrate:
