@@ -1,0 +1,196 @@
+name: ecommerce-backend-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-backend: &backend
+  image: ecommerce-backend-prod:local
+  env_file: .env
+  environment:
+    DJANGO_SETTINGS_MODULE: ecommerce_backend.settings_production
+    DB_NAME: ${DB_NAME:?Set DB_NAME}
+    DB_USER: ${DB_USER:?Set DB_USER}
+    DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+    DB_HOST: db
+    DB_PORT: "5432"
+    CELERY_BROKER_URL: redis://redis:6379/0
+  init: true
+  logging: *logging
+  volumes:
+    - media_data:/app/media
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_DB: ${DB_NAME:?Set DB_NAME}
+      POSTGRES_USER: ${DB_USER:?Set DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7
+    command: [redis-server, --appendonly, "yes"]
+    restart: unless-stopped
+    logging: *logging
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *backend
+    pull_policy: never
+    restart: "no"
+    command: [python, manage.py, migrate, --noinput]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  collectstatic:
+    <<: *backend
+    pull_policy: never
+    restart: "no"
+    command: [python, manage.py, collectstatic, --noinput]
+    volumes:
+      - static_data:/app/staticfiles
+
+  api:
+    <<: *backend
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      target: production
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Process readiness only; this does not prove database or worker health.
+      test:
+        [
+          CMD,
+          python,
+          -c,
+          "import socket; socket.create_connection(('127.0.0.1', 8000), timeout=3).close()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  worker:
+    <<: *backend
+    pull_policy: never
+    command:
+      [celery, -A, ecommerce_backend, worker, --loglevel=info, --concurrency=1]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  email-worker:
+    <<: *backend
+    pull_policy: never
+    command:
+      [
+        celery,
+        -A,
+        ecommerce_backend,
+        worker,
+        --loglevel=info,
+        --queues=registration-email,
+        --concurrency=1,
+      ]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  beat:
+    <<: *backend
+    pull_policy: never
+    command:
+      [
+        celery,
+        -A,
+        ecommerce_backend,
+        beat,
+        --loglevel=info,
+        --schedule=/tmp/celerybeat-schedule,
+      ]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  maintenance:
+    <<: *backend
+    image: ecommerce-backend-maintenance:local
+    profiles: [maintenance]
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      target: maintenance
+    restart: "no"
+    # Safe default; the wrapper supplies --no-input only after target confirmation.
+    command: [python, manage.py, reset_dev, --dry-run]
+
+  nginx:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      PUBLIC_HTTPS_ORIGIN: ${PUBLIC_HTTPS_ORIGIN:-https://localhost:8443}
+      NGINX_ENVSUBST_FILTER: ^PUBLIC_HTTPS_ORIGIN
+    ports:
+      - "${PROD_BIND_ADDRESS:-127.0.0.1}:${PROD_HTTP_PORT:-8080}:80"
+      - "${PROD_BIND_ADDRESS:-127.0.0.1}:${PROD_HTTPS_PORT:-8443}:443"
+    volumes:
+      - type: bind
+        source: ./deploy/nginx.conf.template
+        target: /etc/nginx/templates/default.conf.template
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./deploy/certs
+        target: /etc/nginx/certs
+        read_only: true
+        bind:
+          create_host_path: false
+      - static_data:/srv/static:ro
+      - media_data:/srv/media:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      collectstatic:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_data:
+  media_data:
