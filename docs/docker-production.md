@@ -3,8 +3,7 @@
 ## Current scope
 
 `Dockerfile.prod` builds the backend runtime image for the proposed demo stack.
-It installs runtime dependencies including Gunicorn 26.2.0 and runs as UID/GID
-10001. It copies only Django runtime source, not environment files, development
+It installs runtime dependencies including Gunicorn 26.2.0 and runs as UID/GID 10001. It copies only Django runtime source, not environment files, development
 tools, or local media. API, workers, Beat, and migration jobs will reuse this
 image with different commands. No migrations, SMTP delivery, Stripe operations,
 or database initialization happen during the build.
@@ -25,7 +24,8 @@ docker run --rm ecommerce-backend-prod:local gunicorn --version
 docker run --rm ecommerce-backend-prod:local python -m pip check
 ```
 
-Gunicorn defaults to two synchronous workers. Tune the worker count after
+Gunicorn defaults to one synchronous worker. Both Celery workers use concurrency
+one, preserving the dedicated registration-email queue. Tune the worker count after
 measuring the complete stack's memory and load. `GUNICORN_CMD_ARGS` supports
 additional settings. Access logging is not enabled by default; avoid logging
 credentials or sensitive request data when configuring observability.
@@ -217,23 +217,6 @@ The maintenance service is excluded from ordinary `up` unless its profile is
 explicitly enabled. Its default command is a dry run. The normal API image still
 excludes the roughly 230 MB of fixture assets. See the maintained
 [reset process](../../docs/diagrams/specific-business-processes/development/reset-development.md).
-
-### Reset wrapper verification
-
-- `bash -n scripts/reset-demo.sh` passed.
-- Nine isolated mocked-Docker tests passed with
-  `PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s scripts/tests -v`.
-- Production Compose configuration passed validation using Compose v5.0.2; maintenance profile/default dry-run, image targets and shared media
-  settings were asserted without printing credentials.
-- Required taxonomy files and seed image source directory exist locally.
-- Local links and Git whitespace checks passed.
-- Real image builds, preflight containers, destructive reset, broker deletion and
-  service restarts were not run for this implementation step. The owner performs
-  the live dry run and reset.
-
-The two central reset-process swimlane fences parsed with Mermaid 12.0.0.
-Browser rendering, visual inspection and Markdown-host compatibility remain
-unverified because no browser renderer was available.
 
 ### Backend-only configuration cleanup
 
