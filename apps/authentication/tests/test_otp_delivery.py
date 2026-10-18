@@ -71,7 +71,8 @@ class OTPDeliveryTests(TestCase):
             self.send.side_effect = error
             deliver_registration_otp.push_request(retries=retries)
             try:
-                with patch.object(deliver_registration_otp, "retry") as retry:
+                with self.assertLogs("apps.authentication.tasks", level="WARNING"), \
+                        patch.object(deliver_registration_otp, "retry") as retry:
                     deliver_registration_otp.run(self.email, self.code)
                     retry.assert_not_called()
             finally:
@@ -83,7 +84,8 @@ class OTPDeliveryTests(TestCase):
         error = OTPDeliveryError("Delivery failed")
         error.__cause__ = OSError("Offline")
         self.send.side_effect = error
-        with patch.object(deliver_registration_otp, "retry") as retry:
+        with self.assertLogs("apps.authentication.tasks", level="WARNING"), \
+                patch.object(deliver_registration_otp, "retry") as retry:
             deliver_registration_otp.run(self.email, self.code)
             retry.assert_not_called()
 
