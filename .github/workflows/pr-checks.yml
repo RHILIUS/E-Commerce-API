@@ -1,0 +1,79 @@
+name: Backend PR checks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  backend-checks:
+    name: Backend checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: ecommerce_ci
+          POSTGRES_USER: ecommerce_ci
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ecommerce_ci -d ecommerce_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DJANGO_SETTINGS_MODULE: ecommerce_backend.settings
+      SECRET_KEY: ci-only-not-a-production-secret-key
+      DEBUG: "False"
+      ALLOWED_HOSTS: localhost,127.0.0.1,testserver
+      DB_NAME: ecommerce_ci
+      DB_USER: ecommerce_ci
+      DB_PASSWORD: ci-only-password
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      CELERY_BROKER_URL: redis://127.0.0.1:6379/0
+      EMAIL_BACKEND: django.core.mail.backends.locmem.EmailBackend
+      USE_AZURE_STORAGE: "False"
+      STRIPE_SECRET_KEY: ""
+      STRIPE_WEBHOOK_SECRET: ""
+      ALLOW_DEV_RESET: "False"
+    steps:
+      - name: Check out PR merge commit
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Check Django configuration
+        run: python manage.py check
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
+      - name: Run Django tests
+        run: python manage.py test --noinput
+      - name: Run script tests
+        run: python -m unittest discover -s scripts/tests -v
