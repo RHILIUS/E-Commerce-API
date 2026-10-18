@@ -55,11 +55,14 @@ fully automatic deployment, or enable them if manual approval is desired.
 
 Add these environment variables:
 
-| Variable          | Value                            |
-| ----------------- | -------------------------------- |
-| `EC2_HOST`        | YOUR EC2 HOST                    |
-| `EC2_USER`        | `ubuntu`                         |
-| `EC2_DEPLOY_PATH` | `/home/ubuntu/ecommerce/backend` |
+| Variable                | Value                                                           |
+| ----------------------- | --------------------------------------------------------------- |
+| `EC2_HOST`              | YOUR EC2 HOST                                                   |
+| `EC2_USER`              | `ubuntu`                                                        |
+| `EC2_DEPLOY_PATH`       | `/home/ubuntu/ecommerce/backend`                                |
+| `AWS_REGION`            | YOUR_AWS_REGION (eg. `ap-southeast-1`)                          |
+| `AWS_ROLE_ARN`          | ARN of `github-ecommerce-production-deploy` in your AWS account |
+| `EC2_SECURITY_GROUP_ID` | The instance security group ID (`sg-...`, not a rule ID)        |
 
 `~/ecommerce/backend` resolves to that path for `ubuntu`. The workflow requires an
 absolute path without spaces. SSH uses port 22. Hostnames and IPv4 addresses are
@@ -102,6 +105,73 @@ The server host key is different from the deployment user's public key. Do not
 blindly trust a fresh `ssh-keyscan` result. Actions enforces host-key checking and
 never discovers/trusts a new host key during deployment.
 
+## AWS OIDC and temporary SSH access
+
+In IAM, create an OpenID Connect provider for
+`https://token.actions.githubusercontent.com` with audience `sts.amazonaws.com`.
+Create role `github-ecommerce-production-deploy` with this trust policy, replacing
+`ACCOUNT_ID` with your AWS account ID:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+          "token.actions.githubusercontent.com:sub": "repo:OWNER/REPOSITORY:environment:production"
+        }
+      }
+    }
+  ]
+}
+```
+
+Attach an inline permissions policy scoped to the instance's security group.
+Replace `ACCOUNT_ID` and `SECURITY_GROUP_ID` before saving:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupIngress"
+      ],
+      "Resource": "arn:aws:ec2:ap-southeast-1:ACCOUNT_ID:security-group/SECURITY_GROUP_ID"
+    }
+  ]
+}
+```
+
+Set the three AWS environment variables above. No AWS access-key secrets are
+needed. The job uses `id-token: write` to assume the role with temporary credentials.
+The role permits ingress changes on the specified group; this IAM policy does not
+restrict those changes to port 22. The workflow itself requests TCP/22 only.
+
+Before SSH, the workflow obtains its public IPv4 address from AWS Check IP,
+validates it, creates a single `/32` rule described with the GitHub run ID/attempt,
+and records AWS's returned `sgr-...` ID in the runner temporary directory. A short
+propagation delay precedes SSH. An `always()` cleanup step revokes only that ID,
+including when the release fails. Failed creation (including an existing duplicate)
+blocks deployment and never authorizes deletion of an existing rule.
+
+Cleanup failure fails the workflow and prints the rule ID for manual removal.
+Rules have no automatic expiry. Forced runner termination, job timeout or a lost
+AWS create response can leave a rule without successful cleanup. Inspect inbound
+rules with description `GitHub-Actions-RUN_ID-ATTEMPT` after those cases and remove
+the leftover temporary rule. A failed SSH attempt may still require cleanup even
+though the remote release never started. This changes security-group rules only;
+it does not provision IAM, restart the instance or change its other rules.
+
 ## EC2 prerequisites
 
 - The existing stack must already run from `/home/ubuntu/ecommerce/backend` using
@@ -115,12 +185,11 @@ never discovers/trusts a new host key during deployment.
   deploy key stored on EC2 (or an existing approved credential helper). This is
   separate from the Actions-to-EC2 key. Verify GitHub's SSH host identity when
   configuring EC2-to-GitHub access.
-- The EC2 security group/firewall must allow port 22 from the chosen Actions
-  runner. Your current workstation SSH access does not establish runner access.
-  Standard GitHub-hosted runner addresses vary; use an approved network route,
-  maintained runner-source rules, or a runner with stable egress. Do not widen SSH
-  to all addresses merely to make the workflow work. The workflow does not change
-  security groups or AWS configuration.
+- The instance must be reachable publicly on port 22 once its security group
+  permits the runner. Network ACLs, routing and host firewall must also permit SSH.
+  Keep the existing workstation `/32` rule for personal access. The workflow adds
+  a separate temporary runner `/32` rule and removes only the returned rule ID;
+  it never opens SSH to all addresses or removes the personal rule.
 
 Test the existing account's prerequisites on EC2 without displaying `.env`:
 
@@ -139,7 +208,7 @@ instead of relying on a plain `git pull`.
 
 ## Enable and verify
 
-1. Configure EC2 access, runner networking and the production environment first.
+1. Configure EC2 access, the AWS OIDC role and all production environment variables/secrets first.
 2. Merge the workflow and script into `main`; this push starts the first release.
 3. Watch **Actions → EC2 Auto Deploy on origin main changes**. The job reports the
    deployed SHA and the failing stage if a command fails.
