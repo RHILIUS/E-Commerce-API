@@ -24,7 +24,7 @@ command -v flock >/dev/null
 # This lock covers preflight, shutdown and restart for this checkout, not just SQL.
 lock_key=$(printf '%s' "$repository" | sha256sum | cut -d ' ' -f 1)
 exec 9>"${TMPDIR:-/tmp}/ecommerce-reset-${UID}-${lock_key}.lock"
-flock -n 9 || { echo "Another demo reset is running for this checkout." >&2; exit 1; }
+flock -n 9 || { echo "Another deployment or demo reset is running for this checkout." >&2; exit 1; }
 
 compose=(docker compose --project-name ecommerce-backend-prod -f compose.prod.yaml)
 compose+=(--profile maintenance)
