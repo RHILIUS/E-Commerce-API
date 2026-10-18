@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: backend-production
@@ -20,6 +21,9 @@ jobs:
     environment: production
     timeout-minutes: 30
     env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      EC2_SECURITY_GROUP_ID: ${{ vars.EC2_SECURITY_GROUP_ID }}
+      AWS_PAGER: ""
       EC2_HOST: ${{ vars.EC2_HOST }}
       EC2_USER: ${{ vars.EC2_USER }}
       EC2_DEPLOY_PATH: ${{ vars.EC2_DEPLOY_PATH }}
@@ -44,6 +48,35 @@ jobs:
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           ssh-keygen -y -P '' -f "$HOME/.ssh/ec2-deploy" > /dev/null
           ssh-keygen -F "$EC2_HOST" -f "$HOME/.ssh/known_hosts" > /dev/null
+      - name: Validate AWS configuration
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          [[ "$AWS_REGION" =~ ^[a-z]{2}-[a-z]+-[0-9]+$ ]] || { echo 'Set AWS_REGION.' >&2; exit 1; }
+          [[ "$AWS_ROLE_ARN" =~ ^arn:aws:iam::[0-9]{12}:role/.+$ ]] || { echo 'Set AWS_ROLE_ARN.' >&2; exit 1; }
+          [[ "$EC2_SECURITY_GROUP_ID" =~ ^sg-[0-9a-f]+$ ]] || { echo 'Set EC2_SECURITY_GROUP_ID.' >&2; exit 1; }
+      - name: Authenticate to AWS using OIDC
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: ecommerce-deploy-${{ github.run_id }}
+      - name: Allow temporary SSH access
+        run: |
+          set -euo pipefail
+          runner_ip=$(curl -4 --fail --silent --show-error --retry 3 --connect-timeout 10 --max-time 30 https://checkip.amazonaws.com)
+          runner_cidr=$(python3 -c 'import ipaddress, sys; print(str(ipaddress.IPv4Address(sys.argv[1])) + "/32")' "$runner_ip")
+          aws ec2 authorize-security-group-ingress \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$runner_cidr,Description=GitHub-Actions-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}}]" \
+            --query 'SecurityGroupRules[0].SecurityGroupRuleId' --output text \
+            > "$RUNNER_TEMP/ec2-ssh-rule-id"
+          rule_id=$(cat "$RUNNER_TEMP/ec2-ssh-rule-id")
+          [[ "$rule_id" =~ ^sgr-[0-9a-f]+$ ]] || { echo 'AWS did not return a valid rule ID; inspect the security group.' >&2; exit 1; }
+          echo "Created temporary SSH rule $rule_id for $runner_cidr."
+          # Allow a short propagation window before connecting; never retry the release itself.
+          sleep 10
       - name: Deploy exact main commit
         env:
           DEPLOY_SHA: ${{ github.sha }}
@@ -56,6 +89,20 @@ jobs:
             "$EC2_USER@$EC2_HOST" \
             "timeout --signal=TERM --kill-after=30s 25m bash -s -- '$DEPLOY_SHA' '$EC2_DEPLOY_PATH'" \
             < scripts/deploy-production.sh
+      - name: Remove temporary SSH access
+        if: always()
+        run: |
+          set -euo pipefail
+          rule_file="$RUNNER_TEMP/ec2-ssh-rule-id"
+          [[ -s "$rule_file" ]] || exit 0
+          rule_id=$(cat "$rule_file")
+          [[ "$rule_id" =~ ^sgr-[0-9a-f]+$ ]] || { echo 'Invalid recorded rule ID; inspect the security group manually.' >&2; exit 1; }
+          if ! aws ec2 revoke-security-group-ingress \
+            --group-id "$EC2_SECURITY_GROUP_ID" --security-group-rule-ids "$rule_id"; then
+            echo "Cleanup failed: remove temporary rule $rule_id from $EC2_SECURITY_GROUP_ID manually." >&2
+            exit 1
+          fi
+          rm -f "$rule_file"
       - name: Remove deployment key
         if: always()
         run: rm -f "$HOME/.ssh/ec2-deploy"
