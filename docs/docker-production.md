@@ -207,7 +207,8 @@ steps are not. Never use this on valuable customer data.
 
 The host `flock` lock prevents concurrent wrapper runs from the same checkout;
 the management command also prevents concurrent resets of the same database.
-Neither prevents a separate deployment/operator from starting services mid-reset.
+The auto-deployment script shares this lock. Manual Docker commands and other
+operators can still start services mid-reset.
 Coordinate deployments and use one operational checkout. Redis is dedicated to
 this Compose project; do not repoint it at a shared broker. External Stripe
 sessions, sent email and browser state are not reset. Static assets are unchanged,
@@ -226,3 +227,10 @@ are managed separately. This cleanup does not stop/recreate running containers,
 change `.env`, remove certificate files, or modify database/media volumes. To
 apply it to an existing stack, explicitly recreate Nginx using only
 `compose.prod.yaml`; existing containers retain old mounts until recreated.
+
+## Automated EC2 releases
+
+See [EC2 Auto Deploy on origin main changes](github-actions-deployment.md) for the
+GitHub Actions workflow, dedicated SSH identity, server prerequisites and recovery.
+It builds before downtime, stops application traffic for migrations/static collection,
+and recreates application services while preserving PostgreSQL and Redis containers.

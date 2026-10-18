@@ -1,0 +1,61 @@
+name: EC2 Auto Deploy on origin main changes
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy backend to EC2
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 30
+    env:
+      EC2_HOST: ${{ vars.EC2_HOST }}
+      EC2_USER: ${{ vars.EC2_USER }}
+      EC2_DEPLOY_PATH: ${{ vars.EC2_DEPLOY_PATH }}
+    steps:
+      - name: Check out deployment script
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EC2_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ "$EC2_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || { echo 'Set EC2_HOST to an IPv4 address or hostname.' >&2; exit 1; }
+          [[ "$EC2_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo 'Set EC2_USER to the SSH login user.' >&2; exit 1; }
+          [[ "$EC2_DEPLOY_PATH" =~ ^/[a-zA-Z0-9_./-]+$ ]] || { echo 'Set EC2_DEPLOY_PATH to an absolute path without spaces.' >&2; exit 1; }
+          [[ -n "$SSH_PRIVATE_KEY" && -n "$SSH_KNOWN_HOSTS" ]] || { echo 'Configure both EC2 SSH secrets.' >&2; exit 1; }
+          install -d -m 700 "$HOME/.ssh"
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/ec2-deploy"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -P '' -f "$HOME/.ssh/ec2-deploy" > /dev/null
+          ssh-keygen -F "$EC2_HOST" -f "$HOME/.ssh/known_hosts" > /dev/null
+      - name: Deploy exact main commit
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+          ssh -T -i "$HOME/.ssh/ec2-deploy" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+            "$EC2_USER@$EC2_HOST" \
+            "timeout --signal=TERM --kill-after=30s 25m bash -s -- '$DEPLOY_SHA' '$EC2_DEPLOY_PATH'" \
+            < scripts/deploy-production.sh
+      - name: Remove deployment key
+        if: always()
+        run: rm -f "$HOME/.ssh/ec2-deploy"
