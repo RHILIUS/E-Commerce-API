@@ -214,3 +214,8 @@ media/
 # Deployment TLS material and generated Django static assets
 deploy/certs/
 staticfiles/
+
+# Workstation deployment settings and generated bootstrap state
+.env.deploy
+.bootstrap-state/
+deploy/acme/

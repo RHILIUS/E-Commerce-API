@@ -23,7 +23,9 @@ if [[ -n $(git status --porcelain --untracked-files=normal) ]]; then
     exit 1
 fi
 export GIT_TERMINAL_PROMPT=0
-export GIT_SSH_COMMAND='ssh -o BatchMode=yes'
+# Retain the bootstrap checkout's dedicated identity and verified GitHub host keys.
+git_ssh_command=$(git config --get core.sshCommand || printf '%s' ssh)
+export GIT_SSH_COMMAND="$git_ssh_command -o BatchMode=yes"
 git fetch origin +refs/heads/main:refs/remotes/origin/main
 latest=$(git rev-parse refs/remotes/origin/main)
 if [[ "$revision" != "$latest" ]]; then

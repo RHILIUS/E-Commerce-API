@@ -34,7 +34,9 @@ Use one backend `.env` for host Django, Docker Compose and VS Code Dev Container
 Keep `.env.example` as the shared template. Compose supplies internal connection addressing (`DB_HOST=db`, `DB_PORT=5432`);
 production Compose also fixes the internal Celery broker URL and selects
 `ecommerce_backend.settings_production` for HTTPS proxy and deployment settings.
-Never introduce a second environment file for Docker. Existing PostgreSQL volume credentials are not
+Never introduce a second environment file for Docker. `.env.deploy` is workstation-only
+SSH/provisioning configuration for `scripts/deploy.sh`, not a Docker environment file;
+the server still uses only the backend `.env`. Existing PostgreSQL volume credentials are not
 changed by editing `.env` or recreating containers.
 
 This project uses Python, Django, Django REST Framework, PostgreSQL, SimpleJWT, and `django-environ`. Treat `requirements.txt` and the current source code as the source of truth for implementation details.

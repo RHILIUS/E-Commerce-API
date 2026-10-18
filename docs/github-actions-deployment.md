@@ -7,8 +7,10 @@ pushes to `main`, including merged PRs, to the existing production Compose stack
 It can also be run manually from Actions with **main** selected. Other branches
 cannot run the deployment job.
 
-This is a single-server release with a planned outage. Initial EC2 provisioning,
-TLS certificate setup/renewal, backups and infrastructure upgrades remain manual.
+This is a single-server release with a planned outage. For initial server setup
+and TLS certificate setup/renewal, follow the
+[backend deployment guide](deployment-guide.md). Those steps remain outside this
+Actions workflow; backup setup and infrastructure upgrades require separate work.
 The frontend is deployed separately. The workflow does not reset demo data, flush
 Redis, remove volumes, copy `.env`, or run tests against production.
 
@@ -98,11 +100,12 @@ cat /etc/ssh/ssh_host_ed25519_key.pub
 Build the known-hosts secret as one line using the same host as `EC2_HOST`:
 
 ```text
-[YOUR_EC2_HOST] ssh-ed25519 <actual-server-public-host-key>
+YOUR_EC2_HOST ssh-ed25519 <actual-server-public-host-key>
 ```
 
-The server host key is different from the deployment user's public key. Do not
-blindly trust a fresh `ssh-keyscan` result. Actions enforces host-key checking and
+For the workflow's port 22 connection, use the plain hostname/address without
+literal square brackets. The server host key is different from the deployment
+user's public key. Do not blindly trust a fresh `ssh-keyscan` result. Actions enforces host-key checking and
 never discovers/trusts a new host key during deployment.
 
 ## AWS OIDC and temporary SSH access
@@ -181,8 +184,9 @@ it does not provision IAM, restart the instance or change its other rules.
   `sudo` prompt. Git, Bash, `flock`, GNU `timeout`, and a Compose version supporting
   `--wait`, `--wait-timeout` and `--interactive=false` must be installed.
 - `origin` must refer to the backend GitHub repository and authenticate
-  noninteractively. For a private repository, use a separate read-only repository
-  deploy key stored on EC2 (or an existing approved credential helper). This is
+  noninteractively. Releases retain checkout-local `core.sshCommand` and enforce
+  SSH batch mode, preserving bootstrap credentials. For a private repository, use
+  a separate read-only repository deploy key stored on EC2 (or an existing approved credential helper). This is
   separate from the Actions-to-EC2 key. Verify GitHub's SSH host identity when
   configuring EC2-to-GitHub access.
 - The instance must be reachable publicly on port 22 once its security group
@@ -196,7 +200,7 @@ Test the existing account's prerequisites on EC2 without displaying `.env`:
 ```bash
 cd /home/ubuntu/ecommerce/backend
 git status --short
-GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes' git ls-remote origin refs/heads/main
+GIT_TERMINAL_PROMPT=0 git ls-remote origin refs/heads/main
 docker compose version
 docker compose -f compose.prod.yaml config --quiet
 docker compose -f compose.prod.yaml ps
@@ -266,7 +270,7 @@ release-specific migration review remain necessary.
 
 ## References
 
-- [Production Compose guide](docker-production.md)
+- [Production Docker reference](deployment-guide.md#technical-appendix-production-docker-reference)
 - [PR checks](pull-request-checks.md)
 - [GitHub deployment controls](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)
 - [Docker Compose production releases](https://docs.docker.com/compose/how-tos/production/)
