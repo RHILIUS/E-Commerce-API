@@ -181,6 +181,7 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - ./deploy/acme:/var/www/acme:ro
       - static_data:/srv/static:ro
       - media_data:/srv/media:ro
     depends_on:

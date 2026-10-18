@@ -2,7 +2,13 @@
 server {
     listen 80;
     server_name _;
-    return 308 ${PUBLIC_HTTPS_ORIGIN}$request_uri;
+    location /.well-known/acme-challenge/ {
+        root /var/www/acme;
+    }
+
+    location / {
+        return 308 ${PUBLIC_HTTPS_ORIGIN}$request_uri;
+    }
 }
 
 server {

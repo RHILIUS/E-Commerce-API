@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -90,6 +91,21 @@ elif 'ps' in args:
         self.assertFalse(any("down" in call or "FLUSHDB" in call for call in calls))
         self.assertEqual((self.repository / ".env").read_text(), "KEEP=this-file\n")
         self.assertEqual(self.git("rev-parse", "HEAD").strip(), self.revision)
+
+    def test_release_retains_checkout_repository_ssh_identity(self):
+        command = "ssh -i /dedicated/repository-key -o StrictHostKeyChecking=yes"
+        self.git("config", "core.sshCommand", command)
+        marker = self.root / "git-ssh-command"
+        real_git = shutil.which("git")
+        spy = self.root / "bin/git"
+        spy.write_text("#!/usr/bin/env python3\nimport os, pathlib, sys\n"
+                       "if sys.argv[1] == 'fetch':\n"
+                       f"    pathlib.Path({str(marker)!r}).write_text(os.environ['GIT_SSH_COMMAND'])\n"
+                       f"os.execv({real_git!r}, [{real_git!r}, *sys.argv[1:]])\n")
+        spy.chmod(0o755)
+        result, calls = self.deploy()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(marker.read_text(), command + " -o BatchMode=yes")
 
     def test_superseded_commit_does_not_touch_services(self):
         (self.repository / "new-file").write_text("New release\n")
