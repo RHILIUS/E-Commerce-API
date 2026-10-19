@@ -4,11 +4,11 @@
 
 This backend is part of the E-Commerce project. Three separate Git repositories share a parent directory:
 
-| Repository                                                          | Checkout        | Responsibility                                             |
-| ------------------------------------------------------------------- | --------------- | ---------------------------------------------------------- |
-| [Backend](https://github.com/RHILIUS/E-Commerce-API)                | This repository | API, business rules, persistence, and background jobs      |
-| [Frontend](https://github.com/RHILIUS/E-Commerce-API-Frontend)      | `../frontend`   | Customer website and API consumers                         |
-| [Project documentation](https://github.com/RHILIUS/E-Commerce-Docs) | `../docs`       | Shared architecture, data diagrams, and business processes |
+| Repository                                                          | Checkout        | Responsibility                                        |
+| ------------------------------------------------------------------- | --------------- | ----------------------------------------------------- |
+| [Backend](https://github.com/RHILIUS/E-Commerce-API)                | This repository | API, business rules, persistence, and background jobs |
+| [Frontend](https://github.com/RHILIUS/E-Commerce-API-Frontend)      | `../frontend`   | Customer website and API consumers                    |
+| [Project documentation](https://github.com/RHILIUS/E-Commerce-Docs) | `../docs`       | Shared architecture and business processes            |
 
 The local `docs/` folder describes the backend; the sibling `../docs/` repository describes the complete project. Before changes to database design, API contracts, authentication, architecture, or cross-application workflows, review relevant local/shared documentation and frontend usage. Verify behavior against code and consumers; report inconsistencies before changing an established contract.
 
@@ -16,15 +16,17 @@ The local `docs/` folder describes the backend; the sibling `../docs/` repositor
 
 Read and apply the linked skills when their conditions match. Combine them when a task spans responsibilities; they provide procedures, not permission to expand the task.
 
-| Task                                                                                     | Required skill                                                         |
-| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Implement/change endpoints, serializers, permissions, or API/authentication contracts    | [backend-api](.agents/skills/backend-api/SKILL.md)                     |
-| Change models, migrations, admin impact, stored-file lifecycle, or a shared Markdown ERD | [database-changes](.agents/skills/database-changes/SKILL.md)           |
-| Maintain environment, container, deployment, or disposable-demo tooling                  | [backend-operations](.agents/skills/backend-operations/SKILL.md)       |
-| Write/revise maintained documentation, including alongside implementation                | [documentation-writing](.agents/skills/documentation-writing/SKILL.md) |
-| Write a backend PR comment or description                                                | [pull-request-writing](.agents/skills/pull-request-writing/SKILL.md)   |
+| Task                                                                                  | Required skill                                                                             |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Implement/change endpoints, serializers, permissions, or API/authentication contracts | [backend-api](.agents/skills/backend-api/SKILL.md)                                         |
+| Change models, migrations, admin impact, or stored-file lifecycle                     | [database-changes](.agents/skills/database-changes/SKILL.md)                               |
+| Create/update per-app ERD guides or document changed data models                      | [erd-documentation](.agents/skills/erd-documentation/SKILL.md); also documentation-writing |
+| Create/update editable Draw.io ERD illustrations                                      | [drawio-erd](.agents/skills/drawio-erd/SKILL.md)                                           |
+| Maintain environment, container, deployment, or disposable-demo tooling               | [backend-operations](.agents/skills/backend-operations/SKILL.md)                           |
+| Write/revise maintained documentation, including alongside implementation             | [documentation-writing](.agents/skills/documentation-writing/SKILL.md)                     |
+| Write a backend PR comment or description                                             | [pull-request-writing](.agents/skills/pull-request-writing/SKILL.md)                       |
 
-Model changes still require reviewed migrations and relevant admin/lifecycle review. API contract changes still require matching OpenAPI annotations and maintained documentation. Shared Markdown ERDs require the entity, field, lifecycle, and validation details in the database skill's reference; they belong in the central repository. Load that reference when creating/updating an ERD, not for every database task.
+Model changes still require reviewed migrations and relevant admin/lifecycle review. API contract changes still require matching OpenAPI annotations and maintained documentation. ERD guides and editable Draw.io SVGs belong in `docs/erd/guides/` and `docs/erd/diagrams/`, following erd-documentation and drawio-erd. Do not create or maintain Mermaid ERDs. Shared business-process diagrams remain in the sibling documentation repository.
 
 ## Backend conventions
 

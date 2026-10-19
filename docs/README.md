@@ -9,11 +9,13 @@ run it. No earlier knowledge of the project is assumed. The
 | Folder                        | Question it answers                                            |
 | ----------------------------- | -------------------------------------------------------------- |
 | [Architecture](architecture/) | How does the backend work, and how is its data organized?      |
+| [Data models](erd/README.md)  | What tables, fields, and relationships does each app own?      |
 | [API](api/README.md)          | How do I use an endpoint, and what rules does it enforce?      |
 | [Development](development/)   | How do I run, populate, and contribute to the backend locally? |
 | [Operations](operations/)     | How do I deploy, maintain, or recover an environment?          |
 
 API guides retain the feature explanations alongside their exact contracts.
+Per-app ERD guides and editable diagrams live under Data models.
 Architecture covers internal services such as the wallet ledger even when they
 have no customer API. Environment reset instructions live under Operations because
 they cover both local development and the deployed disposable demo.

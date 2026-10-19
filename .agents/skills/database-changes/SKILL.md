@@ -1,11 +1,11 @@
 ---
 name: database-changes
-description: Change backend models, migrations, admin behavior, and stored-file lifecycles, or maintain shared Markdown ERD documentation.
+description: Change backend models, migrations, admin behavior, and stored-file lifecycles, or maintain backend ERD documentation.
 ---
 
 # Database changes
 
-Apply this workflow when changing persisted models, their relationships or lifecycle, or creating/updating shared Markdown ERDs. Repository paths in backticks are relative to the backend root. This workflow does not authorize running migrations or deleting data against an unrelated environment.
+Apply this workflow when changing persisted models, their relationships or lifecycle, or creating/updating backend ERDs. Repository paths in backticks are relative to the backend root. This workflow does not authorize running migrations or deleting data against an unrelated environment.
 
 ## Models, migrations, admin, and files
 
@@ -34,4 +34,4 @@ Review the generated migration and migration plan; neither demonstrates that a m
 
 ## ERD documentation
 
-When creating or updating a shared Markdown ERD, read [entity-relationship requirements](references/entity-relationships.md). They route to the shared ERD documentation and Draw.io illustration skills, which own model/field explanations, lifecycle notes, central index maintenance, and editable SVG validation. Do not create or maintain Mermaid ERDs. Do not load that reference for an unrelated database task; its trigger is creating or updating an ERD document.
+When creating or updating an ERD, apply [erd-documentation](../erd-documentation/SKILL.md) for the backend-owned guides and [drawio-erd](../drawio-erd/SKILL.md) when its editable illustration changes. These skills own model/field explanations, lifecycle notes, index maintenance, and SVG validation. Do not create or maintain Mermaid ERDs. Load them for ERD work rather than every database task.
