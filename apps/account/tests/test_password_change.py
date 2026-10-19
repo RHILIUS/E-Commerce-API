@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.cache import cache
 from django.db import close_old_connections, IntegrityError
-from django.test import TransactionTestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -28,21 +28,21 @@ def user(name="buyer"):
         phone_number=f"+63917123456{1 if name == 'buyer' else 2}")
 
 
-@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
-class PasswordChangeTests(TransactionTestCase):
+class PasswordChangeFixtures:
+    """Share the API setup while leaving commit behavior to each test class."""
+
     def setUp(self):
         cache.clear()
         publisher = patch('apps.account.services.password.deliver_password_change_otp.apply_async',
                           side_effect=lambda **options: deliver_password_change_otp.run(*options['args']))
         self.publish = publisher.start()
         self.addCleanup(publisher.stop)
-        self.user = user()
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         self.payload = {"current_password": OLD, "new_password": NEW}
 
     def issue(self):
-        response = self.client.post(ROOT+"request/", self.payload, format="json")
+        response = self.post(ROOT+"request/", self.payload, format="json")
         self.assertEqual(response.status_code, 200, response.data)
         code = mail.outbox[-1].body.split("code is: ")[1].splitlines()[0]
         return response.data["challenge_id"], code
@@ -51,13 +51,29 @@ class PasswordChangeTests(TransactionTestCase):
         PasswordChangeState.objects.filter(user=self.user).update(last_sent_at=timezone.now()-timedelta(seconds=61))
 
     def confirm(self, challenge, code, **overrides):
-        return self.client.post(ROOT+"confirm/", {**self.payload, "challenge_id":str(challenge), "otp":code, **overrides}, format="json")
+        return self.post(ROOT+"confirm/", {**self.payload, "challenge_id":str(challenge), "otp":code, **overrides}, format="json")
+
+    def post(self, path, data, **kwargs):
+        """Submit an operation with the real API client and commit behavior."""
+        return self.client.post(path, data, **kwargs)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class PasswordChangeTests(PasswordChangeFixtures, TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = user()
+
+    def post(self, path, data, **kwargs):
+        """Execute queued delivery callbacks for functional assertions without a real commit."""
+        with self.captureOnCommitCallbacks(execute=True):
+            return super().post(path, data, **kwargs)
 
     def test_ip_throttle_cannot_be_bypassed_with_forwarded_headers(self):
         for index in range(20):
-            response = self.client.post(ROOT+'request/', {}, format='json', HTTP_X_FORWARDED_FOR=f'198.51.100.{index}')
+            response = self.post(ROOT+'request/', {}, format='json', HTTP_X_FORWARDED_FOR=f'198.51.100.{index}')
             self.assertEqual(response.status_code, 400)
-        response = self.client.post(ROOT+'request/', {}, format='json', HTTP_X_FORWARDED_FOR='203.0.113.1')
+        response = self.post(ROOT+'request/', {}, format='json', HTTP_X_FORWARDED_FOR='203.0.113.1')
         self.assertEqual(response.status_code, 429)
         self.assertEqual(response.data['code'], 'rate_limited')
         self.assertIsInstance(response.data['retry_after'], int)
@@ -77,7 +93,7 @@ class PasswordChangeTests(TransactionTestCase):
     def test_all_endpoints_require_authentication(self):
         self.client.force_authenticate(None)
         for suffix in ("request/", "resend/", "confirm/"):
-            self.assertEqual(self.client.post(ROOT+suffix, {}, format="json").status_code, 401)
+            self.assertEqual(self.post(ROOT+suffix, {}, format="json").status_code, 401)
 
     def test_issue_hashes_code_without_password_change_or_registration_record(self):
         challenge, code = self.issue()
@@ -126,7 +142,7 @@ class PasswordChangeTests(TransactionTestCase):
         for payload, field in (({**self.payload,'current_password':'wrong'},'current_password'),
                                ({**self.payload,'new_password':OLD},'new_password'),
                                ({**self.payload,'new_password':'weakpassword'},'new_password')):
-            response = self.client.post(ROOT+'request/',payload,format='json')
+            response = self.post(ROOT+'request/',payload,format='json')
             self.assertEqual(response.status_code,400)
             self.assertIn(field,response.data)
         self.assertEqual(len(mail.outbox),0)
@@ -148,7 +164,7 @@ class PasswordChangeTests(TransactionTestCase):
         self.assertEqual(self.confirm(challenge,wrong).status_code,400)
         self.ready_to_resend()
         with patch('apps.account.services.password.secrets.randbelow',return_value=123456):
-            response = self.client.post(ROOT+'resend/',{'challenge_id':str(challenge)},format='json')
+            response = self.post(ROOT+'resend/',{'challenge_id':str(challenge)},format='json')
         self.assertEqual(response.status_code,200)
         self.assertEqual(PasswordChangeState.objects.get(user=self.user).failed_attempts,1)
         if code != '123456':
@@ -166,7 +182,7 @@ class PasswordChangeTests(TransactionTestCase):
         self.assertEqual(state.failed_attempts,5)
         self.assertTrue(state.consumed)
         self.ready_to_resend()
-        self.assertEqual(self.client.post(ROOT+'resend/',{'challenge_id':str(challenge)},format='json').status_code,400)
+        self.assertEqual(self.post(ROOT+'resend/',{'challenge_id':str(challenge)},format='json').status_code,400)
         self.assertEqual(self.confirm(challenge,code).status_code,400)
 
     def test_expired_code_can_be_resend_but_not_confirmed(self):
@@ -175,7 +191,7 @@ class PasswordChangeTests(TransactionTestCase):
         response = self.confirm(challenge,code)
         self.assertEqual(response.data['code'],'code_expired')
         self.ready_to_resend()
-        self.assertEqual(self.client.post(ROOT+'resend/',{'challenge_id':str(challenge)},format='json').status_code,200)
+        self.assertEqual(self.post(ROOT+'resend/',{'challenge_id':str(challenge)},format='json').status_code,200)
 
     def test_account_change_invalidates_challenge(self):
         challenge, code = self.issue()
@@ -198,39 +214,11 @@ class PasswordChangeTests(TransactionTestCase):
             self.ready_to_resend()
             self.issue()
         self.ready_to_resend()
-        response=self.client.post(ROOT+'request/',self.payload,format='json')
+        response=self.post(ROOT+'request/',self.payload,format='json')
         self.assertEqual(response.status_code,429)
         self.assertIsInstance(response.data['retry_after'],int)
         self.assertEqual(self.confirm(first,code).status_code,400)
         self.assertEqual(PasswordChangeState.objects.get(user=self.user).send_count,5)
-
-    def test_cooldown_and_publish_failure_preserve_limits(self):
-        with patch('apps.account.services.password.deliver_password_change_otp.apply_async',side_effect=OSError('Broker unavailable')):
-            response=self.client.post(ROOT+'request/',self.payload,format='json')
-        self.assertEqual(response.status_code,503)
-        self.assertEqual(response.data['retry_after'],60)
-        self.assertEqual(PasswordChangeState.objects.get(user=self.user).send_count,1)
-        self.assertEqual(self.client.post(ROOT+'request/',self.payload,format='json').status_code,429)
-
-    def test_resend_publish_failure_still_invalidates_old_code(self):
-        challenge,code=self.issue()
-        self.ready_to_resend()
-        with patch('apps.account.services.password.deliver_password_change_otp.apply_async',side_effect=OSError('Broker unavailable')), patch('apps.account.services.password.secrets.randbelow',return_value=654321):
-            response=self.client.post(ROOT+'resend/',{'challenge_id':str(challenge)},format='json')
-        self.assertEqual(response.status_code,503)
-        if code != '654321':
-            self.assertEqual(self.confirm(challenge,code).status_code,400)
-
-    def test_request_returns_after_queueing_without_sending_synchronously(self):
-        with patch('apps.account.services.password.deliver_password_change_otp.apply_async') as publish:
-            response = self.client.post(ROOT+'request/', self.payload, format='json')
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(mail.outbox), 0)
-        publish.assert_called_once()
-        options = publish.call_args.kwargs
-        self.assertEqual(options['args'][0], self.user.pk)
-        self.assertNotIn(options['args'][2], options['argsrepr'])
-        self.assertFalse(options['retry'])
 
     def test_write_failure_rolls_back_password_version_and_challenge(self):
         challenge,code=self.issue()
@@ -260,8 +248,8 @@ class PasswordChangeTests(TransactionTestCase):
     @override_settings(PASSWORD_CHANGE_MAX_REQUESTS=2)
     def test_invalid_password_attempts_have_durable_account_limit(self):
         for _ in range(2):
-            self.client.post(ROOT+'request/',{**self.payload,'current_password':'wrong'},format='json')
-        response=self.client.post(ROOT+'request/',self.payload,format='json')
+            self.post(ROOT+'request/',{**self.payload,'current_password':'wrong'},format='json')
+        response=self.post(ROOT+'request/',self.payload,format='json')
         self.assertEqual(response.status_code,429)
 
     @override_settings(PASSWORD_CHANGE_MAX_VERIFICATIONS=2)
@@ -272,6 +260,41 @@ class PasswordChangeTests(TransactionTestCase):
         self.ready_to_resend()
         challenge,code=self.issue()
         self.assertEqual(self.confirm(challenge,code).status_code,429)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class PasswordChangeCommitTests(PasswordChangeFixtures, TransactionTestCase):
+    def setUp(self):
+        self.user = user()
+        super().setUp()
+
+    def test_cooldown_and_publish_failure_preserve_limits(self):
+        with patch('apps.account.services.password.deliver_password_change_otp.apply_async',side_effect=OSError('Broker unavailable')):
+            response=self.post(ROOT+'request/',self.payload,format='json')
+        self.assertEqual(response.status_code,503)
+        self.assertEqual(response.data['retry_after'],60)
+        self.assertEqual(PasswordChangeState.objects.get(user=self.user).send_count,1)
+        self.assertEqual(self.post(ROOT+'request/',self.payload,format='json').status_code,429)
+
+    def test_resend_publish_failure_still_invalidates_old_code(self):
+        challenge,code=self.issue()
+        self.ready_to_resend()
+        with patch('apps.account.services.password.deliver_password_change_otp.apply_async',side_effect=OSError('Broker unavailable')), patch('apps.account.services.password.secrets.randbelow',return_value=654321):
+            response=self.post(ROOT+'resend/',{'challenge_id':str(challenge)},format='json')
+        self.assertEqual(response.status_code,503)
+        if code != '654321':
+            self.assertEqual(self.confirm(challenge,code).status_code,400)
+
+    def test_request_returns_after_queueing_without_sending_synchronously(self):
+        with patch('apps.account.services.password.deliver_password_change_otp.apply_async') as publish:
+            response = self.post(ROOT+'request/', self.payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+        publish.assert_called_once()
+        options = publish.call_args.kwargs
+        self.assertEqual(options['args'][0], self.user.pk)
+        self.assertNotIn(options['args'][2], options['argsrepr'])
+        self.assertFalse(options['retry'])
 
 
 @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')

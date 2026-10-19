@@ -68,13 +68,16 @@ class CODPlacementTests(APITestCase):
         self.assertEqual(item['name'], 'Camera')
         self.assertEqual(item['unit_price'], order['items'][0]['unit_price'])
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.user, cls.recipient = customer(1)
+        cls.other, cls.other_recipient = customer(2)
+        cls.store = Store.objects.create(name='Original store', country_code='PH')
+        cls.store2 = Store.objects.create(name='Second store', country_code='PH')
+        cls.product = Product.objects.create(store=cls.store, name='Camera', price='12.34', stock=5, status='active')
+        cls.product2 = Product.objects.create(store=cls.store2, name='Lens', price='20.00', stock=3, status='active')
+
     def setUp(self):
-        self.user, self.recipient = customer(1)
-        self.other, self.other_recipient = customer(2)
-        self.store = Store.objects.create(name='Original store', country_code='PH')
-        self.store2 = Store.objects.create(name='Second store', country_code='PH')
-        self.product = Product.objects.create(store=self.store, name='Camera', price='12.34', stock=5, status='active')
-        self.product2 = Product.objects.create(store=self.store2, name='Lens', price='20.00', stock=3, status='active')
         self.client.force_authenticate(self.user)
 
     def body(self, **kwargs):

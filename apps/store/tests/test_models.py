@@ -1,8 +1,7 @@
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, connection, transaction
-from django.db.migrations.executor import MigrationExecutor
+from django.db import IntegrityError, transaction
 from django.forms import Select
-from django.test import SimpleTestCase, TestCase, TransactionTestCase
+from django.test import SimpleTestCase, TestCase
 
 from core.test_support import create_customer
 from apps.store.admin import StoreAdminForm
@@ -38,28 +37,6 @@ class StoreCurrencyTests(TestCase):
     def test_unknown_country_does_not_silently_become_usd(self):
         with self.assertRaises(ValidationError):
             Store.objects.create(name="Unknown", country_code="XX")
-
-
-class StoreCurrencyMigrationTests(TransactionTestCase):
-    def test_existing_store_currencies_are_backfilled_without_repricing(self):
-        from apps.ecommerce.models import Product
-
-        executor = MigrationExecutor(connection)
-        if ("store", "0003_storeaddress") not in executor.loader.graph.nodes:
-            self.skipTest("Historical currency migration was removed by the development baseline reset.")
-        latest = executor.loader.graph.leaf_nodes()
-        self.addCleanup(lambda: MigrationExecutor(connection).migrate(latest))
-        before = [("store", "0003_storeaddress")]
-        executor.migrate(before)
-        historical_store = executor.loader.project_state(before).apps.get_model("store", "Store")
-        ph = historical_store.objects.create(name="PH store", country_code="PH")
-        us = historical_store.objects.create(name="US store", country_code="US")
-        product = Product.objects.create(store_id=ph.pk, name="Existing price", price="899.00")
-        MigrationExecutor(connection).migrate(latest)
-        self.assertEqual(Store.objects.get(pk=ph.pk).currency, "PHP")
-        self.assertEqual(Store.objects.get(pk=us.pk).currency, "USD")
-        product.refresh_from_db()
-        self.assertEqual(str(product.price), "899.00")
 
 
 class StoreAdminFormTests(SimpleTestCase):

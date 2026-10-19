@@ -43,6 +43,44 @@ this does not verify live providers. Fork PRs use `pull_request`, not the privil
 20-minute timeout. It does not deploy or build the production image, and it does
 not add a new lint/type-check toolchain.
 
+## Local test feedback
+
+Run the tests closest to the behavior being edited while developing. Django accepts
+a dotted module, class, or method name, so a small change does not require a full
+suite run after every edit. Inspect existing coverage before adding cases; extend
+a relevant test when it already exercises the requirement. A separate test should
+protect a distinct behavior or failure mode.
+
+Run commands from the backend root using the environment described in
+[Docker development](docker.md). For example, with the development stack running:
+
+```bash
+docker compose -f compose.dev.yaml exec api python manage.py test apps.ecommerce.tests.test_product_detail --keepdb
+```
+
+`--keepdb` preserves the separate test database between local runs, saving repeated
+database creation and migration work. Django still isolates individual tests. It
+does not reuse the application's ordinary database. In an activated host virtual
+environment, omit the `docker compose -f compose.dev.yaml exec api` prefix.
+
+To find the slowest cases and separate database setup time from test execution:
+
+```bash
+docker compose -f compose.dev.yaml exec api python manage.py test --noinput --durations=15 --timing
+```
+
+Measure before changing fixtures or test classes. Shared database fixtures can use
+`setUpTestData`; fresh clients and mocks still belong in `setUp`. Tests of actual
+commit timing, post-commit errors, and races between database connections need
+real transaction behavior. Executing captured commit callbacks is useful for
+functional checks, but does not establish those transaction guarantees.
+
+Once focused checks pass, run the full Django suite before handing off executable
+changes. Run `python -m unittest discover -s scripts/tests -v` as well when editing
+deployment, bootstrap, or reset wrappers. Repeat passed checks when later changes
+or unresolved failures warrant it. CI continues to run both suites for every PR
+update, including documentation changes, as described above.
+
 ## Require checks before merging
 
 1. Push the workflow on a branch and open a PR targeting `main`.
