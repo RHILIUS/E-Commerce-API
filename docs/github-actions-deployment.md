@@ -1,4 +1,23 @@
-# EC2 Auto Deploy on origin main changes
+# Automatic backend deployment
+
+After the initial server setup, a push to `main` can publish a backend update
+through GitHub Actions. Actions connects to the server over SSH and runs the
+release script. The server rebuilds the application, applies migrations, and
+restarts application services while keeping database and broker data.
+
+A **release** is one selected code version put into service. This release process
+has a planned outage; it is not a zero-downtime deployment. For a first server,
+start with [the deployment walkthrough](deployment-guide.md). This reference
+explains automation configuration, release ordering, and failure recovery.
+
+## Terms used below
+
+- **SHA:** the Git commit identifier selecting the exact release.
+- **OIDC:** GitHub's short-lived identity used to obtain AWS permissions without
+  storing a long-lived AWS access key in the repository.
+- **Security group:** AWS network rules controlling access to the server.
+- **Host lock:** a shared exclusion mechanism that prevents the release and demo
+  reset wrappers from running at the same time through the same operational checkout.
 
 ## Scope and release behavior
 

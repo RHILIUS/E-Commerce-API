@@ -1,5 +1,26 @@
 # Customer orders and Stripe test card refunds
 
+Orders let a customer revisit what they bought and follow each store's part of a
+purchase. Cancelling an eligible order stops that store's fulfillment. For a paid
+Stripe test order, a separate refund process then returns its paid share through
+Stripe and records a compensating ledger entry.
+
+## How orders and cancellation work
+
+1. List the customer's orders, optionally filtered by delivery status.
+2. When cancellation is available, recheck eligibility under locks and save the
+   cancellation, stock restoration, refund request where needed, and history together.
+3. For a paid order, request the test refund outside the database transaction.
+   A provider failure does not undo cancellation or restore stock a second time.
+4. Reconcile the refund until a verified result can be recorded. Successful
+   refunds add reversing ledger entries; original paid records remain historical.
+5. Read the order timeline for recorded milestones. A read never creates an event.
+
+A **refund** reverses this store order's paid amount. A **return** would handle
+sending goods back and deciding eligibility; that wider workflow is not implemented.
+Pending Stripe checkouts instead use whole-checkout payment cancellation/recovery,
+not cancellation of an already completed purchase.
+
 ## API
 
 All order endpoints require the authenticated owner and use the existing Bearer token
@@ -79,21 +100,20 @@ the endpoint does not silently generate a second refund.
 
 Run `python manage.py reconcile_order_refunds` periodically (for example, every
 minute) for durable pending/requires-action recovery. Customer **Check refund
-status** uses the same service. This change supplies the command, not a deployed
-scheduler. Existing checkout webhooks remain unchanged; refund reconciliation
+status** uses the same service. The command is available, but the configured Celery Beat schedule does not
+run refund recovery. Scheduling it is an explicit operational responsibility. Existing checkout webhooks remain unchanged; refund reconciliation
 uses current provider reads rather than trusting webhook delivery order.
 
-Apply `ecommerce.0002_alter_order_status` and `checkout.0004_orderrefund`.
-Completed was already present in model code but missing from migration state and
-model documentation; this change aligns them. Historical null `concluded_at`
-values are not fabricated. New online cancellation/expiry writes record it.
-Automatic seven-day completion, deliveries, returns, settlement release, wallets
-and withdrawals are outside scope.
+Setup must apply repository migrations, including
+`ecommerce.0002_alter_order_status` and `checkout.0004_orderrefund`. Historical
+null `concluded_at` values remain unknown; new online cancellation/expiry records
+the conclusion time. Automatic seven-day completion, delivery operations, returns,
+settlement release, customer wallet spending, and withdrawals are outside scope.
+The internal store ledger is already used for payment and refund accounting.
 
 Stripe contracts: [create refund](https://docs.stripe.com/api/refunds/create),
 [refund object](https://docs.stripe.com/api/refunds/object), and
 [idempotency](https://docs.stripe.com/api/idempotent_requests).
-
 
 ## Persistent order history
 
@@ -128,8 +148,8 @@ Future fulfillment services must authorize their actor, preserve the established
 lock order, and call `order.save(update_fields=["status", "updated_at"],
 event_actor=actor, event_actor_role="seller")`. System transitions omit the actor.
 Do not use queryset `update()`, `bulk_update()` or raw SQL for status changes: they
-bypass model-level history. Existing production bulk order-status writers were
-converted to saves. No seller endpoints or seven-day completion jobs are added here.
+bypass model-level history. The implemented payment and cancellation writers use saves for status changes.
+Seller fulfillment endpoints and seven-day completion jobs are not implemented.
 
 A Delivered event keeps its own timestamp permanently even after Completed gets
 its later timestamp. The existing `concluded_at` follows the latest terminal status;
@@ -144,8 +164,3 @@ intermediate accepted/shipped/delivered milestones are synthesized. Actors are
 unknown on backfilled entries and `is_partial` is true for those orders. Orders
 already containing events are skipped, including on a repeated backfill. Failed or
 pending historical refunds have no guessed outcome time.
-
-Tests: `apps/ecommerce/tests/test_order_history.py`, plus cancellation/refund replay
-and concurrency assertions in `test_user_orders.py`. Coverage includes chronology,
-all fulfillment statuses, field-restricted saves, ownership/privacy, immutable
-records, rollback, payment deduplication and accurate idempotent legacy backfill.

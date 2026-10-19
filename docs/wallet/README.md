@@ -1,12 +1,37 @@
 # Demo USD wallet and ledger foundation
 
-Implemented: customer/store wallet ownership, USD accounts, an immutable journal,
-a transactional posting service and inspection-only Django admin. Stripe test checkout
-now posts pending store credits through this internal service; no real money moves.
+The wallet ledger records simulated money owed to each store after a verified
+Stripe test purchase. It is an accounting record inside the application, not a
+bank account and not a customer payment method. No real money moves.
+
+## How payment accounting works
+
+1. A verified Stripe test payment allocates the purchase total to its store orders.
+2. The payment service records one balanced receipt: simulated treasury receives
+   the total, and each store's pending account receives its share.
+3. Store balances are calculated from immutable entries, not typed into an editable
+   balance field.
+4. A verified customer cancellation refund adds compensating entries for the
+   affected store order. It preserves the original payment's history.
+
+A **journal** is the list of recorded transactions. A **posting** is one debit or
+credit entry inside a transaction. For example, USD 10 is represented as 1000
+integer cents; it can be recorded as treasury assets and an equal amount owed to
+a store. The terms debit and credit describe accounting sides, not credit cards.
+An asset is value held by the platform; a liability is value it owes to a store.
+
+Pending means recorded but not released for withdrawal. Available and
+withdrawal-pending account buckets exist in the model, but delivery settlement,
+withdrawals, and customer wallet spending are not implemented.
+
+The implementation supplies customer/store wallet ownership, USD accounts, an
+immutable journal, a transactional posting service, and inspection-only Django
+admin. Stripe test checkout and confirmed cancellation refunds use that service.
+There is no customer-controlled posting API or wallet interface.
 
 ## Models and amounts
 
-- `Wallet`: one user XOR one store, enforced in the database; one wallet per owner.
+- `Wallet`: either one user or one store, never both, enforced in the database; one wallet per owner.
   Stores keep their own wallets even when they share members. Currency is always USD.
 - `LedgerAccount`: one pending, available and withdrawal_pending liability account
   per wallet. The singleton platform treasury is an ownerless asset account.
@@ -41,7 +66,7 @@ No currency conversion is performed by this foundation.
   operation type raises Django `ValidationError`. Input line order does not matter.
   Missing accounts, overdrafts and unbalanced input also raise `ValidationError`.
 
-Example of a **trusted future payment handler** recording USD 100:
+Example of a **trusted internal caller** recording USD 100:
 
 ```python
 from apps.wallet.services import Posting, get_treasury_account, post_transaction
@@ -73,7 +98,8 @@ accounts first. SQLite does not provide the required row-lock behavior.
 
 The posting service checks balances while locked and inserts all entries inside
 one transaction. A failed entry insertion or failed outer business transaction
-rolls back the complete posting. No separate task queue is required for this phase.
+rolls back the complete posting. The posting service itself requires no separate task queue; payment recovery
+uses the checkout workers.
 
 Ordinary model saves, queryset updates/deletes and bulk mutations cannot change
 financial records. Journal insertions must use the posting service. Wallet and
@@ -87,9 +113,9 @@ can enforce the cross-row balanced-journal invariant here. Trusted code must use
 the posting service; it intentionally uses base ORM insertions only after validation
 and while holding locks. Administrative database writes are outside this contract.
 
-## Scope and next steps
+## Integrations and limits
 
-Stripe test checkout and ProviderEvent are now implemented; see [setup](../checkout/stripe-api.md).
+Stripe test checkout and ProviderEvent are implemented; see [setup](../checkout/stripe-api.md).
 Stripe test card cancellation refunds are implemented through
 [customer orders](../ecommerce/user-orders.md), reversing the affected store pending
 credit and treasury receipt after provider confirmation. No customer wallet API
@@ -97,26 +123,13 @@ or UI is added. No settlement/hold records, seven-day jobs,
 withdrawal workflow, mock-bank adapter, wallet spending or fee logic are implemented.
 COD does not create any ledger entries. A general reversal API and `reverses_id` link remain deferred; order refunds
 instead use a protected OrderRefund-to-reversal link and one refund per order; posted history must never be edited to simulate a reversal.
-PaymentAttempt now holds a protected one-to-one receipt reference. Settlement and
+PaymentAttempt holds a protected one-to-one receipt reference. Settlement and
 withdrawal foreign keys remain deferred with those workflows.
 
 Stripe uses this service inside atomic payment finalization and protects unresolved
-stock reservations across preview and placement. Next: delivery and settlement release.
+stock reservations across preview and placement. Delivery and settlement release
+remain separate unimplemented workflows.
 
-Design context: [shared wallet ERD](../../../docs/diagrams/erd/demo-wallet-ledger.md)
-and [online checkout process](../../../docs/diagrams/specific-business-processes/checkout/demo-online-checkout.md).
-
-## Verification
-
-Tests in `apps/wallet/tests.py` cover wallet ownership, database constraints,
-integer amounts, balanced multi-store receipts, replay/conflicts, overdrafts,
-balance overflow, rollback, immutability and read-only admin. PostgreSQL tests use
-separate connections to verify concurrent spending, duplicate/conflicting postings
-and wallet provisioning. Concurrency tests are explicitly skipped on databases
-without `select_for_update` support.
-
-Verified on 2026-10-09 with isolated PostgreSQL 16: all 18 wallet tests passed;
-the full backend suite ran 244 tests successfully with two existing historical
-migration tests skipped. Django system checks, migration drift checks and the
-migration plan passed. The configured development database rejected authentication,
-so no migration was applied there and its data was not changed.
+Shared context: [online checkout process](../../../docs/diagrams/specific-business-processes/checkout/demo-online-checkout.md)
+and [central diagram index](../../../docs/diagrams/README.md). That process includes
+proposed delivery and settlement phases; they are not current API contracts.

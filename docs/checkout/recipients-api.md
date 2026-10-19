@@ -1,9 +1,28 @@
 # Saved-recipient APIs
 
-**Implemented:** authenticated listing, creation, editing and removal. These endpoints prepare the
-recipient selection used by the implemented COD checkout flow. Checkout
-[preview](preview-api.md), [placement and confirmation](cod-api.md), and
-[frontend integration](../../../frontend/docs/checkout/README.md) are implemented.
+A delivery recipient is a saved name, phone number, and delivery address. It can
+belong to the customer or someone else. The same address book is used in account
+settings and checkout; it is independent of the customer's personal address.
+
+## How the address book works
+
+1. List the customer's saved recipients, with the default first.
+2. Create or edit a recipient. The first active recipient becomes the default;
+   choosing a different default replaces it atomically.
+3. At checkout, choose a recipient for that purchase. That choice does not change
+   the saved default.
+4. Removal hides a recipient from future purchases but retains its row for past
+   orders and pending payments. Removing a default with other recipients requires
+   explicitly choosing its replacement.
+
+A new recipient POST is not idempotent: repeating it can create another record.
+After an uncertain mutation, the frontend reloads the list before allowing more
+changes. Order snapshots keep the accepted delivery details even after editing
+or removing an address-book entry.
+
+These endpoints support recipient selection for both COD and Stripe test
+checkout. See [preview](preview-api.md), [placement and confirmation](cod-api.md),
+and [frontend behavior](../../../frontend/docs/checkout/README.md).
 
 ## Authentication and ownership
 
@@ -151,9 +170,7 @@ Invalid input is rejected before changing defaults. PUT, PATCH and DELETE on the
 collection return 405 for authenticated requests. Default switching uses PATCH with `is_default: true`; no separate default endpoint is needed.
 
 Request/response schemas are published in `/api/schema/` and Swagger `/api/docs/`.
-Regression tests cover authentication, owner scoping, normalized response shape,
-required fields/limits, shared phones, defaults, rollback and concurrent creation.
-Concurrency tests require row-lock support and skip on SQLite.
+Concurrent default changes rely on PostgreSQL row locks, not only field validation.
 
 ## Django admin
 

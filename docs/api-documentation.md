@@ -1,56 +1,89 @@
-# Interactive API documentation
+# Using the API documentation
 
-With the backend running, open `/api/docs/` for Swagger UI. `/api/schema/`
-returns the OpenAPI schema; append `?format=json` for JSON. The UI assets are
-included in the project dependencies so the page does not require a CDN.
+An API contract describes what a caller sends and what the backend returns.
+Swagger UI is an interactive page for exploring those contracts. OpenAPI is the
+machine-readable description behind that page; it is generated from the backend's
+schema annotations.
 
-The schema covers authentication, [account profile](account/profile-api.md), [profile photos](account/profile-photo-api.md), [saved recipients](checkout/recipients-api.md),
-[cart](ecommerce/carts.md), [customer orders/refunds](ecommerce/user-orders.md), [checkout preview](checkout/preview-api.md), [COD placement/confirmation](checkout/cod-api.md), product catalog, and
-[product detail](ecommerce/product-detail.md) routes. Use
-Swagger UI's **Authorize** button with a Bearer access token for protected
-operations. Login returns an access token and sets the refresh token in an
-HttpOnly cookie. Refresh reads that cookie and returns another access token;
-neither operation returns a refresh token in its response body. OTP verification
-sets a short-lived HttpOnly registration cookie used by registration. When trying
-cookie-based operations from a separate origin, browser cookie settings and
-the backend's CORS configuration still apply.
+Feature guides explain why an operation exists, its business rules, and recovery
+behavior. Use Swagger for the exact fields while reading the relevant guide from
+the [documentation index](README.md).
 
-Source annotations live beside API views, with documentation-only response
-serializers in `apps/authentication/openapi.py`. The product catalog schema
-includes its `q` and `page` parameters and paginated response shape. When the
-contract changes, update those annotations and run:
+## Open Swagger and the schema
 
-```bash
-source venv/bin/activate
-python manage.py spectacular --validate --fail-on-warn
+Start the backend, then open:
+
+| Address                    | Purpose                  |
+| -------------------------- | ------------------------ |
+| `/api/docs/`               | Interactive Swagger UI   |
+| `/api/schema/`             | Generated OpenAPI schema |
+| `/api/schema/?format=json` | Schema in JSON form      |
+
+For local development, prefix these paths with `http://localhost:8000`.
+Swagger assets are packaged with the dependencies, so loading the UI does not
+require a separate asset CDN. On deployment, open these paths on the backend
+host; the frontend Pages proxy is not an admin or Swagger host.
+
+## Try an authenticated request
+
+1. Open the login operation and submit an existing account's email and password.
+2. Copy the returned access token into Swagger's **Authorize** Bearer-token control.
+3. Open a protected operation and supply its documented inputs.
+4. Inspect the response status and body. A valid token identifies the caller;
+   ownership and business rules can still reject the requested action.
+
+Swagger **Try it out** sends real requests to the selected backend. Use the
+intended development environment for experiments: creating recipients, placing
+orders, and cancelling purchases can change data.
+
+Login returns an access token and public user data. The refresh token is set in
+an HttpOnly browser cookie and never appears in the response body. Refresh reads
+that cookie; the Authorize control's access token is not a replacement for it.
+OTP verification similarly sets a separate registration cookie for account
+creation. See [accounts and sign-in](authentication/README.md) for exact shapes,
+cookie paths, lifetimes, and failures.
+
+When trying cookie operations across origins, browser cookie policies and the
+backend's CORS configuration both apply. CORS means the browser's permission to
+read a response from another origin; it does not remove cookie restrictions.
+
+## Read the result correctly
+
+A successful HTTP status does not always mean the whole customer workflow is
+complete. For example, a checkout preview can return 200 with blocking item
+issues, code-send success confirms queuing rather than inbox delivery, and a
+pending payment response does not mean paid.
+
+Use each feature's error contract. Validation usually maps field names to message
+arrays, while many other errors use `detail`. Some features add machine-readable
+codes or retry timing. Do not invent a universal error shape that those contracts
+do not provide.
+
+Login/refresh user data exposes the personal-address country and cropped avatar.
+The country comes from `UserAddress`, not the phone or delivery recipient. Photo
+URLs follow the configured storage behavior. The detailed contracts live with
+[authentication](authentication/README.md), [profile](account/profile-api.md), and
+[photo management](account/profile-photo-api.md).
+
+## Maintain the generated contract
+
+Schema annotations live beside API views. Authentication response-only
+serializers also live in `apps/authentication/openapi.py`. Explicit request and
+response serializers describe operations automatic discovery cannot infer.
+
+When changing an endpoint, update its annotations and maintained guide together.
+Include parameters, status codes, permissions, and cookie behavior. Never document
+refresh or registration cookie values as response-body token fields.
+
+From a running development stack:
+
+```sh
+docker compose -f compose.dev.yaml exec api python manage.py spectacular --validate --fail-on-warn
 ```
 
-Review the affected operation in `/api/schema/` as well as the validator output.
+For a configured host environment, activate its virtual environment and run the
+same `manage.py` command directly. Review the changed operations in the generated
+schema as well; schema generation cannot prove that business rules are correct.
 
-## Personal-address country
-
-Registration keeps its existing flat address request (`country_code`, address lines,
-city, optional region/postal code). It creates User, UserAddress and the default
-RecipientInfo in one transaction. Their addresses are independent after creation.
-Login and refresh now return `user.address_country_code` (two-letter country or null)
-instead of `user.country_code`. This value comes from UserAddress, not the phone
-number or default delivery recipient. Accounts created without a personal address
-use USD for display conversions. Authentication cookies are unchanged.
-
-UserAddress is a one-to-one personal address in the authentication app. The new
-migration removes User.country_code without backfilling, as authorized for the
-current disposable development database. Reset/reseed that database; this migration
-must not be used to preserve an existing production country's data. A restored
-schema on rollback cannot recover discarded country values. The profile read/update API and Profile-tab UI are implemented. Photo upload,
-re-cropping, removal, and compression use the separate profile-photo API.
-
-## Account avatar
-
-Login and refresh return `user.profile_image`: the saved cropped avatar URL, or
-null when absent. Relative local-storage URLs are made absolute using the request;
-cloud-storage URLs retain their configured access behavior. This read-only field
-also appears in the shared OpenAPI user response. It does not change token claims,
-cookies, or the database schema. The frontend stores the URL in AuthContext and
-uses the bundled avatar when absent or when loading the image fails.
-
-Registration OTP email now uses [background delivery](authentication/registration-otp-api.md); HTTP 200 confirms queuing rather than email-provider acceptance.
+See [development commands](docker-development.md#everyday-commands) and
+[pull request checks](pull-request-checks.md) for the broader development workflow.

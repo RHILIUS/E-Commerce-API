@@ -1,13 +1,36 @@
 # Change Password API
 
+A signed-in customer changes their password by providing the current password
+and a one-time code sent to their account email. The code proves access to that
+email; it is separate from registration codes.
+
+## How the change works
+
+1. Check the current password and proposed new password, then create a challenge
+   and queue its verification email. A **challenge** is the saved, short-lived
+   permission to complete this particular password change.
+2. The customer enters the received code. Resend replaces the code after the
+   cooldown; it does not make old codes valid again.
+3. Confirmation checks the challenge, code, and passwords again while the account
+   is locked against competing changes.
+4. Save the new password, consume the challenge, and increment the account's
+   authentication version together. Existing sessions then fail version checks,
+   and the customer signs in again.
+
+If confirmation's response is lost, the frontend cannot safely claim failure or
+automatically repeat the change. It directs the customer to sign in and explains
+that the outcome could not be confirmed.
+
+## Requests and successful responses
+
 All three endpoints require bearer authentication and operate on the signed-in
 account. Current-password errors are HTTP 400 field errors, not HTTP 401.
 
-| POST endpoint                           | Required JSON fields                                      | Success                                     |
-| --------------------------------------- | --------------------------------------------------------- | ------------------------------------------- |
-| `/api/account/change-password/request/` | `current_password`, `new_password`                        | 200 challenge with queued verification email|
-| `/api/account/change-password/resend/`  | `challenge_id` UUID                                       | 200 replacement code for the same challenge |
-| `/api/account/change-password/confirm/` | `challenge_id`, `otp`, `current_password`, `new_password` | 200 message, refresh cookie cleared         |
+| POST endpoint                           | Required JSON fields                                      | Success                                      |
+| --------------------------------------- | --------------------------------------------------------- | -------------------------------------------- |
+| `/api/account/change-password/request/` | `current_password`, `new_password`                        | 200 challenge with queued verification email |
+| `/api/account/change-password/resend/`  | `challenge_id` UUID                                       | 200 replacement code for the same challenge  |
+| `/api/account/change-password/confirm/` | `challenge_id`, `otp`, `current_password`, `new_password` | 200 message, refresh cookie cleared          |
 
 Challenge JSON has `challenge_id` (UUID string), `masked_email`, `expires_at`
 (ISO datetime) and `retry_after` (integer seconds). Neither plaintext OTP nor
@@ -30,7 +53,7 @@ password matching belongs to the frontend. Destination email comes from the user
 | 400    | `detail`, `code: code_expired`                                | Request a replacement code if challenge remains eligible                                                           |
 | 401    | `detail` with JWT error metadata when applicable              | Authentication invalid; refresh/sign in                                                                            |
 | 429    | `detail`, `code: rate_limited`, integer `retry_after`         | Account or IP budget/cooldown reached                                                                              |
-| 503    | `detail`, `code: delivery_unavailable`, integer `retry_after` | Broker did not confirm verification email queuing; wait and retry                                                         |
+| 503    | `detail`, `code: delivery_unavailable`, integer `retry_after` | Broker did not confirm verification email queuing; wait and retry                                                  |
 | 503    | `detail`, `code: operation_unavailable`                       | Database operation failed and rolled back; confirmation UI treats the response as uncertain and directs to sign-in |
 
 Account cooldown and delivery errors include Retry-After. IP throttle errors use
@@ -80,7 +103,7 @@ is no outbox or delivery-status endpoint. Later worker failures do not change th
 original response; customers can resend after cooldown. Expiry begins at issuance.
 No completion notification email is sent after a successful password change.
 
-## Session revocation and rollout
+## Ending existing sessions
 
 Login tokens carry integer `auth_version`. Protected requests, token verification
 and cookie refresh check it against `User.authentication_version` and reject

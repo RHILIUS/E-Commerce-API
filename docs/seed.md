@@ -1,5 +1,21 @@
 # Seeding development data
 
+Seeding fills a development database with repeatable sample users, stores,
+products, images, and purchases. It makes the shop useful for local development
+without manually entering every record. It is a data-writing operation, not a
+read-only demonstration or a real checkout.
+
+## Before running it
+
+Use the intended disposable environment, apply migrations, and import the taxonomy
+first. The command uses configured database and media storage, including Azure
+when enabled. It can restore seed prices and stock on reruns, so do not point it
+at valuable customer data.
+
+For a running Docker stack, use `docker compose -f compose.dev.yaml exec api`
+before the `python manage.py ...` commands below. The displayed virtual-environment
+activation is for host Python only; omit it inside Docker or a Dev Container.
+
 ## How to seed
 
 Run these commands from the backend repository root with the project dependencies installed and PostgreSQL running:
@@ -17,14 +33,18 @@ Keep the source images under `static/seed_images/` available even when rerunning
 
 ## What the command creates
 
+### Seed purchase behavior
+
 Seed data uses two lists: `CUSTOMERS_DATA` contains users, their
 `recipient_infos`, and `orders`; `STORES_DATA` contains each store's
 `address`, `members` (role and nested user with recipients), and `products`.
 Products are seeded before customer orders. Product names must be unique across
 the seed catalogs because order items and image folders identify them by name.
 
-See [checkout fixture behavior](checkout/development.md#seed-purchase-behavior) and
-[model structures](checkout/models.md) for checkout, payment and reservation details.
+The fixture behavior below explains sample purchases. See
+[model structures](checkout/models.md) for checkout, payment, and reservation rules.
+
+### How records are matched
 
 Each sample order has a unique non-empty string `key` for repeatable development seeding.
 Order IDs are positive values assigned by the database. The stable key determines
@@ -34,7 +54,7 @@ unchanged to avoid creating another order.
 Existing negative-ID fixtures are not converted or deleted automatically. For
 disposable development databases created by the older seeder, rebuild the database,
 apply migrations, import the taxonomy, and seed again.
-Keep this key stable across reruns. Each order now gets a stable COD checkout,
+Each order gets a stable COD checkout,
 explicit unpaid/paid payment status, one store, rate 1 and complete purchase
 snapshots in that store's currency. A fixture order cannot span stores. The current
 sample explicitly marks payment paid. Orders use their user's default recipient;

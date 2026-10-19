@@ -1,5 +1,21 @@
 # Reset a disposable development environment
 
+A reset deliberately replaces a disposable environment's saved data with a fresh
+schema and sample records. It deletes existing database records and configured
+uploaded media. It is different from restarting containers, applying migrations,
+or rerunning the seed command.
+
+## Choose the right operation
+
+- To keep data and restart services, use the development or deployment guide.
+- To create/update sample records, use [seeding](seed.md).
+- To rebuild disposable data completely, follow this guide and inspect its targets.
+
+The reset has several stages: preflight, confirmation, database recreation, media
+cleanup, migrations, taxonomy import, and seeding. The production wrapper also
+coordinates service shutdown and broker cleanup. The whole sequence is not one
+transaction, so a late failure needs operator recovery before reopening traffic.
+
 `reset_dev` rebuilds the PostgreSQL `public` schema and deletes all configured
 uploaded media, then runs migrations, imports taxonomy and seeds development data.
 Existing `seed` and `import_taxonomy` commands remain independently available.
@@ -48,7 +64,7 @@ blobs and snapshots from the entire configured container, preserving the
 container. Soft-delete policies and historical versions can retain recoverable
 content; this is not a permanent Azure history purge. Source images in
 `static/seed_images/` remain available for reseeding. Unsupported storage backends
-are refused. No new dependencies or API contracts are introduced.
+are refused. This is an operator command, not a customer API.
 
 Preflight checks configuration, snapshot content, seed assets, schema layout and
 storage read access before deletion. Dry run does not prove delete/create

@@ -1,9 +1,26 @@
 # COD placement and confirmation APIs
 
-**Implemented:** atomic COD placement and owner-only confirmation. Recipient APIs
-and checkout preview feed this flow. [Frontend COD checkout and confirmation](../../../frontend/docs/checkout/README.md)
-are implemented, including recipient selection, preview review and safe placement
-retries. Stripe, delivery and payment collection remain future work.
+Cash on delivery (COD) places the order now and leaves payment due on delivery.
+The backend saves the reviewed purchase and deducts stock, but does not collect
+money or create wallet entries.
+
+## How placement works
+
+1. The customer reviews a [preview](preview-api.md) and chooses a saved recipient.
+2. The frontend submits the preview token, recipient, COD method, and a unique
+   idempotency key identifying this request.
+3. The backend checks replay before preview expiry, then locks and rechecks the
+   customer, recipient, products, stores, and cart lines.
+4. Save the checkout, one order per store, purchase snapshots, stock deductions,
+   and selected cart cleanup in one transaction. They all succeed or roll back together.
+5. Return saved confirmation. Reading it later does not place the order again.
+
+An uncertain response may mean placement already committed. Retry the exact body
+and key; a new key can create another purchase. Unresolved Stripe holds reduce
+available stock, and pending online purchases can freeze selected cart lines.
+[Stripe test checkout](stripe-api.md) is implemented separately. Delivery and COD
+payment collection remain outside this flow. See
+[frontend behavior](../../../frontend/docs/checkout/README.md) for the customer UI.
 
 ## Place a COD purchase
 
@@ -149,43 +166,10 @@ at placement are a stale-preview conflict (409); preview requests for missing or
 foreign cart lines still return 404. Unexpected persistence failures roll back and
 surface as server errors; a client with an uncertain result retries the same key.
 
-## Tests and scope
-
-`python manage.py test apps.checkout.tests.test_placement` covers direct and
-multi-store cart purchases, retries after expiry/cart removal, ownership, stale
-inputs, reservations, snapshot preservation, converted prices, amount verification,
-rollback after partial work/cart cleanup, request-identity immutability and schema.
-PostgreSQL-only tests use separate connections for duplicate requests, conflicting
-payloads, last-unit contention and duplicate cart purchases with different keys.
-
-Backend tests use an isolated database and mocked FX where required. Frontend
-coverage is documented in the [frontend handoff](../../../frontend/docs/checkout/README.md).
-No live payment or fulfillment integration is implemented.
-
 ## Required database update
 
 The repository includes [0002_checkout_request_fingerprint](../../apps/checkout/migrations/0002_checkout_request_fingerprint.py).
-Apply it to the target database before using COD placement. Its presence in the
-repository does not establish whether it has been applied to a particular database;
-this documentation update did not run migrations or inspect migration application status.
-
-## Implementation verification
-
-The following records verification performed during the backend implementation,
-not a new test run for this documentation update.
-
-- All 22 COD tests passed on an isolated PostgreSQL 18 instance, including four
-  independent-connection concurrency tests.
-- Related checkout, inventory, account, ecommerce and core suites ran 156 tests:
-  155 passed and one removed historical-migration test was skipped.
-- Django system checks and OpenAPI validation passed.
-- A candidate additive fingerprint migration was generated only in a temporary
-  migration module, reviewed, and applied when creating isolated test databases.
-  Migration drift checks passed against that candidate. The repository now includes
-  the additive migration linked above, generated after that verification run.
-- The temporary PostgreSQL instances were stopped. The development database and
-  repository migration files were not changed during that verification run.
-
-Online payment integration: COD now counts every unresolved held reservation, even
-past its deadline, and rejects selected cart lines frozen by pending Stripe checkout.
-See [Stripe test checkout](stripe-api.md).
+The fingerprint supports safe request replay. Apply repository migrations as part
+of setup or deployment before serving placement requests. Check application status
+with `showmigrations`; a migration file in Git does not mean a target database has
+applied it.

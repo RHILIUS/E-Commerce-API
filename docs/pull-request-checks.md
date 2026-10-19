@@ -1,5 +1,13 @@
 # Backend pull request checks
 
+Pull request checks help catch broken code before it reaches the main branch.
+GitHub Actions starts temporary database and broker services, runs the checks,
+and reports the result on the pull request. It does not deploy the application.
+
+A **status check** reports a result. A **branch rule** decides whether that result
+is required before merging. Adding a workflow does not automatically enable the
+branch rule; configure both as described below.
+
 ## Scope
 
 `.github/workflows/pr-checks.yml` runs **Backend checks** for pull requests targeting
@@ -52,7 +60,7 @@ Rules are configured separately and are not changed by adding this file. Merge
 queues are outside this setup; enabling one requires a `merge_group` trigger.
 Direct pushes to `main` do not trigger this PR-only workflow.
 
-## Troubleshooting and validation
+## Troubleshooting
 
 Inspect the failed step in the PR's Checks tab. Missing migration files should be
 generated locally and committed; CI never generates and commits migrations for you.
@@ -60,8 +68,9 @@ Test failures must be investigated before merging. Re-run transient service or
 package-download failures from GitHub Actions. Cancelled older runs are superseded
 by the newest PR run.
 
-The authoritative end-to-end validation is the first GitHub-hosted PR run. Local
-checks cannot prove GitHub event delivery or branch-rule enforcement.
+Use the PR Checks tab to confirm the workflow ran, and repository rules to
+confirm it is required. Local checks do not establish GitHub event delivery or
+branch-rule enforcement.
 
 ## References
 

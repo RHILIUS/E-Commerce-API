@@ -1,6 +1,27 @@
 # Checkout and order models
 
-All five models inherit `created_at` and `updated_at` from `TimeStampedModel`.
+These records preserve a purchase from review through payment and later order
+history. A model describes stored data; the service decides when and how a whole
+operation may change that data.
+
+## Understand the records first
+
+- **Checkout:** the customer's whole purchase, which may span several stores.
+- **Order:** one store's part of that purchase, with independent fulfillment state.
+- **OrderItem:** a product quantity with the accepted name and prices copied into it.
+- **PaymentAttempt:** the Stripe session and provider facts for online payment.
+- **StockReservation:** units held while an online purchase remains unresolved.
+- **ProviderEvent:** a durable, deduplicated record of a Stripe notification.
+- **OrderRefund:** one store order's cancellation refund and confirmed reversal.
+- **OrderEvent:** an immutable milestone in the order's history.
+
+A **snapshot** is a copy retained for historical accuracy. A protected relation
+prevents deleting a record still referenced by another protected record. The
+field tables below cover the core five models; later sections introduce payment,
+refund, and history additions and link to their full behavior.
+
+The five core models below inherit `created_at` and `updated_at` from
+`TimeStampedModel`; the later history section describes occurrence timestamps separately.
 See the [feature overview](README.md) for implemented scope and pending workflows.
 
 ## Checkout (`apps.checkout`)
@@ -26,7 +47,7 @@ Currency shape validation does not verify Stripe or FX-provider support.
 Once orders or attempts exist, ordinary saves reject changes to the customer,
 currency, amount, payment method, idempotency key or request fingerprint. COD
 placement rejects keys reused with different contents and verifies the signed
-total against all reviewed order lines. The new fingerprint field requires an
+total against all reviewed order lines. The fingerprint field is introduced by an
 additive migration; see [COD setup](cod-api.md#required-database-update).
 
 ## Order (`apps.ecommerce`)
@@ -91,7 +112,9 @@ items: the online service freezes selected cart lines until resolution and remov
 ## PaymentAttempt (`apps.checkout`)
 
 One Stripe Checkout Session attempt against an agreed checkout. Card retries
-inside one session do not need extra rows; a newly created session gets a new row.
+inside that session do not need extra rows. The model permits historical attempts,
+but the current online service uses one attempt per checkout: it recovers the same
+session and does not create a replacement session for a closed attempt.
 
 | Field                         | Meaning                                                               |
 | ----------------------------- | --------------------------------------------------------------------- |
@@ -128,7 +151,8 @@ One inventory hold for one order item.
 Saving a reservation does not reduce stock, lock products or schedule expiry.
 The online checkout service locks product rows and accounts for every unresolved held quantity;
 current catalog/cart APIs still expose `Product.stock` and do not subtract holds.
-Do not treat inserting a reservation row as an implemented stock reservation workflow.
+Creating a reservation row directly does not run the online service's locking,
+provider reconciliation, or release workflow.
 Coordinate confirmed Stripe expiry with releasing stock to avoid late-payment races.
 
 Protected references prevent deleting reserved products/order lines even after the
@@ -155,7 +179,7 @@ workflows remain future work. Catalog and cart admin remain separate.
 ## Stripe workflow additions
 
 See [Stripe API and setup](stripe-api.md) for implemented behavior and recovery.
-PaymentAttempt now includes saved immutable session parameters, a hosted checkout
+PaymentAttempt also includes saved immutable session parameters, a hosted checkout
 URL, cancellation intent and a protected unique ledger receipt. Provider IDs cannot
 be reassigned once known. ProviderEvent is a durable test-only inbox unique by
 environment/event ID, retaining only routing identifiers, processing timestamps and

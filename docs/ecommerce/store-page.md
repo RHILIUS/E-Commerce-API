@@ -1,5 +1,22 @@
 # Public store catalog
 
+A store page groups one seller store's public information and active products.
+It provides a profile, short product collections for the home view, and a
+searchable full catalog. Store membership is separate from public browsing;
+these endpoints do not reveal members' private account details.
+
+## How store browsing works
+
+1. Load the store profile for its name, public contact details, and summary.
+2. Load Home collections for new products, recent trends, and lifetime best sellers.
+3. Use the paginated catalog when the customer searches, sorts, or filters.
+
+A **qualifying sale** is a purchase that meets the payment/delivery rules below.
+Store popularity uses qualifying sales, while the landing catalog has a different
+ranking contract. The two lists can legitimately show different ordering.
+
+## Access rules
+
 All three endpoints permit guests (`AllowAny`); supplied invalid Bearer credentials
 return 401. Store IDs are integer primary keys; missing stores return 404. Only GET
 is implemented. Member identities and account contact data are never exposed.

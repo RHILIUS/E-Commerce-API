@@ -1,11 +1,25 @@
 # Checkout preview API
 
-**Implemented:** authenticated product/cart preview. COD placement and confirmation
-are covered in the [COD contract](cod-api.md).
-[Frontend checkout integration](../../../frontend/docs/checkout/README.md) is
-implemented for COD and Stripe test checkout. Preview is read-only for
-application data: it creates no checkout, order, reservation or cart record and
-never changes quantities or stock. FX responses may be cached.
+A preview is the backend's review of what the customer is about to buy. It shows
+prices, quantities, and availability before the customer commits. It is not an
+order and does not promise that stock will still be available at placement.
+
+## How a review works
+
+1. Receive a product and quantity, or saved cart-item IDs, from the signed-in customer.
+2. Read current items and subtract unresolved stock holds from availability.
+3. Calculate prices in the checkout currency using the exchange-rate rules below.
+4. Return item issues or a reviewable total with a signed token. Signing lets the
+   backend detect altered terms when placement later receives that token.
+
+Preview creates no checkout, order, reservation, or cart record and never changes
+quantities or stock. Foreign-exchange (FX) responses may be cached. An HTTP 200
+preview can still contain issues that block purchase: clients must inspect
+`can_place_order` and `issues`, not just the HTTP status.
+
+Placement is separate: [COD](cod-api.md) or [Stripe test checkout](stripe-api.md).
+Both revalidate the review under locks. See
+[frontend checkout](../../../frontend/docs/checkout/README.md) for the customer UI.
 
 ## Request
 
@@ -161,10 +175,3 @@ for placement requests and confirmation responses.
 
 Validation errors map field names to message lists. Other HTTP errors use DRF's
 `{"detail": "..."}` envelope. Item issues are inside the 200 preview body.
-
-## Verification
-
-Focused tests cover ownership, input shapes, decimal totals, selected cart lines,
-current price/quantity reads, image serialization, redaction, stock holds,
-no application writes, signed-token tampering/ownership/expiry, FX caching and
-failures, USD fallback, amount limits and OpenAPI.

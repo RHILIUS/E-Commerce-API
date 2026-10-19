@@ -1,5 +1,23 @@
 # Product catalog
 
+The catalog is the product list customers browse before choosing an item. Guests
+can use it without signing in. Search narrows the list; pagination divides it into
+small pages rather than returning every product at once.
+
+## How browsing works
+
+1. The customer opens the catalog or submits a search.
+2. The backend selects active products, ranks them, and returns one page.
+3. Each card includes the store's original price and a display price for the
+   viewer's country currency, where conversion is available.
+4. Opening a card uses the separate [product-detail API](product-detail.md).
+
+A display conversion is an estimate for browsing, not an accepted purchase price.
+Checkout performs its own review. An unavailable rate keeps the original amount
+and currency together rather than relabelling the amount.
+
+## Request and pagination
+
 `GET /api/shop/products/?page=1&q=laptop` is public and returns HTTP 200 with
 `{"count": 24, "next": "...?page=2&q=laptop", "previous": null, "results": [...]}`.
 Pages contain at most 8 products; `count` is the total matching product count.
@@ -11,6 +29,8 @@ Optional `q` is trimmed and matches a case-insensitive substring in product name
 or short descriptions. Blank searches match all active products.
 Filtering and ranking happen before pagination; only the selected page's images
 are prefetched. Rankings may change between requests as orders change or age.
+
+## Which products appear first
 
 Only active products appear, including those
 with zero stock. For authenticated users, categories rank by the sum of item
@@ -35,6 +55,8 @@ changes affect preferences because ranking uses each product's current category.
 Scores are calculated in the database and are not included in the response.
 Normal Bearer authentication still applies when a token is supplied; invalid
 tokens return HTTP 401.
+
+## Product fields
 
 Each product contains:
 

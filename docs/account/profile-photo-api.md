@@ -1,5 +1,27 @@
 # Account profile photo API
 
+Customers can upload, replace, re-crop, or remove their account photo. These
+actions are independent of saving personal details, so changing a photo preserves
+unfinished name or address edits.
+
+## How a photo change works
+
+1. Load the saved avatar, retained source image, and crop coordinates.
+2. Let the customer choose an image and a square crop. The frontend shows a
+   circular preview; the backend validates and applies the actual crop.
+3. Save an optimized source for future re-cropping and a separate avatar for
+   display. Personal details and recipients remain unchanged.
+4. Return the saved photo data. The frontend updates its shared account photo so
+   the header uses the confirmed URL without a separate photo request.
+
+A **crop** selects part of the full image. The **source ID** identifies which
+saved image is being adjusted. If it changed while the editor was open, the
+backend rejects the old source and the frontend reloads before another edit.
+Uncertain saves/removals also trigger a reload; if that fails, photo actions wait
+for a successful read.
+
+## Request and response contract
+
 `GET`, `PUT`, and `DELETE /api/account/profile/photo/` require Bearer authentication
 and act only on the current account. All successful operations return 200:
 

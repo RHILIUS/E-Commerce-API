@@ -1,5 +1,20 @@
 # Product detail
 
+The product page lets a customer inspect one item before buying: its description,
+images, current price, stock, and store. Product visibility and permission to buy
+are different rules. An archived item can still be readable while purchasing is
+blocked.
+
+## How the page gets its information
+
+1. Request a product by ID.
+2. The backend checks whether that viewer may see its lifecycle state.
+3. Return current product and gallery data with a purchase-eligibility flag.
+4. Cart and checkout writes independently recheck status, ownership where needed,
+   and availability. A readable page or `can_purchase` flag does not reserve stock.
+
+## Read access
+
 `GET /api/shop/products/<id>/` returns one product for the Product Page.
 Active and archived products are public to anyone with the URL. Drafts require
 an authenticated membership in that product's store, with either `admin` or
@@ -35,9 +50,10 @@ created_at}`. The profile image is a URL or null. The count includes only active
 ## Purchase and retention boundaries
 
 Archived and draft products remain readable to their permitted audiences but
-always return `can_purchase: false`. Future cart/checkout write endpoints must
-enforce status and stock on the server at purchase time; the response flag alone
-is not enforcement. No cart/checkout write endpoint exists in this change.
+always return `can_purchase: false`. The [cart](carts.md) and
+[checkout](../checkout/README.md) services enforce status and availability during
+writes; the response flag alone is not enforcement. This read endpoint does not
+create cart lines or purchases.
 
 Changing a product's status to archived preserves its images and order links,
 including pending orders and recorded purchase prices. Physical deletion remains

@@ -8,10 +8,9 @@ The examples use AWS EC2, Ubuntu 24.04, the login user `ubuntu`, and the server
 folder `/home/ubuntu/ecommerce/backend`. Another VM provider can be used if it
 provides the same operating system, access and networking requirements.
 
-**Current verification:** the deployment scripts have local automated tests, and
-Nginx configuration/challenge routing were checked in an isolated container. The
-complete procedure has not yet been tested on a fresh public VM. Perform the first
-acceptance run on a disposable server before relying on it for valuable data.
+The scripts automate application setup; they do not establish that an arbitrary
+server, DNS record, credential, or provider account is correctly configured. Follow
+the target-environment checks in step 10 before opening the deployment to customers.
 
 ## Find the instructions you need
 
@@ -30,6 +29,19 @@ acceptance run on a disposable server before relying on it for valuable data.
 - [Routine maintenance and changing settings](#routine-maintenance-and-changing-settings)
 - [Troubleshooting](#troubleshooting)
 - [Technical appendix: production Docker reference](#technical-appendix-production-docker-reference)
+
+## Terms used in this guide
+
+| Term                    | Meaning                                                            |
+| ----------------------- | ------------------------------------------------------------------ |
+| VM / EC2 instance       | A rented server running the backend services                       |
+| DNS record              | The mapping from an API hostname to the server address             |
+| SSH                     | An encrypted remote terminal connection to that server             |
+| HTTPS / TLS certificate | Encrypted web traffic and the certificate identifying its hostname |
+| Reverse proxy           | Nginx receiving public requests and forwarding API work to Django  |
+| Migration               | A versioned database structure or data update                      |
+| Static files            | Packaged admin/API UI assets collected during release              |
+| Media                   | Uploaded images that must survive ordinary releases                |
 
 ## What you are setting up
 

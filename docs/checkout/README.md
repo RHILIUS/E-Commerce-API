@@ -1,23 +1,57 @@
-# Checkout feature
+# Checkout: from review to store orders
 
-The checkout feature groups a customer's purchase into one order per store.
-These models, their validation, development fixtures and inspection-only admin
-are implemented, along with saved-recipient, checkout preview, atomic COD placement
-and owner-only confirmation APIs. The frontend COD/Stripe test checkout, payment status and confirmation
-pages are also implemented; see the [frontend handoff](../../../frontend/docs/checkout/README.md).
-Stripe test checkout, webhook recovery, stock holds and pending store-wallet credits
-are implemented. Delivery, settlement release, returns, withdrawals and COD payment
-collection remain future work.
+Checkout turns the customer's selected products into saved purchases. A single
+purchase can contain items from several stores. The backend creates one checkout
+for the customer and one order for each store, so each store's delivery and
+cancellation state can be tracked separately.
 
-See the COD contract below.
+For example, buying a camera from one store and a case from another creates one
+checkout containing two orders. Completing checkout does not mean either item
+has been delivered.
 
-- [Stripe test checkout and setup](stripe-api.md)
-- [COD placement and confirmation](cod-api.md)
-- [Checkout preview API contract](preview-api.md)
-- [Saved-recipient API contract](recipients-api.md)
-- [Model structure and rules](models.md)
-- [Demo USD wallet foundation](../wallet/README.md) — internal ledger only; not connected to checkout yet.
-- [Development seed data](../seed.md)
+## The normal flow
+
+1. The frontend sends a direct product and quantity, or selected saved cart-item
+   IDs, to the preview API.
+2. The backend calculates current availability and prices. A valid review returns
+   a signed preview token: a tamper-resistant record of the terms being reviewed.
+   Preview creates no order and reserves no stock.
+3. The customer selects a saved delivery recipient and payment method. The
+   backend checks recipient ownership and saves copies of delivery details with
+   the purchase.
+4. Placement rechecks the reviewed terms and inventory. It saves one store order
+   per store, with item names and prices copied into purchase records.
+5. The result depends on the payment method below. The customer can read saved
+   confirmation and order history afterward without placing another purchase.
+
+An **idempotency key** identifies the original placement request. If a response is
+lost, retry the same body and key. Generating a different key can create another
+purchase. Reusing a key with different content is rejected.
+
+## Cash on delivery and Stripe test payments
+
+| Behavior         | Cash on delivery (COD)                        | Stripe test checkout                                              |
+| ---------------- | --------------------------------------------- | ----------------------------------------------------------------- |
+| Placement result | Completed checkout with unpaid store orders   | Pending checkout, payment attempt, and stock holds                |
+| Physical stock   | Deducted at successful placement              | Deducted after verified payment                                   |
+| Payment          | Remains unpaid; collection is not implemented | Hosted test card payment; no real money moves                     |
+| Store ledger     | No entries                                    | Pending store credits posted atomically with payment finalization |
+| Uncertain result | Retry exact placement body/key                | Recover the saved attempt and reconcile Stripe state              |
+
+Stripe webhooks, explicit customer status checks, and scheduled recovery all use
+verified provider state. A browser return URL is not payment confirmation. An
+unresolved stock hold remains effective even after its local deadline until safe
+provider resolution permits release.
+
+The current Stripe flow uses one payment attempt and hosted session per checkout.
+Retrying creation recovers that attempt; a closed attempt does not receive another
+session. A new purchase requires a fresh review and key.
+
+## Saved records
+
+The core relationships below show which records belong together. The diagram is
+a relationship overview; it omits fields and additional records such as provider
+events, refunds, ledger entries, and order-history events.
 
 ```mermaid
 erDiagram
@@ -30,13 +64,33 @@ erDiagram
     Product ||--o{ StockReservation : held_for
 ```
 
-Each checkout may contain many store orders but at most one order per store.
-COD retries replay the existing purchase. Future Stripe retries can create payment
-attempts for the same checkout; COD creates no payment-attempt records.
+Orders retain purchase snapshots, meaning copies of the recipient, names, prices,
+and exchange rates accepted for that purchase. Later edits do not rewrite them.
+Receipt images remain current catalog images rather than historical snapshots.
+See [model structure and rules](models.md) for fields and safeguards.
 
-The source of pricing currency is the store's existing `currency` field. The
-preview service resolves
-the customer's currency and uses USD when it cannot be resolved or when required
-conversion targets an unsupported currency. A failed FX lookup must not relabel
-original store prices. No currency conversion or USD fallback is performed by
-model `save()`.
+## Prices and currencies
+
+The source currency belongs to the store. COD preview resolves the customer's
+personal-address currency, with USD fallback where the contract requires it.
+Stripe test checkout uses USD. Conversion happens in pricing services, not model
+`save()` methods. Failed required conversion blocks a checkout review; it must
+never leave an original amount labelled as a different currency.
+
+## Find the detailed contract
+
+- [Saved recipients](recipients-api.md): address book, defaults, and ownership.
+- [Preview](preview-api.md): selections, availability, currencies, and signed terms.
+- [COD placement and confirmation](cod-api.md): atomic purchase and repeat requests.
+- [Stripe test checkout](stripe-api.md): provider setup, holds, payment, and recovery.
+- [Customer orders](../ecommerce/user-orders.md): cancellation, Stripe test refunds,
+  and persistent history.
+- [Demo wallet ledger](../wallet/README.md): internal payment receipts and refund
+  reversals; no customer wallet API or spending interface.
+- [Development seed data](../seed.md): repeatable sample purchases.
+- [Frontend checkout](../../../frontend/docs/checkout/README.md): customer screens
+  and browser-side recovery.
+
+Delivery operations, settlement release, returns, withdrawals, and COD payment
+collection remain outside the implemented workflow. Customer cancellation refunds
+are implemented and are distinct from a returns workflow.

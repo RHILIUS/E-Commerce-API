@@ -28,6 +28,21 @@ Before changing database design, API contracts, authentication, architecture, or
 
 Do not assume the code, frontend, and documentation are synchronized. Report inconsistencies before changing an established contract.
 
+## Documentation Writing and Reading Flow
+
+Write maintained documentation for a future implementer who has no prior project context. Explain the current system in simple, concrete language while preserving exact technical rules.
+
+- Start with the feature's purpose and the person's experience before naming endpoints, models, serializers, or services. Define unfamiliar terms and abbreviations on first use; use short examples when they explain a real distinction.
+- Provide a repository introduction, a documentation reading map, and an architecture introduction. These are responsibilities, not fixed filenames or assumptions that particular guides exist. Inspect the current structure and maintain or create the appropriate guide without relying on another document as a required style example.
+- Organize feature guides around purpose and entry points, the normal successful flow, saved records and ownership, business rules and failure recovery, then exact requests/responses and code references. Adapt headings and combine sections when the feature is small.
+- Explain transactions, locks, idempotency, uncertain outcomes, external-service handoffs, and persistence in plain language before detailing their mechanics. Simplicity must not hide authorization, concurrency, data-integrity, or recovery requirements.
+- Setup and operations guides should explain services and connections before prerequisites, ordered commands, settings, and troubleshooting. Label where commands run, define placeholders, and distinguish local settings, container settings, and deployed settings.
+- Keep frontend behavior in the frontend guides, exact backend contracts and code explanations in this repository, and shared architecture, ERDs, and business-process diagrams in the sibling documentation repository. Link to maintained sources instead of duplicating their full contents.
+- Check statements against code and current consumers. Correct stale claims within scope and report discrepancies elsewhere. Distinguish implemented behavior from proposals and retain real limits such as test-only payments or unavailable settlement workflows.
+- Write lasting explanations rather than change logs, implementation dates, PR narratives, or session reports. Do not add Verification sections, historical test results, completed checklists, or validation-run screenshots to maintained overview and feature guides. Put execution evidence in the PR or handoff; keep reusable testing instructions in development/contributor guides and operational health checks in runbooks.
+- Continue all checks required by the change. Specialized diagram/ERD validation and PR reporting requirements remain in force; this writing guidance does not remove them.
+- Keep indexes and relative links current when guides are added, moved, or removed. Check target files and anchors. Explain the sibling repository layout and provide repository URLs for readers browsing only one repository on GitHub.
+
 ## Backend Conventions
 
 Use one backend `.env` for host Django, Docker Compose and VS Code Dev Containers.
@@ -47,7 +62,8 @@ This project uses Python, Django, Django REST Framework, PostgreSQL, SimpleJWT, 
 - `apps/checkout/` contains checkout/payment-attempt models, the Stripe test webhook inbox, and online payment/recovery services.
 - `apps/inventory/` contains stock-reservation models.
 - `apps/wallet/` contains simulated USD wallets, the immutable ledger and internal posting services.
-- `apps/account/` and `apps/store/` contain recipient and store models.
+- `apps/account/` contains profile/photo editing, saved recipients, and password-change workflows.
+- `apps/store/` contains store models, memberships, business addresses, and public store APIs.
 - `core/common/` contains shared code.
 
 Follow the existing Django app structure. Add shared abstractions only when they are genuinely used by multiple apps.

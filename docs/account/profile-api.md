@@ -1,5 +1,22 @@
 # Account profile API
 
+The profile holds the account holder's personal name, phone, and address. It is
+separate from delivery recipients, which can describe someone else receiving an
+order. Updating the personal address does not rewrite saved recipients or purchases.
+
+## How profile editing works
+
+1. Read the signed-in customer's saved profile.
+2. Send the complete editable personal details and nested address when saving.
+3. The backend validates them and saves the user and address in one transaction:
+   both changes succeed together, or neither is saved.
+4. Return the saved profile. The frontend updates its form and shared account name
+   and address country from that response.
+
+If a response is lost, saving may already have succeeded. The frontend reloads the
+profile for review rather than automatically repeating the write. Field-validation
+failures preserve its draft. Photos have a [separate save flow](profile-photo-api.md).
+
 ## Scope and authentication
 
 `GET /api/account/profile/` and `PUT /api/account/profile/` require Bearer access-token authentication and operate only on the authenticated account. No account
@@ -76,7 +93,16 @@ AuthContext's `fullName` from `full_name` and `address_country_code` from
 `address.country_code`. Existing frontend resource dependencies will refresh
 country-dependent data. Login/refresh also return the updated name/country.
 
-The API and Profile-tab UI are implemented. [Photo management](profile-photo-api.md)
-uses a separate authenticated upload/re-crop/removal flow with compression and
-storage cleanup. Figma refinement remains pending.
-Change Password and verified email/phone changes are outside this endpoint.
+[Photo management](profile-photo-api.md) uses a separate authenticated
+upload/re-crop/removal flow with compression and storage cleanup.
+[Password changes](change-password-api.md) use their own endpoints. Verified
+email/phone changes are outside the profile endpoint.
+
+## Existing database migration
+
+`authentication.0002_remove_user_country_code_useraddress` removes the old
+`User.country_code` field without copying its values to personal addresses. It
+was designed for disposable data. Applying it to a database whose country values
+must be preserved requires a separate data-preservation plan before migration.
+Rolling the schema back cannot recover discarded values. This does not change
+the current API rule: personal-address country belongs to `UserAddress`.

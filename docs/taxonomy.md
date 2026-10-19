@@ -1,10 +1,26 @@
 # Product taxonomy
 
+Taxonomy is the shared vocabulary for describing products. A **category** groups
+products, such as laptops. An **attribute** describes a property, such as screen
+type, and an **attribute value** is a choice such as OLED. A product specification
+connects that product to an allowed attribute/value.
+
+The importer loads this vocabulary from a pinned local Shopify snapshot. The
+seeder then uses those definitions; it does not invent categories or choices.
+Read the rules below before importing or changing specifications.
+
 Categories, attributes, allowed category–attribute associations, predefined values,
 and product specifications are managed through Django admin. The `import_taxonomy`
 command imports categories, contextual attributes, predefined values, and category
 associations from a local Shopify snapshot. The product specification API is not
 implemented yet.
+
+## How the pieces fit together
+
+A category allows particular attributes, and each attribute owns its allowed
+values. Two attributes can have similar names but different contexts. For example,
+frame color and lens color must not be treated as one property just because both
+can use Black.
 
 ## Contextual attributes
 

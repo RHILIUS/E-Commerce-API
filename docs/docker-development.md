@@ -1,5 +1,19 @@
 # Docker development
 
+The local backend needs several cooperating services, not only a Python web
+server. Docker Compose starts them as a group with their dependencies and shared
+configuration. The customer website still runs separately on your computer.
+
+For a first setup, read services and storage, then follow **First start** and
+**Local frontend**. Later sections cover everyday commands, workers, and VS Code.
+Commands in this guide run from a host terminal in the backend repository unless
+a section explicitly says to use the Dev Container terminal.
+
+A **container** is a running service process created from an image. An **image**
+contains its installed code and dependencies. A **volume** keeps data outside the
+container, so recreating a container does not erase that data. Configuration
+changes, image rebuilds, and database resets are different operations.
+
 This guide covers the backend development stack defined in
 [`compose.dev.yaml`](../compose.dev.yaml) and [`Dockerfile.dev`](../Dockerfile.dev).
 The frontend runs locally. For the production runtime image and Compose setup,
@@ -9,16 +23,16 @@ recovery and seven-day settlement are not implemented by this setup.
 
 ## Services and storage
 
-| Service   | Purpose                                                               | Access                           |
-| --------- | --------------------------------------------------------------------- | -------------------------------- |
-| `db`      | PostgreSQL 17 development database                                    | Compose network: `db:5432`       |
-| `redis`   | Redis 7 broker with append-only persistence | Compose network: `redis:6379`    |
-| `migrate` | One-shot Django migrations                                            | Exits after successful migration |
-| `api`     | Django development server with source reload                          | <http://localhost:8000>          |
-| `worker`  | Celery worker executing Stripe payment recovery | Compose network only |
-| `email-worker` | Dedicated verification OTP delivery worker | Compose network only |
-| `beat`    | Celery scheduler dispatching payment recovery every 60 seconds | Compose network only |
-| `pgadmin` | Database administration UI                                            | <http://localhost:5050>          |
+| Service        | Purpose                                                        | Access                           |
+| -------------- | -------------------------------------------------------------- | -------------------------------- |
+| `db`           | PostgreSQL 17 development database                             | Compose network: `db:5432`       |
+| `redis`        | Redis 7 broker with append-only persistence                    | Compose network: `redis:6379`    |
+| `migrate`      | One-shot Django migrations                                     | Exits after successful migration |
+| `api`          | Django development server with source reload                   | <http://localhost:8000>          |
+| `worker`       | Celery worker executing Stripe payment recovery                | Compose network only             |
+| `email-worker` | Dedicated verification OTP delivery worker                     | Compose network only             |
+| `beat`         | Celery scheduler dispatching payment recovery every 60 seconds | Compose network only             |
+| `pgadmin`      | Database administration UI                                     | <http://localhost:5050>          |
 
 PostgreSQL readiness gates migrations; successful migrations gate API startup.
 pgAdmin waits for PostgreSQL readiness. Worker and Beat wait for healthy Redis
@@ -168,6 +182,26 @@ docker compose -f compose.dev.yaml up -d --build
 docker compose -f compose.dev.yaml down
 ```
 
+## Development checks
+
+Run the existing checks through the API container against the development
+configuration. Django tests create a separate test database; they do not require
+resetting the development schema. PostgreSQL is needed for meaningful row-lock
+and concurrency checks; SQLite cannot establish those guarantees.
+
+```sh
+docker compose -f compose.dev.yaml exec api python manage.py check
+docker compose -f compose.dev.yaml exec api python manage.py test
+docker compose -f compose.dev.yaml exec api python manage.py makemigrations --check --dry-run
+docker compose -f compose.dev.yaml exec api python manage.py spectacular --validate --fail-on-warn
+```
+
+For focused work, append a Django test label, such as `apps.account.tests.test_profile`.
+Deployment-wrapper tests run with `python -m unittest discover -s scripts/tests -v`
+in a configured Python environment; they mock operational commands rather than
+performing a release or reset. See [CI checks](pull-request-checks.md) for the
+hosted workflow. Never run a disposable reset as a testing prerequisite.
+
 ## Celery payment recovery
 
 The Celery application is configured in `ecommerce_backend/celery.py` and imported
@@ -263,6 +297,7 @@ avoids parallel exporters competing for the same image tag. The existing
 `up --build` and separate `build` then `up` commands remain valid. Before running
 `migrate` alone on a fresh machine, build the image with the documented `build`
 command first.
+
 ### Git over SSH
 
 The development image includes Git and `openssh-client` for SSH remotes. After

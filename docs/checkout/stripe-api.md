@@ -1,10 +1,34 @@
 # Stripe test checkout
 
-Implemented: one USD hosted Checkout Session for a multi-store purchase, durable
-stock holds, signed webhook inbox, owner-only status/reconciliation/cancellation,
-and atomic pending store-wallet credits. Uses `stripe==16.0.0`. This integration
-accepts test keys/events only. Delivery, settlement release, returns and withdrawals
-remain separate future features. No real funds or connected accounts are involved.
+Stripe test checkout lets a customer pay for several stores in one hosted card
+payment. It records a simulated USD receipt and each store's pending share; no real
+money moves. The integration accepts test keys and events only and uses the pinned
+Stripe SDK in `requirements.txt`.
+
+## How online purchase works
+
+1. Review the selection in USD, choose a recipient, and submit placement with its
+   original idempotency key.
+2. Save a pending checkout, store orders, and stock holds together. A **hold**
+   prevents those units being sold while payment is unresolved; it does not yet
+   deduct physical stock.
+3. Ask Stripe for a hosted payment session using saved parameters and a stable
+   attempt key. Provider calls run outside database locks.
+4. The customer completes the hosted flow. A browser return is only navigation;
+   a webhook or reconciliation checks the actual provider state.
+5. Verified success atomically posts the store credits, consumes holds, deducts
+   stock, updates orders, and completes checkout. Verified unpaid closure releases
+   holds. An uncertain provider result remains pending for recovery.
+
+A **webhook** is a signed provider notification. **Reconciliation** reads current
+provider facts and compares them with the saved attempt. Scheduled recovery,
+webhooks, and explicit customer checks protect the same purchase against duplicate
+stock deductions or credits.
+
+[Order cancellation refunds](../ecommerce/user-orders.md) are implemented separately.
+Delivery operations, settlement release, returns, and withdrawals remain outside
+this flow. After this overview, read setup, API details, inventory rules, and
+operational exceptions as needed.
 
 ## Local setup
 
@@ -40,7 +64,8 @@ with Stripe for `checkout.session.completed`, `checkout.session.expired`,
 Set `STRIPE_WEBHOOK_SECRET` to that endpoint's signing secret and recreate affected
 containers to reload environment values. Keep scheduled reconciliation as recovery
 for missed deliveries or failed processing. Current payment code accepts only test
-keys/events; live payments and production containerization remain outside scope.
+keys/events; live payments remain outside scope. Production images and services
+are configured in the [deployment guide](../deployment-guide.md).
 
 In that test account/sandbox's Dashboard payment-method settings,
 enable Cards and disable other methods for this cards-only demo. Checkout uses
@@ -53,10 +78,9 @@ to payment, then open Stripe. Use Stripe test card `4242 4242 4242 4242`, a futu
 expiry and any three-digit CVC. See [Stripe testing](https://docs.stripe.com/testing)
 and [webhook setup](https://docs.stripe.com/webhooks).
 
-The callback page never assumes a redirect means paid. Webhooks or explicit
-provider reconciliation establish completion. Verify two store orders become paid,
-stock decreases once, and each store's pending account receives its exact share.
-Inspect PaymentAttempt, ProviderEvent and wallet journal records in Django admin.
+The callback page never assumes a redirect means paid. Webhooks or provider
+reconciliation establish completion. Inspect PaymentAttempt, ProviderEvent, and
+wallet journal records in Django admin when diagnosing payment state.
 
 ## Scheduled payment recovery
 
@@ -86,22 +110,21 @@ This task does not schedule refund recovery or seven-day settlement. See the
 separate command. Without worker/Beat, local abandoned-payment recovery stops;
 explicit customer status checks can still reconcile payments.
 
-
 ## API contract
 
 All purchase endpoints require Bearer authentication and scope references to the
 requesting customer. UUID references do not confer access. Webhooks instead require
 a valid `Stripe-Signature` over the exact raw body and reject live-mode events.
 
-| Method and route | Request | Success |
-| --- | --- | --- |
-| `POST /api/shop/checkout/preview/` | Existing product/cart selection plus optional `payment_method` (`cod` default, or `stripe`) | Existing preview shape; Stripe reviews are USD and tokens are bound to the chosen method. |
-| `POST /api/shop/checkouts/stripe/` | `preview_token`, `recipient_id`, `payment_method: "stripe"`, UUID `idempotency_key` | 200 payment state; same request/key returns the same purchase. |
-| `GET /api/shop/checkouts/{reference}/payment/` | None | 200 saved payment state, no Stripe calls. |
-| `POST /api/shop/checkouts/{reference}/payment/` | Empty | 200 reconciled payment state. |
-| `POST /api/shop/checkouts/{reference}/payment/cancel/` | Empty | 200 current payment state after cancellation request/reconciliation. |
-| `GET /api/shop/checkouts/{reference}/` | None | Existing historical confirmation shape, including pending or completed online orders. |
-| `POST /api/shop/stripe/webhook/` | Raw Stripe event JSON and signature header | 200 `{"received": true}` after durable inbox receipt; unsupported event types are ignored. |
+| Method and route                                       | Request                                                                                     | Success                                                                                    |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `POST /api/shop/checkout/preview/`                     | Existing product/cart selection plus optional `payment_method` (`cod` default, or `stripe`) | Existing preview shape; Stripe reviews are USD and tokens are bound to the chosen method.  |
+| `POST /api/shop/checkouts/stripe/`                     | `preview_token`, `recipient_id`, `payment_method: "stripe"`, UUID `idempotency_key`         | 200 payment state; same request/key returns the same purchase.                             |
+| `GET /api/shop/checkouts/{reference}/payment/`         | None                                                                                        | 200 saved payment state, no Stripe calls.                                                  |
+| `POST /api/shop/checkouts/{reference}/payment/`        | Empty                                                                                       | 200 reconciled payment state.                                                              |
+| `POST /api/shop/checkouts/{reference}/payment/cancel/` | Empty                                                                                       | 200 current payment state after cancellation request/reconciliation.                       |
+| `GET /api/shop/checkouts/{reference}/`                 | None                                                                                        | Existing historical confirmation shape, including pending or completed online orders.      |
+| `POST /api/shop/stripe/webhook/`                       | Raw Stripe event JSON and signature header                                                  | 200 `{"received": true}` after durable inbox receipt; unsupported event types are ignored. |
 
 Payment state:
 
@@ -154,7 +177,7 @@ payment. Local reservation deadline is one hour from creation; Stripe receives
 that fixed deadline in the persisted session-creation parameters.
 
 Every unresolved `held` reservation reduces availability, even after its deadline.
-COD placement and preview now honor this rule. Selected cart lines cannot be
+COD placement and preview honor this rule. Selected cart lines cannot be
 incremented, changed, removed or repurchased through cart checkout while held.
 Unselected lines remain editable. Cart admin is inspection-only to prevent deletion
 cascades bypassing these guards. Product saves lock the inventory row and reject
@@ -204,28 +227,10 @@ attempt held until an explicit evidence-based administrative resolution is desig
 See [Stripe idempotency](https://docs.stripe.com/api/idempotent_requests).
 
 Mismatched payment facts, missing reserved stock, or payment after an already
-released hold require investigation. No automatic refund/compensation is implemented.
+released hold require investigation. No automatic compensation for these payment-mismatch exceptions is implemented.
+This differs from the supported customer cancellation-refund flow.
 A failure after provider success is shown as processing while local recovery runs.
 These are separate systems, not a distributed database transaction.
-
-
-## Verification on 2026-10-10
-
-- Full backend suite passed on isolated PostgreSQL 16: 261 tests, two existing
-  historical-migration skips. Three subsequent recovery/inventory regressions
-  were added; the resulting 20-test Stripe suite passed, including two real
-  PostgreSQL concurrency tests. Stripe HTTP requests were mocked.
-- Raw webhook signature verification used the real Stripe SDK with test secrets.
-- Django system checks, migration drift/plan and OpenAPI validation passed.
-- Frontend: all 109 tests passed using `npm run test:run -- --maxWorkers=1`;
-  TypeScript/production build, lint and changed-file formatting checks passed.
-- Chromium: 40 state/layout checks across 330, 375, 768, 1024 and 1440px, both
-  themes, a 375×400 short viewport, keyboard payment selection, cancellation and
-  verified completion. APIs were mocked; screenshots were visually inspected.
-
-No Stripe test key or webhook signing secret was configured in the agent environment,
-so a real hosted Stripe test-account payment was not exercised. The new migration
-was tested on an isolated database, not applied to the development database.
 
 ## Recovery from the unsupported payment-method parameter
 
@@ -245,11 +250,3 @@ using a new key. Saved status remains `cancelled`, so payment pages use their ex
 terminal-state handling. Do not edit stored parameters or delete purchase records.
 The existing 23-hour unknown-creation guard still applies; older unknown attempts
 require evidence-based investigation rather than automatic creation or release.
-
-## Product-summary verification
-
-On 2026-10-10, all 85 checkout/API regression tests passed on isolated PostgreSQL,
-including 30 Stripe tests. Coverage includes default image selection, local-image
-omission, saved parameters surviving catalog edits, exact totals for 100/101/500
-product lines, zero-price items and rejection of mismatched totals. Provider calls
-were mocked; the hosted Stripe display was not exercised in this verification.
