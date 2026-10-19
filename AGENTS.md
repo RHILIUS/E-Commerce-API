@@ -90,7 +90,7 @@ Prefer the smallest clear implementation that satisfies the verified current req
 
 ## Checks and handoff
 
-Run commands from the backend repository root:
+Run commands from the backend repository root in the configured environment. Use focused test labels during implementation; before handing off executable changes, run the full Django suite once after the focused checks pass:
 
 ```bash
 source venv/bin/activate
@@ -98,7 +98,13 @@ python manage.py check
 python manage.py test
 ```
 
-Add focused tests for new behavior and bug fixes; do not add unnecessary tests. Report checks blocked by missing environment variables, PostgreSQL, or other services. Apply the API skill's schema checks for API changes and the database skill's migration checks for model changes. Use the current configured environment; omit host virtual-environment activation when running inside an existing container.
+Before adding a test, inspect the existing coverage. Extend an existing test when it already exercises the same behavior. Add a separate test for a distinct requirement, failure mode, or regression; do not add tests merely because a file changed, repeat equivalent assertions at every layer, or test unchanged framework behavior without a project-specific requirement. Preserve distinct authorization, transaction, concurrency, and data-integrity checks even when they use similar inputs.
+
+Use `TestCase`/`APITestCase` for ordinary database behavior, and `setUpTestData` for fixtures that can safely be shared through Django's per-test isolation. Keep mocks, clients, and other per-test state in `setUp`. Use `SimpleTestCase` for database-free checks. Reserve `TransactionTestCase`/`APITransactionTestCase` for behavior that needs real commits, rollbacks, or independent connections. Explicit callback execution can support functional assertions, but must not replace tests of actual commit timing, post-commit failures, or concurrent writes.
+
+Run the script test suite when deployment/bootstrap/reset wrappers change. Repeat successful checks only when subsequent changes, failures, or unresolved concerns justify another run. See [local test feedback](docs/development/pull-request-checks.md#local-test-feedback) for focused commands, test-database reuse, and timing tools.
+
+Report checks blocked by missing environment variables, PostgreSQL, or other services. Apply the API skill's schema checks for API changes and the database skill's migration checks for model changes. Use the current configured environment; omit host virtual-environment activation when running inside an existing container.
 
 For documentation or instruction-only work, validate affected prose, links/anchors, formatting, and skill metadata/references as applicable. Application tests do not validate instructions. Report only checks actually performed and disclose limitations; follow specialized diagram validation when a diagram changes.
 

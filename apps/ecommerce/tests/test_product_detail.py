@@ -12,23 +12,26 @@ from core.test_support import create_purchase
 
 
 class ProductDetailTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.store = Store.objects.create(
+            name="Detail store", country_code="PH")
+        cls.product = Product.objects.create(
+            store=cls.store, name="Phone", short_description="Short summary",
+            description="Full product description", stock=3, price="5600.00",
+            sold_count=12, status=Product.Status.ACTIVE,
+        )
+        cls.url = f"/api/shop/products/{cls.product.pk}/"
+        cls.user = create_customer(
+            username="viewer", email="viewer@example.com", phone_number="+639111111111",
+            full_name="Viewer", country_code="PH",
+        )
+
     def setUp(self):
         rates = patch("apps.ecommerce.views.get_display_rates",
                       return_value={"PHP": ("USD", Decimal(56))})
         self.rates = rates.start()
         self.addCleanup(rates.stop)
-        self.store = Store.objects.create(
-            name="Detail store", country_code="PH")
-        self.product = Product.objects.create(
-            store=self.store, name="Phone", short_description="Short summary",
-            description="Full product description", stock=3, price="5600.00",
-            sold_count=12, status=Product.Status.ACTIVE,
-        )
-        self.url = f"/api/shop/products/{self.product.pk}/"
-        self.user = create_customer(
-            username="viewer", email="viewer@example.com", phone_number="+639111111111",
-            full_name="Viewer", country_code="PH",
-        )
 
     def test_public_detail_contract_and_bounded_queries(self):
         Product.objects.create(
