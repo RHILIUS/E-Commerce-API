@@ -397,7 +397,7 @@ For Stripe test payments, register
 selecting `checkout.session.completed`, `checkout.session.expired`,
 `checkout.session.async_payment_succeeded`, and `checkout.session.async_payment_failed`.
 Save that endpoint's signing secret in `STRIPE_WEBHOOK_SECRET`; test delivery once
-HTTPS is running. Follow the [implemented Stripe contract](checkout/stripe-api.md)
+HTTPS is running. Follow the [implemented Stripe contract](../api/checkout/stripe.md)
 for account/payment-method requirements. Blank Stripe credentials leave online
 payment integration incomplete; successful bootstrap does not test payment delivery.
 
@@ -538,7 +538,7 @@ created through the application's normal administration flows.
 ### Connect and test the frontend
 
 Ask the frontend maintainer to follow the
-[Cloudflare Pages deployment guide](../../frontend/docs/deployment/cloudflare-pages.md).
+[Cloudflare Pages deployment guide](../../../frontend/docs/deployment/cloudflare-pages.md).
 For the existing setup, the frontend uses `VITE_API_URL=/` and its production Pages
 Function must have `API_ORIGIN=https://api.example.com`. The backend's configured
 frontend origins must match that deployed frontend. Frontend deployment is separate
@@ -826,18 +826,18 @@ recovery. There is no automatic data rollback or restore in this tool. If the VM
 lost, bootstrap alone creates a new empty stack; recovering business data requires
 your tested backup/restore procedure and a controlled cutover.
 
-For related procedures, see [disposable demo reset](reset-dev.md#one-command-disposable-demo-reset),
+For related procedures, see [disposable demo reset](reset-environment.md#one-command-disposable-demo-reset),
 [GitHub Actions deployment](github-actions-deployment.md), and the
-[system deployment architecture](../../docs/architecture/production-deployment.md).
+[system deployment architecture](../../../docs/architecture/production-deployment.md).
 
 ## Technical appendix: production Docker reference
 
 This appendix describes the existing container setup for maintainers who need to
 inspect or troubleshoot it. Use the numbered deployment steps above for a new
 server and the release procedure for updates. The source of truth is
-[`Dockerfile.prod`](../Dockerfile.prod), [`compose.prod.yaml`](../compose.prod.yaml),
-[`settings_production.py`](../ecommerce_backend/settings_production.py), and the
-[Nginx template](../deploy/nginx.conf.template).
+[`Dockerfile.prod`](../../Dockerfile.prod), [`compose.prod.yaml`](../../compose.prod.yaml),
+[`settings_production.py`](../../ecommerce_backend/settings_production.py), and the
+[Nginx template](../../deploy/nginx.conf.template).
 
 ### Runtime image and workers
 
@@ -869,7 +869,7 @@ docker run --rm ecommerce-backend-prod:local python -m pip check
 
 The separate `maintenance` build target includes offline taxonomy and seed images.
 It is selected only by the maintenance service/profile. See
-[production demo reset](reset-dev.md#one-command-disposable-demo-reset) for its
+[production demo reset](reset-environment.md#one-command-disposable-demo-reset) for its
 controlled use; ordinary deployment does not reset or seed data.
 
 ### Compose services and startup dependencies

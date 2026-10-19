@@ -87,7 +87,7 @@ snapshot by hand.
 The `import_taxonomy` management command requires both JSON files after schema
 migrations have been applied. Their versions and attribute definitions must agree.
 Downloading or storing these files does not populate the database.
-See [the backend taxonomy notes](../../../docs/taxonomy.md) for model validation
+See [the backend taxonomy notes](../../../docs/development/taxonomy.md) for model validation
 rules and import limitations.
 
 - Map category IDs to `Category.taxonomy_id` and resolve parent relationships.

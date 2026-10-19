@@ -7,7 +7,24 @@ schema annotations.
 
 Feature guides explain why an operation exists, its business rules, and recovery
 behavior. Use Swagger for the exact fields while reading the relevant guide from
-the [documentation index](README.md).
+the [documentation index](../README.md).
+
+## Find an API guide
+
+- [Authentication](authentication/README.md): account creation, sign-in, tokens,
+  and [registration email](authentication/registration-otp.md).
+- Account: [profile](account/profile.md), [photos](account/profile-photo.md), and
+  [password changes](account/change-password.md).
+- Ecommerce: [catalog](ecommerce/product-catalog.md),
+  [product detail](ecommerce/product-detail.md), [stores](ecommerce/store-page.md),
+  [carts](ecommerce/carts.md), and [orders](ecommerce/user-orders.md).
+- [Checkout](checkout/README.md): [recipients](checkout/recipients.md),
+  [preview](checkout/preview.md), [cash on delivery](checkout/cash-on-delivery.md),
+  and [Stripe test payment](checkout/stripe.md).
+
+For the internal records and accounting service behind purchases, read
+[checkout models](../architecture/checkout-models.md) and
+[the wallet ledger](../architecture/wallet-ledger.md).
 
 ## Open Swagger and the schema
 
@@ -62,8 +79,8 @@ do not provide.
 Login/refresh user data exposes the personal-address country and cropped avatar.
 The country comes from `UserAddress`, not the phone or delivery recipient. Photo
 URLs follow the configured storage behavior. The detailed contracts live with
-[authentication](authentication/README.md), [profile](account/profile-api.md), and
-[photo management](account/profile-photo-api.md).
+[authentication](authentication/README.md), [profile](account/profile.md), and
+[photo management](account/profile-photo.md).
 
 ## Maintain the generated contract
 
@@ -85,5 +102,5 @@ For a configured host environment, activate its virtual environment and run the
 same `manage.py` command directly. Review the changed operations in the generated
 schema as well; schema generation cannot prove that business rules are correct.
 
-See [development commands](docker-development.md#everyday-commands) and
-[pull request checks](pull-request-checks.md) for the broader development workflow.
+See [development commands](../development/docker.md#everyday-commands) and
+[pull request checks](../development/pull-request-checks.md) for the broader development workflow.

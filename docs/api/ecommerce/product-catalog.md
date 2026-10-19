@@ -118,7 +118,7 @@ cache in production to share tables and refresh gates across workers. Cold pages
 may wait for one provider request up to the configured timeout.
 
 This feature only converts catalog display prices. The separate
-[checkout preview API](../checkout/preview-api.md) uses strict single-currency
+[checkout preview API](../checkout/preview.md) uses strict single-currency
 conversion and signed price snapshots. Placement remains pending. Mixed-currency
 catalog or historical amounts must not be treated as a single-currency total.
 

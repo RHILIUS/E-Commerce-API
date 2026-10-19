@@ -33,7 +33,7 @@ Cart lines held by a pending Stripe purchase cannot be incremented, changed,
 removed, or repurchased through cart checkout until that purchase resolves.
 Other lines remain editable. Confirmed payment removes the purchased lines;
 confirmed unpaid closure releases their holds. See
-[Stripe inventory behavior](../checkout/stripe-api.md#purchase-and-inventory-behavior).
+[Stripe inventory behavior](../checkout/stripe.md#purchase-and-inventory-behavior).
 
 The frontend refreshes cart data every 15 seconds while visible and on focus.
 This is periodic refresh, not a WebSocket stream. Product selection for checkout

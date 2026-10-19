@@ -42,7 +42,7 @@ Products are seeded before customer orders. Product names must be unique across
 the seed catalogs because order items and image folders identify them by name.
 
 The fixture behavior below explains sample purchases. See
-[model structures](checkout/models.md) for checkout, payment, and reservation rules.
+[model structures](../architecture/checkout-models.md) for checkout, payment, and reservation rules.
 
 ### How records are matched
 
@@ -273,4 +273,4 @@ The public contact details are sample business details shown on the customer Sto
 
 ## Full development reset
 
-For disposable environments, see [reset_dev](reset-dev.md) to rebuild the schema and clear uploaded media before migrating, importing taxonomy and seeding.
+For disposable environments, see [reset_dev](../operations/reset-environment.md) to rebuild the schema and clear uploaded media before migrating, importing taxonomy and seeding.

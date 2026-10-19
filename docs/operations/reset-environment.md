@@ -8,7 +8,7 @@ or rerunning the seed command.
 ## Choose the right operation
 
 - To keep data and restart services, use the development or deployment guide.
-- To create/update sample records, use [seeding](seed.md).
+- To create/update sample records, use [seeding](../development/seed-data.md).
 - To rebuild disposable data completely, follow this guide and inspect its targets.
 
 The reset has several stages: preflight, confirmation, database recreation, media
@@ -154,4 +154,4 @@ and Docker volumes are preserved (their application contents are rebuilt).
 
 The maintenance service is excluded from ordinary `up` unless its profile is
 explicitly enabled. Its default command is a dry run. The normal API image excludes the fixture assets. See the
-[reset wrapper implementation](../scripts/reset-demo.sh) for command ordering.
+[reset wrapper implementation](../../scripts/reset-demo.sh) for command ordering.

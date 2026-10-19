@@ -65,7 +65,7 @@ Set `STRIPE_WEBHOOK_SECRET` to that endpoint's signing secret and recreate affec
 containers to reload environment values. Keep scheduled reconciliation as recovery
 for missed deliveries or failed processing. Current payment code accepts only test
 keys/events; live payments remain outside scope. Production images and services
-are configured in the [deployment guide](../deployment-guide.md).
+are configured in the [deployment guide](../../operations/deployment.md).
 
 In that test account/sandbox's Dashboard payment-method settings,
 enable Cards and disable other methods for this cards-only demo. Checkout uses
@@ -87,7 +87,7 @@ wallet journal records in Django admin when diagnosing payment state.
 Implemented: Django's `CELERY_BEAT_SCHEDULE` dispatches
 `apps.checkout.tasks.reconcile_stripe_payments` every 60 seconds through Redis.
 The worker calls `reconcile_stripe` with `limit=100`. Run one Beat instance and
-at least one worker using the [Docker development stack](../docker-development.md#celery-payment-recovery).
+at least one worker using the [Docker development stack](../../development/docker.md#celery-payment-recovery).
 Scheduling is periodic, not a guarantee of completion within exactly 60 seconds.
 
 For a manual recovery run from the backend directory:

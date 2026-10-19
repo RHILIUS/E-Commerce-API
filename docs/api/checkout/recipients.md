@@ -21,8 +21,8 @@ changes. Order snapshots keep the accepted delivery details even after editing
 or removing an address-book entry.
 
 These endpoints support recipient selection for both COD and Stripe test
-checkout. See [preview](preview-api.md), [placement and confirmation](cod-api.md),
-and [frontend behavior](../../../frontend/docs/checkout/README.md).
+checkout. See [preview](preview.md), [placement and confirmation](cash-on-delivery.md),
+and [frontend behavior](../../../../frontend/docs/checkout/README.md).
 
 ## Authentication and ownership
 

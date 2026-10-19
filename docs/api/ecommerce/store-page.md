@@ -87,4 +87,4 @@ The landing catalog's existing ranking and stored Product.sold_count are unchang
 They can differ from store sales metrics. This is an explicit contract difference,
 not a backfill or a financial/accounting total.
 
-Frontend behavior: [Store Page](../../../frontend/docs/ecommerce/store-page.md).
+Frontend behavior: [Store Page](../../../../frontend/docs/ecommerce/store-page.md).

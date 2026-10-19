@@ -35,11 +35,11 @@ from the table instead.
 
 ## Start reading here
 
-1. Read [how the backend works](docs/architecture.md) for the services, code
+1. Read [how the backend works](docs/architecture/README.md) for the services, code
    structure, and path a request takes through the application.
-2. Follow [local development setup](docs/docker-development.md) to run it.
+2. Follow [local development setup](docs/development/docker.md) to run it.
 3. Use the [documentation index](docs/README.md) to find a feature or operation.
-4. Open [interactive API documentation](docs/api-documentation.md) for exact
+4. Open [interactive API documentation](docs/api/README.md) for exact
    requests and responses while the backend is running.
 
 ## Run it locally
@@ -55,7 +55,7 @@ From the backend repository root:
 1. Install Docker with Compose and make sure Docker is running.
 2. If `.env` does not exist, copy `.env.example` to `.env`. Fill in the application,
    database, and pgAdmin settings described in the
-   [development guide](docs/docker-development.md#first-start).
+   [development guide](docs/development/docker.md#first-start).
 3. Build and start the services:
 
    ```sh
@@ -66,7 +66,7 @@ From the backend repository root:
    [Django admin](http://localhost:8000/admin/). Admin sign-in requires a staff
    account; create one with the command in the development guide.
 5. To populate a disposable local database, follow the
-   [taxonomy](docs/taxonomy.md) and [seed-data](docs/seed.md) guides. An empty
+   [taxonomy](docs/development/taxonomy.md) and [seed-data](docs/development/seed-data.md) guides. An empty
    database can run correctly without containing products.
 
 The frontend runs separately, normally at `http://localhost:5173`. Its public
@@ -76,7 +76,7 @@ do not put Django, database, email, storage, or Stripe secrets in frontend varia
 
 Email codes need Redis and the email worker as well as a running API. The default
 console email backend writes messages to the worker's output rather than sending
-to an inbox. See the [email-worker instructions](docs/docker-development.md#registration-email-worker).
+to an inbox. See the [email-worker instructions](docs/development/docker.md#registration-email-worker).
 
 ## Everyday commands
 
@@ -92,6 +92,6 @@ Run these commands from the backend repository root after starting the stack:
 | `docker compose -f compose.dev.yaml down`                                                            | Stop the stack while retaining named data volumes |
 
 For troubleshooting, Dev Containers, migrations, and background services, use the
-[development guide](docs/docker-development.md). For deployment, follow the
-[server deployment guide](docs/deployment-guide.md), then the
-[automatic-release reference](docs/github-actions-deployment.md).
+[development guide](docs/development/docker.md). For deployment, follow the
+[server deployment guide](docs/operations/deployment.md), then the
+[automatic-release reference](docs/operations/github-actions-deployment.md).

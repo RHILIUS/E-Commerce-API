@@ -35,7 +35,7 @@ code issuance. Verification locks the code record so concurrent failures cannot
 lose attempt increments. A verified code cannot be used a second time.
 
 The registration cookie expires after 15 minutes. See
-[email delivery](registration-otp-api.md) for queue failures, resend behavior, and
+[email delivery](registration-otp.md) for queue failures, resend behavior, and
 why an accepted request does not prove inbox delivery.
 
 ## Login, refresh, and logout
@@ -57,7 +57,7 @@ valid cookie is present. It does not increment the account's authentication
 version, so an already issued access token is not globally revoked by ordinary
 logout. The frontend also clears its own in-memory credentials.
 
-A successful [password change](../account/change-password-api.md) increments the
+A successful [password change](../account/change-password.md) increments the
 account's authentication version. Protected requests, refresh, and token
 verification reject older versions and inactive users. Legacy tokens without a
 version count as version zero and stop working after that account's version changes.
@@ -91,7 +91,7 @@ are public response fields, not all the fields on the user model.
 
 For direct local browser calls, enable credentials and configure the backend's
 allowed frontend origin. Production uses the frontend's same-origin API proxy;
-see [deployment](../deployment-guide.md). Cookie policies still apply, so merely
+see [deployment](../../operations/deployment.md). Cookie policies still apply, so merely
 allowing an origin does not override browser cookie rules.
 
 ## Request contracts
@@ -145,12 +145,12 @@ registered. Registration POST itself has no purchase-style idempotency key.
 
 | Location                                                                                | Responsibility                                                                        |
 | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| [Authentication views](../../apps/authentication/views.py)                              | Coordinate endpoints and cookies                                                      |
-| [Serializers](../../apps/authentication/serializers.py)                                 | Validate registration/code input, create account records, and return public user data |
-| [Token authentication](../../apps/authentication/token_authentication.py)               | Check active users and session versions                                               |
-| [Code issuance](../../apps/authentication/services/otp_service.py)                      | Generate hashed codes and enforce issuance limits                                     |
-| [Registration tokens](../../apps/authentication/services/registration_token_service.py) | Sign and validate the email-verification credential                                   |
-| [Settings](../../ecommerce_backend/settings.py)                                         | Configure token lifetimes, code policies, and browser origins                         |
+| [Authentication views](../../../apps/authentication/views.py)                              | Coordinate endpoints and cookies                                                      |
+| [Serializers](../../../apps/authentication/serializers.py)                                 | Validate registration/code input, create account records, and return public user data |
+| [Token authentication](../../../apps/authentication/token_authentication.py)               | Check active users and session versions                                               |
+| [Code issuance](../../../apps/authentication/services/otp_service.py)                      | Generate hashed codes and enforce issuance limits                                     |
+| [Registration tokens](../../../apps/authentication/services/registration_token_service.py) | Sign and validate the email-verification credential                                   |
+| [Settings](../../../ecommerce_backend/settings.py)                                         | Configure token lifetimes, code policies, and browser origins                         |
 
-The [interactive API guide](../api-documentation.md) explains how to explore the
+The [interactive API guide](../README.md) explains how to explore the
 published contracts without confusing access-token responses with cookie values.

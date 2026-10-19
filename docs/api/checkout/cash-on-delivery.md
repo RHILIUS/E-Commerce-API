@@ -6,7 +6,7 @@ money or create wallet entries.
 
 ## How placement works
 
-1. The customer reviews a [preview](preview-api.md) and chooses a saved recipient.
+1. The customer reviews a [preview](preview.md) and chooses a saved recipient.
 2. The frontend submits the preview token, recipient, COD method, and a unique
    idempotency key identifying this request.
 3. The backend checks replay before preview expiry, then locks and rechecks the
@@ -18,9 +18,9 @@ money or create wallet entries.
 An uncertain response may mean placement already committed. Retry the exact body
 and key; a new key can create another purchase. Unresolved Stripe holds reduce
 available stock, and pending online purchases can freeze selected cart lines.
-[Stripe test checkout](stripe-api.md) is implemented separately. Delivery and COD
+[Stripe test checkout](stripe.md) is implemented separately. Delivery and COD
 payment collection remain outside this flow. See
-[frontend behavior](../../../frontend/docs/checkout/README.md) for the customer UI.
+[frontend behavior](../../../../frontend/docs/checkout/README.md) for the customer UI.
 
 ## Place a COD purchase
 
@@ -168,7 +168,7 @@ surface as server errors; a client with an uncertain result retries the same key
 
 ## Required database update
 
-The repository includes [0002_checkout_request_fingerprint](../../apps/checkout/migrations/0002_checkout_request_fingerprint.py).
+The repository includes [0002_checkout_request_fingerprint](../../../apps/checkout/migrations/0002_checkout_request_fingerprint.py).
 The fingerprint supports safe request replay. Apply repository migrations as part
 of setup or deployment before serving placement requests. Check application status
 with `showmigrations`; a migration file in Git does not mean a target database has

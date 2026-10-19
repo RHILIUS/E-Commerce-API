@@ -115,9 +115,9 @@ and while holding locks. Administrative database writes are outside this contrac
 
 ## Integrations and limits
 
-Stripe test checkout and ProviderEvent are implemented; see [setup](../checkout/stripe-api.md).
+Stripe test checkout and ProviderEvent are implemented; see [setup](../api/checkout/stripe.md).
 Stripe test card cancellation refunds are implemented through
-[customer orders](../ecommerce/user-orders.md), reversing the affected store pending
+[customer orders](../api/ecommerce/user-orders.md), reversing the affected store pending
 credit and treasury receipt after provider confirmation. No customer wallet API
 or UI is added. No settlement/hold records, seven-day jobs,
 withdrawal workflow, mock-bank adapter, wallet spending or fee logic are implemented.

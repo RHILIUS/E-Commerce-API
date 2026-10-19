@@ -17,9 +17,9 @@ quantities or stock. Foreign-exchange (FX) responses may be cached. An HTTP 200
 preview can still contain issues that block purchase: clients must inspect
 `can_place_order` and `issues`, not just the HTTP status.
 
-Placement is separate: [COD](cod-api.md) or [Stripe test checkout](stripe-api.md).
+Placement is separate: [COD](cash-on-delivery.md) or [Stripe test checkout](stripe.md).
 Both revalidate the review under locks. See
-[frontend checkout](../../../frontend/docs/checkout/README.md) for the customer UI.
+[frontend checkout](../../../../frontend/docs/checkout/README.md) for the customer UI.
 
 ## Request
 
@@ -39,7 +39,7 @@ Selected cart items:
 
 Either shape accepts optional `payment_method` (`cod` by default, or `stripe`).
 Stripe reviews require configured test credentials, use USD, and bind the signed
-token to that payment method. See [Stripe checkout](stripe-api.md).
+token to that payment method. See [Stripe checkout](stripe.md).
 
 Use exactly one selection shape. Product quantities are positive integers up to 2147483647.
 Cart requests accept 1–500 distinct cart-item IDs and use their saved quantities.
@@ -160,7 +160,7 @@ COD placement checks successful idempotency replay **before** validating
 preview expiry, then verifies this token and recipient ownership. It locks and
 rechecks products, source prices, cart selection/quantities and available stock.
 Token verification alone cannot authorize order creation. Changed purchase terms
-require a fresh preview and customer review. See the [COD contract](cod-api.md)
+require a fresh preview and customer review. See the [COD contract](cash-on-delivery.md)
 for placement requests and confirmation responses.
 
 ## Status codes

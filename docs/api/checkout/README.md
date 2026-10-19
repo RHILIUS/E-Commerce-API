@@ -67,7 +67,7 @@ erDiagram
 Orders retain purchase snapshots, meaning copies of the recipient, names, prices,
 and exchange rates accepted for that purchase. Later edits do not rewrite them.
 Receipt images remain current catalog images rather than historical snapshots.
-See [model structure and rules](models.md) for fields and safeguards.
+See [model structure and rules](../../architecture/checkout-models.md) for fields and safeguards.
 
 ## Prices and currencies
 
@@ -79,16 +79,16 @@ never leave an original amount labelled as a different currency.
 
 ## Find the detailed contract
 
-- [Saved recipients](recipients-api.md): address book, defaults, and ownership.
-- [Preview](preview-api.md): selections, availability, currencies, and signed terms.
-- [COD placement and confirmation](cod-api.md): atomic purchase and repeat requests.
-- [Stripe test checkout](stripe-api.md): provider setup, holds, payment, and recovery.
+- [Saved recipients](recipients.md): address book, defaults, and ownership.
+- [Preview](preview.md): selections, availability, currencies, and signed terms.
+- [COD placement and confirmation](cash-on-delivery.md): atomic purchase and repeat requests.
+- [Stripe test checkout](stripe.md): provider setup, holds, payment, and recovery.
 - [Customer orders](../ecommerce/user-orders.md): cancellation, Stripe test refunds,
   and persistent history.
-- [Demo wallet ledger](../wallet/README.md): internal payment receipts and refund
+- [Demo wallet ledger](../../architecture/wallet-ledger.md): internal payment receipts and refund
   reversals; no customer wallet API or spending interface.
-- [Development seed data](../seed.md): repeatable sample purchases.
-- [Frontend checkout](../../../frontend/docs/checkout/README.md): customer screens
+- [Development seed data](../../development/seed-data.md): repeatable sample purchases.
+- [Frontend checkout](../../../../frontend/docs/checkout/README.md): customer screens
   and browser-side recovery.
 
 Delivery operations, settlement release, returns, withdrawals, and COD payment

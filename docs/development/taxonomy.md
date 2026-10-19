@@ -47,7 +47,7 @@ python manage.py import_taxonomy --directory data/taxonomy/2026-08
 ```
 
 The directory must contain `categories.en.json` and `attributes.en.json` with matching
-`version` fields. Both files are required, including for dry runs. See the [snapshot README](../data/taxonomy/2026-08/README.md)
+`version` fields. Both files are required, including for dry runs. See the [snapshot README](../../data/taxonomy/2026-08/README.md)
 for its pinned download and checksum. The command reads local files only.
 
 The full file contains 14,606 categories, 8,500 distinct contextual attributes, and

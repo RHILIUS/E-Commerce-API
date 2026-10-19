@@ -76,6 +76,6 @@ branch-rule enforcement.
 
 - [PostgreSQL services in GitHub Actions](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers)
 - [Required status checks](https://docs.github.com/en/pull-requests/reference/status-checks)
-- [Workflow](../.github/workflows/pr-checks.yml)
-- [Production runtime](../Dockerfile.prod)
-- [Production services](../compose.prod.yaml)
+- [Workflow](../../.github/workflows/pr-checks.yml)
+- [Production runtime](../../Dockerfile.prod)
+- [Production services](../../compose.prod.yaml)

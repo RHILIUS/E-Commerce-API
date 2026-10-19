@@ -29,9 +29,9 @@ that work between processes; Redis is the broker here. PostgreSQL remains the
 source of durable business state. A healthy API does not prove that workers are
 running or messages are reaching inboxes.
 
-The exact versions live in [runtime requirements](../requirements.txt),
-[development requirements](../requirements-dev.txt), and the Docker configuration.
-See [local services](docker-development.md#services-and-storage) for startup order.
+The exact versions live in [runtime requirements](../../requirements.txt),
+[development requirements](../../requirements-dev.txt), and the Docker configuration.
+See [local services](../development/docker.md#services-and-storage) for startup order.
 
 ## What happens to a request
 
@@ -56,7 +56,7 @@ A **serializer** translates and validates that data. A **model** describes a sav
 record. A **migration** changes database structure or existing data in a controlled
 order. Applying code alone does not apply its migrations.
 
-The [interactive API guide](api-documentation.md) explains `/api/docs/` and
+The [interactive API guide](../api/README.md) explains `/api/docs/` and
 `/api/schema/`. Feature guides include request examples and error contracts.
 
 ## How the code is divided
@@ -95,7 +95,7 @@ supplied to them can still be rejected.
 
 Registration uses an emailed one-time code and a separate registration cookie.
 Password changes invalidate existing sessions through the account's authentication
-version. Read [accounts and sign-in](authentication/README.md) for the lifecycle
+version. Read [accounts and sign-in](../api/authentication/README.md) for the lifecycle
 and exact endpoints.
 
 ## The main saved records
@@ -114,7 +114,7 @@ prices accepted at purchase time. Later profile or catalog edits do not rewrite
 those copies. Receipt images are current catalog presentation, so images can
 change independently of purchase text and prices.
 
-See [checkout](checkout/README.md) and [model details](checkout/models.md).
+See [checkout](../api/checkout/README.md) and [model details](checkout-models.md).
 
 ## Keeping changes consistent
 
@@ -157,8 +157,8 @@ payment. These are demo balances, not real bank funds or customer wallet spendin
 
 Database changes can roll back, but an external payment or email cannot be undone
 by rolling back PostgreSQL. Provider calls and recovery therefore have explicit
-rules. See [Stripe checkout](checkout/stripe-api.md),
-[order refunds](ecommerce/user-orders.md), and [the ledger](wallet/README.md).
+rules. See [Stripe checkout](../api/checkout/stripe.md),
+[order refunds](../api/ecommerce/user-orders.md), and [the ledger](wallet-ledger.md).
 
 ## Configuration and deployment
 
@@ -173,6 +173,6 @@ frontend is hosted separately. Its Cloudflare Pages Function forwards `/api`
 requests to the backend, allowing browser cookies to remain on the frontend host.
 Media can be served by the backend or configured storage.
 
-Follow [deployment](deployment-guide.md) for provisioning and operations. The
-[shared architecture](../../docs/architecture/README.md) describes the wider
+Follow [deployment](../operations/deployment.md) for provisioning and operations. The
+[shared architecture](../../../docs/architecture/README.md) describes the wider
 system; its proposed sections must not be read as additional implemented features.

@@ -15,9 +15,9 @@ container, so recreating a container does not erase that data. Configuration
 changes, image rebuilds, and database resets are different operations.
 
 This guide covers the backend development stack defined in
-[`compose.dev.yaml`](../compose.dev.yaml) and [`Dockerfile.dev`](../Dockerfile.dev).
+[`compose.dev.yaml`](../../compose.dev.yaml) and [`Dockerfile.dev`](../../Dockerfile.dev).
 The frontend runs locally. For the production runtime image and Compose setup,
-see the [deployment guide technical appendix](deployment-guide.md#technical-appendix-production-docker-reference).
+see the [deployment guide technical appendix](../operations/deployment.md#technical-appendix-production-docker-reference).
 Celery workers deliver registration and password-change OTP emails and, with Beat, provide scheduled Stripe payment recovery. Scheduled refund
 recovery and seven-day settlement are not implemented by this setup.
 
@@ -82,7 +82,7 @@ For optional Stripe checkout, set `STRIPE_SECRET_KEY` to a test key and
 `STRIPE_FRONTEND_ORIGIN` to the actual frontend origin. Local payment recovery
 uses Celery without webhook delivery; `STRIPE_WEBHOOK_SECRET` can remain empty
 for that workflow. Deployment webhook configuration is described in the
-[Stripe setup guide](checkout/stripe-api.md).
+[Stripe setup guide](../api/checkout/stripe.md).
 
 Set `CELERY_BROKER_URL=redis://redis:6379/0` in `.env` for the container services.
 The hostname `redis` resolves inside Compose; Redis is not exposed to host Django.
@@ -208,7 +208,7 @@ The Celery application is configured in `ecommerce_backend/celery.py` and import
 by the project package. Django settings read `CELERY_BROKER_URL` and define
 `reconcile-stripe-every-minute`. Every 60 seconds, Beat dispatches
 `apps.checkout.tasks.reconcile_stripe_payments` through Redis. The worker invokes
-`reconcile_stripe` with `limit=100`; see the [recovery contract](checkout/stripe-api.md#scheduled-payment-recovery).
+`reconcile_stripe` with `limit=100`; see the [recovery contract](../api/checkout/stripe.md#scheduled-payment-recovery).
 No Celery result backend is configured.
 
 Run only one Beat instance for this schedule. Its schedule file is
@@ -239,7 +239,7 @@ payment state too. Command output may appear at WARNING level even on success.
 
 ## VS Code Dev Container
 
-The shared configuration in [devcontainer.json](../.devcontainer/devcontainer.json)
+The shared configuration in [devcontainer.json](../../.devcontainer/devcontainer.json)
 connects VS Code to the existing `api` service and starts its database/migration
 dependencies, Redis, pgAdmin, the Celery worker and Beat. Its `runServices` list
 starts payment recovery automatically. It uses the same Compose project and volumes
@@ -251,7 +251,7 @@ as terminal startup. The frontend remains local.
 4. Select **Dev Containers: Reopen in Container**. Use **Dev Containers: Rebuild
    and Reopen in Container** when replacing a previously created configuration.
 
-[The Dev Container Compose wrapper](../.devcontainer/compose.yaml) includes the
+[The Dev Container Compose wrapper](../../.devcontainer/compose.yaml) includes the
 existing development stack and explicitly supplies the same backend `.env` for
 interpolation, including when VS Code runs from another directory.
 It uses Compose's `include` support (Compose 2.20.0 or later), so no launcher,

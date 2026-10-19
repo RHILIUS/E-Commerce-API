@@ -22,7 +22,7 @@ refund, and history additions and link to their full behavior.
 
 The five core models below inherit `created_at` and `updated_at` from
 `TimeStampedModel`; the later history section describes occurrence timestamps separately.
-See the [feature overview](README.md) for implemented scope and pending workflows.
+See the [feature overview](../api/checkout/README.md) for implemented scope and pending workflows.
 
 ## Checkout (`apps.checkout`)
 
@@ -48,7 +48,7 @@ Once orders or attempts exist, ordinary saves reject changes to the customer,
 currency, amount, payment method, idempotency key or request fingerprint. COD
 placement rejects keys reused with different contents and verifies the signed
 total against all reviewed order lines. The fingerprint field is introduced by an
-additive migration; see [COD setup](cod-api.md#required-database-update).
+additive migration; see [COD setup](../api/checkout/cash-on-delivery.md#required-database-update).
 
 ## Order (`apps.ecommerce`)
 
@@ -178,7 +178,7 @@ workflows remain future work. Catalog and cart admin remain separate.
 
 ## Stripe workflow additions
 
-See [Stripe API and setup](stripe-api.md) for implemented behavior and recovery.
+See [Stripe API and setup](../api/checkout/stripe.md) for implemented behavior and recovery.
 PaymentAttempt also includes saved immutable session parameters, a hosted checkout
 URL, cancellation intent and a protected unique ledger receipt. Provider IDs cannot
 be reassigned once known. ProviderEvent is a durable test-only inbox unique by
@@ -188,14 +188,14 @@ SettlementHold is created yet; paid store shares remain pending in the journal.
 
 ## Customer cancellation refunds
 
-[OrderRefund](../ecommerce/user-orders.md) tracks durable Stripe test card refunds
+[OrderRefund](../api/ecommerce/user-orders.md) tracks durable Stripe test card refunds
 and their immutable compensating ledger entries. `concluded_at` is set by new
 order cancellations and terminal online cancellation/expiry; historical nulls
 remain unknown. Fulfillment Completed is separate from Checkout completed.
 
 ## OrderEvent
 
-[Persistent order history](../ecommerce/user-orders.md#persistent-order-history)
+[Persistent order history](../api/ecommerce/user-orders.md#persistent-order-history)
 adds immutable milestones with independent occurrence times and protected order and
 actor references. Order saves log placement, fulfillment changes and confirmed
 payment atomically; cancellation/refund services log their own relevant events.

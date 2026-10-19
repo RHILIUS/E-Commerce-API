@@ -7,7 +7,7 @@ restarts application services while keeping database and broker data.
 
 A **release** is one selected code version put into service. This release process
 has a planned outage; it is not a zero-downtime deployment. For a first server,
-start with [the deployment walkthrough](deployment-guide.md). This reference
+start with [the deployment walkthrough](deployment.md). This reference
 explains automation configuration, release ordering, and failure recovery.
 
 ## Terms used below
@@ -21,19 +21,19 @@ explains automation configuration, release ordering, and failure recovery.
 
 ## Scope and release behavior
 
-The [deployment workflow](../.github/workflows/deploy-production.yml) deploys
+The [deployment workflow](../../.github/workflows/deploy-production.yml) deploys
 pushes to `main`, including merged PRs, to the existing production Compose stack.
 It can also be run manually from Actions with **main** selected. Other branches
 cannot run the deployment job.
 
 This is a single-server release with a planned outage. For initial server setup
 and TLS certificate setup/renewal, follow the
-[backend deployment guide](deployment-guide.md). Those steps remain outside this
+[backend deployment guide](deployment.md). Those steps remain outside this
 Actions workflow; backup setup and infrastructure upgrades require separate work.
 The frontend is deployed separately. The workflow does not reset demo data, flush
 Redis, remove volumes, copy `.env`, or run tests against production.
 
-The [release script](../scripts/deploy-production.sh) is streamed from the triggering
+The [release script](../../scripts/deploy-production.sh) is streamed from the triggering
 commit over SSH, so even the first deployment can update an existing checkout that
 does not yet contain it. It:
 
@@ -289,7 +289,7 @@ release-specific migration review remain necessary.
 
 ## References
 
-- [Production Docker reference](deployment-guide.md#technical-appendix-production-docker-reference)
-- [PR checks](pull-request-checks.md)
+- [Production Docker reference](deployment.md#technical-appendix-production-docker-reference)
+- [PR checks](../development/pull-request-checks.md)
 - [GitHub deployment controls](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)
 - [Docker Compose production releases](https://docs.docker.com/compose/how-tos/production/)

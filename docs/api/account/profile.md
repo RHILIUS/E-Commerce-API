@@ -15,7 +15,7 @@ order. Updating the personal address does not rewrite saved recipients or purcha
 
 If a response is lost, saving may already have succeeded. The frontend reloads the
 profile for review rather than automatically repeating the write. Field-validation
-failures preserve its draft. Photos have a [separate save flow](profile-photo-api.md).
+failures preserve its draft. Photos have a [separate save flow](profile-photo.md).
 
 ## Scope and authentication
 
@@ -93,9 +93,9 @@ AuthContext's `fullName` from `full_name` and `address_country_code` from
 `address.country_code`. Existing frontend resource dependencies will refresh
 country-dependent data. Login/refresh also return the updated name/country.
 
-[Photo management](profile-photo-api.md) uses a separate authenticated
+[Photo management](profile-photo.md) uses a separate authenticated
 upload/re-crop/removal flow with compression and storage cleanup.
-[Password changes](change-password-api.md) use their own endpoints. Verified
+[Password changes](change-password.md) use their own endpoints. Verified
 email/phone changes are outside the profile endpoint.
 
 ## Existing database migration
