@@ -34,4 +34,4 @@ Review the generated migration and migration plan; neither demonstrates that a m
 
 ## ERD documentation
 
-When creating or updating a shared Markdown ERD, read [entity-relationship requirements](references/entity-relationships.md). They define the required model/field explanations, lifecycle notes, central index maintenance, and Mermaid validation. Do not load that reference for an unrelated database task; its trigger is creating or updating an ERD document.
+When creating or updating a shared Markdown ERD, read [entity-relationship requirements](references/entity-relationships.md). They route to the shared ERD documentation and Draw.io illustration skills, which own model/field explanations, lifecycle notes, central index maintenance, and editable SVG validation. Do not create or maintain Mermaid ERDs. Do not load that reference for an unrelated database task; its trigger is creating or updating an ERD document.
