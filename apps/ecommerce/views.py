@@ -41,7 +41,7 @@ class ProductCatalogView(APIView):
             OpenApiParameter(
                 "q", str, description="Case-insensitive name or short-description search."),
             OpenApiParameter(
-                "page", int, description="Page number, starting at 1; eight products per page."),
+                "page", int, description="Page number, starting at 1; twelve products per page."),
         ],
         description="List active products. Signed-in users see preferred categories first; recent product popularity ranks ties and is the first signal for guests. price and currency describe the original store price. display_price converts to the account country's currency, or USD for guests. Unavailable conversions retain the original store currency. Conversion is for display only.",
         responses={200: PaginatedProductsSerializer, 401: dict, 404: dict},

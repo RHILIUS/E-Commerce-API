@@ -176,7 +176,7 @@ class ProductRecommendationTests(APITestCase):
         self.client.force_authenticate(self.user)
         response = self.client.get("/api/shop/products/").json()
         self.assertEqual(response["count"], 13)
-        self.assertEqual(len(response["results"]), 8)
+        self.assertEqual(len(response["results"]), 12)
         self.assertEqual(
             [item["id"] for item in response["results"][:2]],
             [self.laptop.pk, self.new_laptop.pk],

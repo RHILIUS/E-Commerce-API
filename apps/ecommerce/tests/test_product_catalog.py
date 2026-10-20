@@ -70,11 +70,11 @@ class ProductCatalogTests(APITestCase):
         })
 
     def test_pages_are_bounded_and_search_filters_before_pagination(self):
-        products = [self.product(f"Laptop {index}") for index in range(10)]
+        products = [self.product(f"Laptop {index}") for index in range(14)]
         self.product("Unrelated")
         url = "/api/shop/products/"
         first = self.client.get(url, {"q": "  LAPTOP  "}).json()
-        self.assertEqual(first["count"], 10)
+        self.assertEqual(first["count"], 14)
         self.assertEqual([p["id"] for p in first["results"]], [
             p.pk for p in reversed(products[2:])
         ])
@@ -88,7 +88,7 @@ class ProductCatalogTests(APITestCase):
         self.assertIsNone(second["next"])
         self.assertIsNotNone(second["previous"])
         self.assertEqual(self.client.get(
-            url, {"q": "card description"}).json()["count"], 11)
+            url, {"q": "card description"}).json()["count"], 15)
 
     def test_invalid_pages_return_not_found(self):
         self.product("Laptop")

@@ -20,7 +20,7 @@ and currency together rather than relabelling the amount.
 
 `GET /api/shop/products/?page=1&q=laptop` is public and returns HTTP 200 with
 `{"count": 24, "next": "...?page=2&q=laptop", "previous": null, "results": [...]}`.
-Pages contain at most 8 products; `count` is the total matching product count.
+Pages contain at most 12 products; `count` is the total matching product count.
 `next` and `previous` are absolute page URLs or null, retaining query parameters.
 The page defaults to 1. Invalid or out-of-range pages return HTTP 404 with
 `{"detail": "Invalid page."}`. Page 1 of an empty catalog returns
