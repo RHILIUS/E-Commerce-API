@@ -3,9 +3,11 @@ from django.urls import path
 from .views.photo import ProfilePhotoView
 from .views import ProfileView, RecipientListCreateView, RecipientUpdateView
 
-from .views.password import PasswordChangeRequestView, PasswordChangeResendView, PasswordChangeConfirmView
+from .views.password import PasswordChangeBootstrapView, PasswordChangeRequestView, PasswordChangeResendView, PasswordChangeVerifyView, PasswordChangeConfirmView
 
 urlpatterns = [
+    path("change-password/", PasswordChangeBootstrapView.as_view(), name="password-change-bootstrap"),
+    path("change-password/verify/", PasswordChangeVerifyView.as_view(), name="password-change-verify"),
     path("change-password/request/", PasswordChangeRequestView.as_view(), name="password-change-request"),
     path("change-password/resend/", PasswordChangeResendView.as_view(), name="password-change-resend"),
     path("change-password/confirm/", PasswordChangeConfirmView.as_view(), name="password-change-confirm"),

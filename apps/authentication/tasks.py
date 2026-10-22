@@ -85,3 +85,14 @@ def deliver_password_reset_notice(self, user_id, email):
     if not get_user_model().objects.filter(pk=user_id, email=email).exists():
         return
     _deliver_code(self, email, "", timezone.now() + timedelta(seconds=60), send_password_reset_notice)
+
+
+@shared_task(bind=True, max_retries=3, ignore_result=True)
+def deliver_password_change_notice(self, user_id, email):
+    """Deliver a credential-free account-change notice using the existing bounded retry policy."""
+    from datetime import timedelta
+    from django.contrib.auth import get_user_model
+    from apps.authentication.services.email_service import send_password_change_notice
+    if not get_user_model().objects.filter(pk=user_id, email=email).exists():
+        return
+    _deliver_code(self, email, "", timezone.now() + timedelta(seconds=60), send_password_change_notice)

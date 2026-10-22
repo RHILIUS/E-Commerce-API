@@ -14,7 +14,9 @@ the [documentation index](../README.md).
 - [Authentication](authentication/README.md): account creation, sign-in, tokens,
   and [registration email](authentication/registration-otp.md).
 - Account: [profile](account/profile.md), [photos](account/profile-photo.md), and
-  [password changes](account/change-password.md).
+  [password changes](account/change-password.md). The
+  [email-verified password-change revision](account/change-password-revision.md)
+  records the agreed plan; matching frontend and backend implementations are in source.
 - Ecommerce: [catalog](ecommerce/product-catalog.md),
   [product detail](ecommerce/product-detail.md), [stores](ecommerce/store-page.md),
   [carts](ecommerce/carts.md), and [orders](ecommerce/user-orders.md).

@@ -70,11 +70,12 @@ class PasswordChangeState(models.Model):
     consumed = models.BooleanField(default=True)
     failed_attempts = models.PositiveSmallIntegerField(default=0)
     send_count = models.PositiveIntegerField(default=0)
-    send_window_started_at = models.DateTimeField()
     request_count = models.PositiveIntegerField(default=0)
-    request_window_started_at = models.DateTimeField()
     verification_count = models.PositiveIntegerField(default=0)
-    verification_window_started_at = models.DateTimeField()
+    window_started_at = models.DateTimeField()
+    grant_hash = models.CharField(max_length=64, blank=True)
+    grant_expires_at = models.DateTimeField(null=True)
+
 
 
 class PasswordResetState(TimeStampedModel):

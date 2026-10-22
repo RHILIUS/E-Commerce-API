@@ -5,14 +5,15 @@ from unittest.mock import patch
 
 from celery.exceptions import Retry
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.db import transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.account.services.password import change_password
 from apps.authentication.models import PasswordChangeState
 from apps.authentication.services.email_service import OTPDeliveryError
-from apps.authentication.tasks import deliver_password_change_otp
+from apps.authentication.tasks import deliver_password_change_otp, deliver_password_change_notice
 
 
 class PasswordOTPDeliveryTests(TestCase):
@@ -21,7 +22,7 @@ class PasswordOTPDeliveryTests(TestCase):
             username="delivery", email="delivery@example.com", password="OriginalPassword1",
             phone_number="+639171234567",
         )
-        self.payload = {"current_password": "OriginalPassword1", "new_password": "UpdatedPassword2"}
+        self.payload = {}
         with patch.object(deliver_password_change_otp, "apply_async") as publish:
             with self.captureOnCommitCallbacks(execute=True):
                 change_password(self.user.pk, "request", self.payload)
@@ -88,3 +89,14 @@ class PasswordOTPDeliveryTests(TestCase):
                         raise ValueError("Rollback")
             publish.assert_not_called()
             self.assertFalse(PasswordChangeState.objects.filter(user=self.user).exists())
+
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_change_notice_uses_account_change_wording_and_skips_changed_destination(self):
+        deliver_password_change_notice.run(self.user.pk, self.user.email)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("password was changed", mail.outbox[-1].subject)
+        self.assertNotIn("OriginalPassword1", mail.outbox[-1].body)
+        self.assertNotIn(self.args[2], mail.outbox[-1].body)
+        deliver_password_change_notice.run(self.user.pk, "old@example.com")
+        self.assertEqual(len(mail.outbox), 1)
