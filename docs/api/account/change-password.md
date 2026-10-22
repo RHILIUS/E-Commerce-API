@@ -113,4 +113,5 @@ password change. A refresh begun before a change can only issue a stale-version
 token, which subsequent requests reject. The frontend also discards late refresh
 responses after ending its local session.
 
-[Business-process diagrams](../../../../docs/diagrams/specific-business-processes/account/change-password.md).
+See the [frontend change-password guide](../../../../frontend/docs/account/change-password.md)
+for the customer interface and lifecycle.

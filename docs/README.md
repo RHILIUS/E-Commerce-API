@@ -71,7 +71,7 @@ they cover both local development and the deployed disposable demo.
 This repository maintains exact backend contracts and implementation explanations.
 The [frontend guides](../../frontend/docs/README.md) describe customer screens and
 browser behavior. The [central documentation](../../docs/README.md) owns shared
-architecture and the [diagram index](../../docs/diagrams/README.md).
+architecture and the [diagram index](../../docs/specific-business-processes/README.md).
 
 Shared process documents can contain both implemented and proposed phases. Check
 those labels against the relevant API guide and implementation before using them

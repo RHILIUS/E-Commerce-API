@@ -290,6 +290,6 @@ COD placement deducts stock at commit without wallet entries. Online placement c
 - [apps/ecommerce/services/taxonomy_import.py](../../../apps/ecommerce/services/taxonomy_import.py).
 - [apps/ecommerce/signals.py](../../../apps/ecommerce/signals.py).
 - [apps/checkout/services/snapshots.py](../../../apps/checkout/services/snapshots.py).
-- [Cash on delivery](../../../../docs/diagrams/specific-business-processes/checkout/cod-checkout.md).
-- [Stripe test checkout](../../../../docs/diagrams/specific-business-processes/checkout/demo-online-checkout.md).
+- [Cash on delivery](../../api/checkout/cash-on-delivery.md).
+- [Stripe test checkout](../../api/checkout/stripe.md).
 - [ERD index](../README.md).

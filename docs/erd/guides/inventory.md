@@ -60,5 +60,5 @@ Protected product and order-item references preserve hold history even after res
 - [Schema migrations](../../../apps/inventory/migrations).
 - [apps/checkout/services/placement.py](../../../apps/checkout/services/placement.py).
 - [apps/checkout/services/online.py](../../../apps/checkout/services/online.py).
-- [Stripe test checkout](../../../../docs/diagrams/specific-business-processes/checkout/demo-online-checkout.md).
+- [Stripe test checkout](../../api/checkout/stripe.md).
 - [ERD index](../README.md).

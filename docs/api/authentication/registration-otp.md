@@ -41,5 +41,4 @@ original request. Customers can request another code after the existing cooldown
 OTP expiry begins at issuance, not at
 email delivery. Code verification and account creation use the endpoints and cookies described
 in [accounts and sign-in](README.md).
-See the [central process](../../../../docs/diagrams/specific-business-processes/authentication/registration-otp-email.md)
-and [worker setup](../../development/docker.md#registration-email-worker).
+See [worker setup](../../development/docker.md#registration-email-worker) for running delivery.

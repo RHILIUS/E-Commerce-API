@@ -39,7 +39,7 @@ Abstract base classes, methods, properties, and choice enums are not extra table
 - [Backend documentation](../README.md): repository setup and the full reading map.
 - [Checkout architecture](../architecture/checkout-models.md): purchase and inventory rules.
 - [Wallet ledger](../architecture/wallet-ledger.md): posting, balances, and immutability.
-- [Shared business processes](../../../docs/diagrams/README.md): behavior across applications.
+- [Shared business processes](../../../docs/specific-business-processes/README.md): behavior across applications.
 
 The [shared documentation repository](https://github.com/RHILIUS/E-Commerce-Docs)
 retains cross-application architecture, business processes, and historical visual
