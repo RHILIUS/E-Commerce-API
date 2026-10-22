@@ -34,3 +34,26 @@ class CustomUserAdmin(UserAdmin):
     add_fieldsets = UserAdmin.add_fieldsets + (
         ("Contact details", {"fields": ("email", "full_name", "phone_number")}),
     )
+
+
+from .models import PasswordResetState
+
+
+@admin.register(PasswordResetState)
+class PasswordResetStateAdmin(admin.ModelAdmin):
+    """Allow diagnostics without exposing hashes or permitting manual authorization edits."""
+    list_display = ("id", "user", "otp_consumed", "expires_at", "failed_attempts", "updated_at")
+    list_filter = ("otp_consumed",)
+    fields = ("id", "user", "otp_consumed", "expires_at", "last_sent_at", "failed_attempts",
+              "send_count", "request_count", "verification_count", "window_started_at",
+              "grant_expires_at", "created_at", "updated_at")
+    readonly_fields = fields
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
