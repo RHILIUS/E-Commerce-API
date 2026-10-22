@@ -39,7 +39,7 @@ they cover both local development and the deployed disposable demo.
 | Authentication | [Registration email delivery](api/authentication/registration-otp.md)      | Queuing and delivering one-time codes, expiry, and retries              |
 | Account        | [Personal profile](api/account/profile.md)                                 | Editing personal details and address independently of recipients        |
 | Account        | [Profile photos](api/account/profile-photo.md)                             | Uploading, cropping, removing, and storing photos                       |
-| Account        | [Change password](api/account/change-password.md)                          | Password checks, emailed codes, and ending existing sessions            |
+| Account        | [Change password](api/account/change-password.md)                          | Email verification, single-use permission, and ending existing sessions |
 | Browsing       | [Product catalog](api/ecommerce/product-catalog.md)                        | Search, ranking, pagination, and display currencies                     |
 | Browsing       | [Product detail](api/ecommerce/product-detail.md)                          | One product, gallery, visibility, and purchase eligibility              |
 | Browsing       | [Store catalog](api/ecommerce/store-page.md)                               | Store information, products, and sales-based ranking                    |

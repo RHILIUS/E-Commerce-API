@@ -64,3 +64,10 @@ def send_password_reset_notice(email, _unused):
     _send_password_email(email, "Your E-Commerce password was reset",
         "Your E-Commerce password has been reset and existing sessions have been signed out.\n\n"
         "If you did not make this change, reset your password immediately and secure your email account.")
+
+
+def send_password_change_notice(email, _unused):
+    """Report a committed account password change without exposing any credentials."""
+    _send_password_email(email, "Your E-Commerce password was changed",
+        "Your E-Commerce password has been changed and existing sessions have been signed out.\n\n"
+        "If you did not make this change, reset your password immediately and secure your email account.")
