@@ -1,3 +1,6 @@
+import uuid
+
+from core.common.models import TimeStampedModel
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -72,3 +75,23 @@ class PasswordChangeState(models.Model):
     request_window_started_at = models.DateTimeField()
     verification_count = models.PositiveIntegerField(default=0)
     verification_window_started_at = models.DateTimeField()
+
+
+class PasswordResetState(TimeStampedModel):
+    """Email-keyed recovery state, including unknown emails to keep public behavior uniform."""
+
+    email = models.EmailField(unique=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    challenge_id = models.UUIDField(default=uuid.uuid4, unique=True)
+    credential_state = models.CharField(max_length=64, blank=True)
+    otp_hash = models.CharField(max_length=255, blank=True)
+    otp_consumed = models.BooleanField(default=True)
+    expires_at = models.DateTimeField(null=True)
+    last_sent_at = models.DateTimeField(null=True)
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
+    send_count = models.PositiveIntegerField(default=0)
+    request_count = models.PositiveIntegerField(default=0)
+    verification_count = models.PositiveIntegerField(default=0)
+    window_started_at = models.DateTimeField()
+    grant_hash = models.CharField(max_length=64, blank=True)
+    grant_expires_at = models.DateTimeField(null=True)

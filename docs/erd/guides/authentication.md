@@ -1,6 +1,6 @@
 # Authentication data model
 
-This guide explains the implemented `authentication` app schema in the checked-in Django models and migrations. It covers every concrete column of its 6 tables (including the two automatically generated user-permission join tables).
+This guide explains the implemented `authentication` app schema in the checked-in Django models and migrations. It covers every concrete column of its 7 tables (including the two automatically generated user-permission join tables).
 
 ![authentication entities and relationships](../diagrams/authentication.drawio.svg)
 
@@ -108,6 +108,35 @@ Both user_id and a non-null challenge_id are unique. Replacing a challenge reuse
 | `verification_count`             | Account-level budget charged before confirmation eligibility and code/password validation.     | PositiveIntegerField; not null; ORM default 0.                                                   |
 | `verification_window_started_at` | Beginning of the current confirmation budget window.                                           | DateTimeField; not null.                                                                         |
 
+### PasswordResetState
+
+One durable recovery slot per normalized email, including unknown addresses. **Model:** `authentication.PasswordResetState`. **Table:** `authentication_passwordresetstate`. It inherits timestamps from TimeStampedModel. Empty strings are the ORM defaults for the blank character fields.
+
+| Field / column       | Meaning                                                       | Constraints and behavior                                              |
+| -------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `id`                 | Internal record identifier.                                   | BigAutoField; generated primary key.                                  |
+| `created_at`         | When this email state was first created.                      | DateTimeField; auto_now_add.                                          |
+| `updated_at`         | When state was last saved.                                    | DateTimeField; auto_now.                                              |
+| `email`              | Normalized address whose budgets survive restarts.            | EmailField; max 254; unique; not null.                                |
+| `user → user_id`     | Eligible account associated with this email.                  | Nullable ForeignKey; SET_NULL on deletion; not unique; blank allowed. |
+| `challenge_id`       | Public identifier rotated on issuance and resend.             | UUIDField; unique; default uuid4; not null.                           |
+| `credential_state`   | Keyed digest binding permission to the encoded password.      | CharField; max 64; blank allowed; not null.                           |
+| `otp_hash`           | Hashed verification code; plaintext is not stored.            | CharField; max 255; blank allowed; not null.                          |
+| `otp_consumed`       | Whether code verification has consumed or disabled this code. | BooleanField; default true; not null.                                 |
+| `expires_at`         | Deadline for the code.                                        | DateTimeField; nullable.                                              |
+| `last_sent_at`       | Latest preparation time used for cooldown.                    | DateTimeField; nullable.                                              |
+| `failed_attempts`    | Incorrect codes counted across resends and restarts.          | PositiveSmallIntegerField; default 0; not null.                       |
+| `send_count`         | Prepared codes charged to this window.                        | PositiveIntegerField; default 0; not null.                            |
+| `request_count`      | Issuance and resend operations charged to this window.        | PositiveIntegerField; default 0; not null.                            |
+| `verification_count` | Verification operations charged before eligibility checks.    | PositiveIntegerField; default 0; not null.                            |
+| `window_started_at`  | Beginning of the shared budget window.                        | DateTimeField; not null; supplied by service.                         |
+| `grant_hash`         | SHA-256 digest of the reset secret.                           | CharField; max 64; blank allowed; not null.                           |
+| `grant_expires_at`   | Deadline for single-use reset permission.                     | DateTimeField; nullable.                                              |
+
+The nullable user FK targets `authentication_user.id`: one state references zero or one account; one account can have zero or many states. Deleting an account sets the FK to NULL, preserving email limits. The unique email, rather than user FK, identifies the durable budget slot.
+
+Issuance and resend rotate the challenge UUID, replace the code hash and invalidate the grant. Attempts survive both operations until the shared window expires. Verification consumes the OTP and stores only a grant digest. Confirmation locks account and state and atomically changes the password, invalidates prior sessions and clears the grant. Email publication occurs after commit; no password draft is persisted. There is no automatic state purge. See [recovery contract](../../api/authentication/forgot-password.md) for limits and failure handling.
+
 ### User.groups through table
 
 Django-generated membership links between accounts and Django authorization groups.
@@ -168,7 +197,7 @@ Password-change email publication runs after commit. Delivery failure retains th
 
 - [Model definitions](../../../apps/authentication/models.py).
 - [Schema migrations](../../../apps/authentication/migrations).
-- [apps/authentication/serializers.py](../../../apps/authentication/serializers.py).
+- [apps/authentication/serializers/authentication.py](../../../apps/authentication/serializers/authentication.py).
 - [apps/authentication/services/otp_service.py](../../../apps/authentication/services/otp_service.py).
 - [apps/authentication/signals.py](../../../apps/authentication/signals.py).
 - [apps/account/services/password.py](../../../apps/account/services/password.py).

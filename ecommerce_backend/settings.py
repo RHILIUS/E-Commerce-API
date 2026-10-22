@@ -186,6 +186,8 @@ SIMPLE_JWT = {
 # CORS HEADERS
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
 CORS_ALLOW_CREDENTIALS = True
+# Anonymous recovery POSTs enforce CSRF; configured browser origins are trusted explicitly.
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
 AUTH_USER_MODEL = "authentication.User"
 
@@ -266,3 +268,18 @@ CELERY_TASK_ROUTES = {
     "apps.authentication.tasks.deliver_registration_otp": {"queue": "registration-email"},
     "apps.authentication.tasks.deliver_password_change_otp": {"queue": "registration-email"},
 }
+
+
+# Public recovery has its own state, codes and durable email budgets.
+PASSWORD_RESET_EXPIRY_SECONDS = 300
+PASSWORD_RESET_COOLDOWN_SECONDS = 60
+PASSWORD_RESET_WINDOW_SECONDS = 900
+PASSWORD_RESET_MAX_SENDS = 5
+PASSWORD_RESET_MAX_REQUESTS = 20
+PASSWORD_RESET_MAX_VERIFICATIONS = 20
+PASSWORD_RESET_MAX_ATTEMPTS = 5
+PASSWORD_RESET_GRANT_SECONDS = 600
+CELERY_TASK_ROUTES.update({
+    "apps.authentication.tasks.deliver_password_reset_otp": {"queue": "registration-email"},
+    "apps.authentication.tasks.deliver_password_reset_notice": {"queue": "registration-email"},
+})

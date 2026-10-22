@@ -143,10 +143,10 @@ registered. Registration POST itself has no purchase-style idempotency key.
 
 ## Code locations
 
-| Location                                                                                | Responsibility                                                                        |
-| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| [Authentication views](../../../apps/authentication/views.py)                              | Coordinate endpoints and cookies                                                      |
-| [Serializers](../../../apps/authentication/serializers.py)                                 | Validate registration/code input, create account records, and return public user data |
+| Location                                                                                   | Responsibility                                                                        |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| [Authentication views](../../../apps/authentication/views/authentication.py)               | Coordinate endpoints and cookies                                                      |
+| [Serializers](../../../apps/authentication/serializers/authentication.py)                  | Validate registration/code input, create account records, and return public user data |
 | [Token authentication](../../../apps/authentication/token_authentication.py)               | Check active users and session versions                                               |
 | [Code issuance](../../../apps/authentication/services/otp_service.py)                      | Generate hashed codes and enforce issuance limits                                     |
 | [Registration tokens](../../../apps/authentication/services/registration_token_service.py) | Sign and validate the email-verification credential                                   |
@@ -154,3 +154,7 @@ registered. Registration POST itself has no purchase-style idempotency key.
 
 The [interactive API guide](../README.md) explains how to explore the
 published contracts without confusing access-token responses with cookie values.
+
+## Password recovery
+
+[Forgot password](forgot-password.md) explains public email verification, single-use reset permission, limits and session invalidation.

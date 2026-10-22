@@ -155,7 +155,7 @@ class RegisterViewTests(TestCase):
 
     def test_registration_token_is_validated_only_once(self):
         with patch(
-            "apps.authentication.serializers.validate_registration_token",
+            "apps.authentication.serializers.authentication.validate_registration_token",
             wraps=validate_registration_token,
         ) as validate_token:
             response = self.post_registration()
@@ -280,7 +280,7 @@ class RegisterViewTests(TestCase):
         self.assertEqual(recipient.postal_code, "1000")
 
     @patch(
-        "apps.authentication.serializers.RecipientInfo.objects.create",
+        "apps.authentication.serializers.authentication.RecipientInfo.objects.create",
         side_effect=IntegrityError("recipient creation failed"),
     )
     def test_recipient_failure_rolls_back_user_creation(self, _):
@@ -294,7 +294,7 @@ class RegisterViewTests(TestCase):
         self.assertEqual(RecipientInfo.objects.count(), 0)
 
     @patch(
-        "apps.authentication.serializers.UserAddress.objects.create",
+        "apps.authentication.serializers.authentication.UserAddress.objects.create",
         side_effect=IntegrityError("personal address creation failed"),
     )
     def test_address_failure_rolls_back_registration(self, _):
@@ -305,11 +305,11 @@ class RegisterViewTests(TestCase):
         self.assertEqual(RecipientInfo.objects.count(), 0)
 
     @patch(
-        "apps.authentication.serializers._registration_conflict_errors",
+        "apps.authentication.serializers.authentication._registration_conflict_errors",
         return_value={"phone_number": ["Phone number is already taken"]},
     )
     @patch(
-        "apps.authentication.serializers.User.objects.create_user",
+        "apps.authentication.serializers.authentication.User.objects.create_user",
         side_effect=IntegrityError("unique constraint conflict"),
     )
     def test_unique_constraint_race_returns_validation_error(self, _, __):
