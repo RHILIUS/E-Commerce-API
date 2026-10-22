@@ -148,6 +148,6 @@ Cancellation creates one durable full-store-order refund and preserves the origi
 - [apps/checkout/services/events.py](../../../apps/checkout/services/events.py).
 - [apps/checkout/services/refunds.py](../../../apps/checkout/services/refunds.py).
 - [apps/checkout/services/snapshots.py](../../../apps/checkout/services/snapshots.py).
-- [Cash on delivery](../../../../docs/diagrams/specific-business-processes/checkout/cod-checkout.md).
-- [Stripe test checkout](../../../../docs/diagrams/specific-business-processes/checkout/demo-online-checkout.md).
+- [Cash on delivery](../../api/checkout/cash-on-delivery.md).
+- [Stripe test checkout](../../api/checkout/stripe.md).
 - [ERD index](../README.md).

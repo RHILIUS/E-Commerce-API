@@ -62,6 +62,6 @@ A personal UserAddress belongs to authentication and is saved separately from re
 - [apps/account/services/account.py](../../../apps/account/services/account.py).
 - [apps/account/serializers/account.py](../../../apps/account/serializers/account.py).
 - [apps/checkout/services/snapshots.py](../../../apps/checkout/services/snapshots.py).
-- [Password changes](../../../../docs/diagrams/specific-business-processes/account/change-password.md).
-- [Cash on delivery](../../../../docs/diagrams/specific-business-processes/checkout/cod-checkout.md).
+- [Password changes](../../api/account/change-password.md).
+- [Cash on delivery](../../api/checkout/cash-on-delivery.md).
 - [ERD index](../README.md).

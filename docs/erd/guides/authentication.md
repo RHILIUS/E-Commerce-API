@@ -173,6 +173,6 @@ Password-change email publication runs after commit. Delivery failure retains th
 - [apps/authentication/signals.py](../../../apps/authentication/signals.py).
 - [apps/account/services/password.py](../../../apps/account/services/password.py).
 - [apps/account/services/photo.py](../../../apps/account/services/photo.py).
-- [Registration email](../../../../docs/diagrams/specific-business-processes/authentication/registration-otp-email.md).
-- [Password changes](../../../../docs/diagrams/specific-business-processes/account/change-password.md).
+- [Registration email](../../api/authentication/registration-otp.md).
+- [Password changes](../../api/account/change-password.md).
 - [ERD index](../README.md).

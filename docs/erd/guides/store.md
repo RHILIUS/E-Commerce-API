@@ -99,6 +99,6 @@ Membership role values are schema/authorization data, not proof that every selle
 - [apps/store/signals.py](../../../apps/store/signals.py).
 - [core/common/currencies.py](../../../core/common/currencies.py).
 - [apps/store/services/catalog.py](../../../apps/store/services/catalog.py).
-- [Cash on delivery](../../../../docs/diagrams/specific-business-processes/checkout/cod-checkout.md).
-- [Stripe test checkout](../../../../docs/diagrams/specific-business-processes/checkout/demo-online-checkout.md).
+- [Cash on delivery](../../api/checkout/cash-on-delivery.md).
+- [Stripe test checkout](../../api/checkout/stripe.md).
 - [ERD index](../README.md).

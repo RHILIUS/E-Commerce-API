@@ -113,5 +113,5 @@ Public ORM/model guards reject financial updates/deletion and direct journal ins
 - [Schema migrations](../../../apps/wallet/migrations).
 - [apps/wallet/services.py](../../../apps/wallet/services.py).
 - [docs/architecture/wallet-ledger.md](../../architecture/wallet-ledger.md).
-- [Stripe test checkout](../../../../docs/diagrams/specific-business-processes/checkout/demo-online-checkout.md).
+- [Stripe test checkout](../../api/checkout/stripe.md).
 - [ERD index](../README.md).

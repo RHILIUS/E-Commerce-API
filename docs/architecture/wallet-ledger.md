@@ -130,6 +130,6 @@ Stripe uses this service inside atomic payment finalization and protects unresol
 stock reservations across preview and placement. Delivery and settlement release
 remain separate unimplemented workflows.
 
-Shared context: [online checkout process](../../../docs/diagrams/specific-business-processes/checkout/demo-online-checkout.md)
-and [central diagram index](../../../docs/diagrams/README.md). That process includes
-proposed delivery and settlement phases; they are not current API contracts.
+See the [Stripe test checkout contract](../api/checkout/stripe.md) for implemented
+payment behavior and the [shared SBP index](../../../docs/specific-business-processes/README.md)
+for available process diagrams. Delivery and settlement remain outside the current contract.
