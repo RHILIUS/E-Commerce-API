@@ -3,6 +3,8 @@ from django.core.exceptions import ValidationError
 
 from core.common.admin import ReadOnlyTransactionAdmin
 
+from .services.sales import with_sales_totals
+
 from .models import (
     Attribute, AttributeValue, Category, CategoryAttribute,
     Order, OrderEvent, OrderItem, Cart, CartItem,
@@ -86,13 +88,22 @@ class ProductImageInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "store", "category", "status", "price", "store_currency", "stock", "created_at")
+    list_display = ("name", "store", "category", "status", "price", "store_currency", "stock", "sold_units", "created_at")
     list_select_related = ("store", "category")
     list_filter = ("status", "store", "category")
     search_fields = ("name", "short_description", "store__name")
     autocomplete_fields = ("store", "category")
-    readonly_fields = ("store_currency", "created_at", "updated_at")
+    readonly_fields = ("store_currency", "sold_units", "created_at", "updated_at")
     inlines = (ProductImageInline,)
+
+    def get_queryset(self, request):
+        """Reuse browsing sales totals without a separate query for each admin row."""
+        return with_sales_totals(super().get_queryset(request))
+
+    @admin.display(description="Sold units", ordering="sales_total")
+    def sold_units(self, obj):
+        """Show qualifying lifetime units on saved products as a read-only value."""
+        return obj.sales_total if obj and obj.pk else None
 
     @admin.display(description="Price currency")
     def store_currency(self, obj):

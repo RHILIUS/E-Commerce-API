@@ -11,6 +11,8 @@ Apply this workflow to API implementation and contract changes. Repository paths
 
 Inspect routing, views, serializers, services, types, relevant backend documentation, and the frontend callers before changing a contract. Verify request fields, responses, status codes, permissions, ownership, and cookie behavior against implementation. Report inconsistencies; do not add speculative request/response compatibility.
 
+When changed business rules or derived values are also exposed in Django admin, review that consumer using the [database-changes admin workflow](../database-changes/SKILL.md#django-admin), even if no model field changes.
+
 Preserve established behavior unless the task explicitly changes it. Keep URL configuration focused on routing, serializers responsible for validation/response transformation, and substantial business mechanics in focused services. Public endpoints still need an explicit permission decision; the shared authentication and secret-handling rules apply throughout.
 
 ## OpenAPI and maintained documentation

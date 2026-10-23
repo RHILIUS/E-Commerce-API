@@ -26,7 +26,7 @@ Read and apply the linked skills when their conditions match. Combine them when 
 | Write/revise maintained documentation, including alongside implementation             | [documentation-writing](.agents/skills/documentation-writing/SKILL.md)                     |
 | Write a backend PR comment or description                                             | [pull-request-writing](.agents/skills/pull-request-writing/SKILL.md)                       |
 
-Model changes still require reviewed migrations and relevant admin/lifecycle review. API contract changes still require matching OpenAPI annotations and maintained documentation. ERD guides and editable Draw.io SVGs belong in `docs/erd/guides/` and `docs/erd/diagrams/`, following erd-documentation and drawio-erd. Do not create or maintain Mermaid ERDs. Shared business-process diagrams remain in the sibling documentation repository.
+Model and business-rule changes must consider affected Django admin screens as well as API consumers. Apply the [database-changes skill](.agents/skills/database-changes/SKILL.md#django-admin) for admin review, including derived values and staff write paths. Model changes still require reviewed migrations and relevant lifecycle review. API contract changes still require matching OpenAPI annotations and maintained documentation. ERD guides and editable Draw.io SVGs belong in `docs/erd/guides/` and `docs/erd/diagrams/`, following erd-documentation and drawio-erd. Do not create or maintain Mermaid ERDs. Shared business-process diagrams remain in the sibling documentation repository.
 
 ## Backend conventions
 

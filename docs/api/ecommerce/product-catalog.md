@@ -79,6 +79,14 @@ Local image URLs are made absolute using the request; cloud storage URLs are
 provided by the configured storage backend. If multiple images are marked
 default, the lowest image order and then ID determines the selected image.
 
+## Staff inspection
+
+Django admin shows **Sold units** on the product list and saved-product form.
+It is a read-only qualifying lifetime total using the same calculation as browsing.
+The list supports sorting by this total; new products show no total until saved.
+Staff cannot directly edit sales totals. Order and payment records remain subject
+to their existing read-only admin restrictions.
+
 ## Store currencies and display conversion
 
 `Store.currency` is assigned automatically from `country_code` when a store is
