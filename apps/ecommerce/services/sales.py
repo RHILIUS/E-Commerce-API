@@ -22,7 +22,7 @@ def qualifying_items(now):
 def with_sales_totals(products, now=None):
     """Annotate products with qualifying lifetime units in one database query.
 
-    Keep sales_total separate from the legacy stored sold_count until its removal.
+    Expose sales_total as the API sold_count without storing a product counter.
     A correlated aggregate preserves caller filters/order and returns zero for no sales.
     """
     now = now or timezone.now()

@@ -97,8 +97,8 @@ normal browsing, rather than hardcoded product counters.
 | Remaining products | 0 | No qualifying order history |
 
 The store total is ten units. Extra manually created orders can change these
-totals. The legacy `Product.sold_count` column remains temporarily but is neither
-read nor written by the seeder; existing stored values do not affect browsing.
+totals. Products have no stored sold counter; browsing calculates totals directly
+from qualifying order items.
 
 An existing fixture checkout or order belonging to another user causes the transaction to fail.
 Additional non-default recipients are matched by their complete address/contact

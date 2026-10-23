@@ -19,7 +19,7 @@ class ProductDetailTests(APITestCase):
         cls.product = Product.objects.create(
             store=cls.store, name="Phone", short_description="Short summary",
             description="Full product description", stock=3, price="5600.00",
-            sold_count=12, status=Product.Status.ACTIVE,
+            status=Product.Status.ACTIVE,
         )
         cls.url = f"/api/shop/products/{cls.product.pk}/"
         cls.user = create_customer(

@@ -138,7 +138,9 @@ A store-owned catalog listing, its current source price, inventory, publication 
 
 **Table:** `ecommerce_product`. **Model:** `ecommerce.Product`.
 
-status defaults to draft. sold_count supports display/ranking and must not be used as financial accounting. Saves lock an existing product and reject reducing stock below unresolved held quantities. Validation rejects store/category changes inconsistent with existing carts, order lines, or specifications. The model’s save() calls clean(), not full_clean().
+Status defaults to draft. Sold quantities are calculated from qualifying order items
+and returned as `sold_count` by browsing APIs; they are not a product column or a
+financial accounting total. See the [catalog sales rules](../../api/ecommerce/product-catalog.md#product-fields). Saves lock an existing product and reject reducing stock below unresolved held quantities. Validation rejects store/category changes inconsistent with existing carts, order lines, or specifications. The model’s save() calls clean(), not full_clean().
 
 | Field / column             | Meaning                                                                            | Constraints and behavior                                                                                                |
 | -------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -150,7 +152,6 @@ status defaults to draft. sold_count supports display/ranking and must not be us
 | `description`              | Detailed listing content.                                                          | TextField; nullable; blank allowed by field validation.                                                                 |
 | `stock`                    | Physical stock quantity; browsing exposes it without subtracting unresolved holds. | PositiveIntegerField; not null; ORM default 0.                                                                          |
 | `price`                    | Current unit price in the owning store’s source currency.                          | Decimal(12, 2); not null.                                                                                               |
-| `sold_count`               | Display/ranking sales counter, separate from accounting.                           | PositiveIntegerField; not null; ORM default 0.                                                                          |
 | `store` → `store_id`       | Store that owns or participates in this record.                                    | ForeignKey; not null; FK to `store_store.id`; PROTECT on referenced deletion.                                           |
 | `status`                   | Listing publication state: draft, active, or archived.                             | CharField, max 20 characters; not null; ORM default "draft"; choices: `draft`, `active`, `archived`.                    |
 | `archived_at`              | Time the listing was archived, when recorded.                                      | DateTimeField; nullable; blank allowed by field validation.                                                             |

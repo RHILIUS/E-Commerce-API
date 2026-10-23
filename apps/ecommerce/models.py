@@ -158,7 +158,6 @@ class Product(TimeStampedModel):
     stock = models.PositiveIntegerField(default=0)
     price = models.DecimalField(max_digits=12, decimal_places=2)
     # Used only for UI and rankings, don't use for accounting and financial calculations
-    sold_count = models.PositiveIntegerField(default=0)
     store = models.ForeignKey(
         Store, related_name="products", on_delete=models.PROTECT)
     status = models.CharField(

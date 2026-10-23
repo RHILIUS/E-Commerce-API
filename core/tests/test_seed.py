@@ -246,7 +246,6 @@ class SeedTaxonomyTests(TestCase):
         self.assertEqual(item.product_name_at_purchase, item.product.name)
         self.assertEqual(order.store_id, item.product.store_id)
         stock = item.product.stock
-        sold_count = item.product.sold_count
         self.assertFalse(order.user.store_memberships.exists())
         call_command("seed", stdout=output)
         self.assertEqual(output.getvalue().count("Seed complete:"), 2)
@@ -270,7 +269,6 @@ class SeedTaxonomyTests(TestCase):
         self.assertFalse(StockReservation.objects.exists())
         item.product.refresh_from_db()
         self.assertEqual(item.product.stock, stock)
-        self.assertEqual(item.product.sold_count, sold_count)
 
     @patch("core.management.commands.seed.attach_image_if_missing")
     def test_seed_sales_totals_payment_snapshots_and_ledger_repeat(self, _):

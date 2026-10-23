@@ -136,8 +136,7 @@ class StoreCatalogTests(APITestCase):
             home = self.client.get(self.url + "home/").json()
         self.assertEqual(home["trending_products"][0]["sold_count"], 25)
         self.assertEqual(self.client.get(self.url).json()["items_sold"], 25)
-        # Every browsing endpoint uses order history even when the old counter differs.
-        Product.objects.filter(pk=product.pk).update(sold_count=999)
+        # Every browsing endpoint reports the same qualifying order quantities.
         with patch("apps.ecommerce.views.get_display_rates", return_value={}):
             with self.assertNumQueries(3):
                 catalog = self.client.get("/api/shop/products/").json()

@@ -196,7 +196,7 @@ customer, checkout, attempt, products, stores and reservations, then:
    frozen purchased cart lines, links the receipt and completes the checkout.
 
 Any failure rolls back all local changes. Retries post once; a second webhook event
-for the same payment does not credit again. The legacy stored `Product.sold_count` is unchanged. Browsing APIs calculate
+for the same payment does not credit again. Browsing APIs calculate
 sold units from qualifying order history, so these paid Stripe orders contribute
 immediately unless cancelled or successfully refunded in full. Zero-value store shares do not produce zero-amount entries.
 
