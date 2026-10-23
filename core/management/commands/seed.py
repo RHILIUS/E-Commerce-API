@@ -1,6 +1,6 @@
 import re
 import uuid
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from django.conf import settings
@@ -12,7 +12,8 @@ from django.utils import timezone
 
 from apps.account.models import RecipientInfo
 from apps.authentication.models import UserAddress
-from apps.checkout.models import Checkout
+from apps.checkout.models import Checkout, OrderRefund, PaymentAttempt
+from apps.checkout.services.pricing import rounded_unit_price
 from apps.checkout.services.snapshots import recipient_snapshot
 from apps.ecommerce.models import (
     AttributeValue,
@@ -25,6 +26,7 @@ from apps.ecommerce.models import (
     OrderItem,
 )
 from apps.store.models import Store, StoreAddress, StoreMember
+from apps.wallet.services import Posting, create_wallet, get_treasury_account, post_transaction
 from core.seed_data import CUSTOMERS_DATA, STORES_DATA
 
 
@@ -150,7 +152,6 @@ def validate_seed_data():
             raise CommandError(f"Invalid product status: {product['status']}")
         try:
             int(product["stock"])
-            int(product["sold_count"])
             Decimal(product["price"])
         except (ValueError, TypeError) as error:
             raise CommandError(
@@ -176,8 +177,22 @@ def validate_seed_data():
             order_keys.add(key)
             if order["status"] not in Order.Status.values:
                 raise CommandError("Invalid seed order status.")
+            method = order.get("payment_method")
+            if method not in Checkout.PaymentMethod.values:
+                raise CommandError("Seed orders require an explicit cod or stripe payment method.")
             if order.get("payment_status") not in (Order.PaymentStatus.UNPAID, Order.PaymentStatus.PAID):
-                raise CommandError("Seed COD orders require an explicit unpaid or paid payment status.")
+                raise CommandError("Seed orders require an explicit unpaid or paid payment status.")
+            if type(order.get("refunded", False)) is not bool:
+                raise CommandError("Seed refunded must be a boolean.")
+            if order.get("refunded") and (method != "stripe" or order["payment_status"] != "paid"):
+                raise CommandError("Seed refunds require paid Stripe orders.")
+            if method == "stripe":
+                try:
+                    rate = Decimal(order["exchange_rate"])
+                    if not rate.is_finite() or rate <= 0 or rate.as_tuple().exponent < -12 or rate >= Decimal("1e16"):
+                        raise ValueError
+                except (KeyError, InvalidOperation, ValueError, TypeError):
+                    raise CommandError("Stripe fixtures require a positive exchange_rate with at most 12 decimal places.")
             if not order["order_items"]:
                 raise CommandError("Seed orders must contain items.")
             item_names = set()
@@ -314,10 +329,10 @@ class Command(BaseCommand):
         self._seed_product_images(product_images, products, uploaded_files)
 
     def _seed_orders(self, user, orders, products):
-        """Upsert explicit COD fixture purchases without payments, holds or inventory writes.
+        """Upsert sample purchases with fixed prices and no provider/inventory effects.
 
-        Each fixture order gets one stable checkout in its store currency. This
-        bypasses live checkout and FX intentionally; sample history is not a sale.
+        COD keeps store currency. Stripe uses explicit fixture FX to USD and
+        balanced simulated receipts/refunds, never live payment services.
         """
         recipient = user.recipient_infos.get(is_default=True)
         for data in orders:
@@ -326,18 +341,27 @@ class Command(BaseCommand):
             if len(stores) != 1:
                 raise CommandError("Each seed order must contain products from exactly one store.")
             store = lines[0][0].store
-            total = sum((product.price * quantity for product, quantity in lines), Decimal("0"))
+            online = data["payment_method"] == Checkout.PaymentMethod.STRIPE
+            currency = "USD" if online else store.currency
+            rate = Decimal(data["exchange_rate"]) if online else Decimal("1")
+            if online and store.currency == "USD" and rate != 1:
+                raise CommandError("USD Stripe fixtures must use exchange_rate 1.")
+            prices = {product.pk: rounded_unit_price(product.price, currency, rate) for product, _ in lines}
+            total = sum((prices[product.pk] * quantity for product, quantity in lines), Decimal("0"))
+            if online and total <= 0:
+                raise CommandError("Stripe fixture total must be positive after rounding.")
             key = uuid.uuid5(uuid.NAMESPACE_URL, f"ecommerce:seed:order:{data['key']}")
             checkout = Checkout.objects.select_for_update().filter(reference=key).first()
             if checkout is not None and checkout.user_id != user.pk:
                 raise CommandError("Seed checkout already belongs to another user.")
             if checkout is None:
                 checkout = Checkout(reference=key, user=user, idempotency_key=key)
-            checkout.payment_method = Checkout.PaymentMethod.COD
-            checkout.currency = store.currency
+            checkout.payment_method = data["payment_method"]
+            checkout.currency = currency
             checkout.total_amount = total
-            checkout.status = Checkout.Status.COMPLETED
-            checkout.completed_at = checkout.completed_at or timezone.now()
+            expired = online and data["payment_status"] == Order.PaymentStatus.UNPAID
+            checkout.status = Checkout.Status.EXPIRED if expired else Checkout.Status.COMPLETED
+            checkout.completed_at = None if expired else (checkout.completed_at or timezone.now())
             checkout.save()
             order = Order.objects.select_for_update().filter(checkout=checkout, store=store).first()
             if order is not None and order.user_id != user.pk:
@@ -350,12 +374,12 @@ class Command(BaseCommand):
             order.recipient_info = recipient
             order.recipient_snapshot = recipient_snapshot(recipient)
             order.source_currency = store.currency
-            order.exchange_rate = Decimal("1")
+            order.exchange_rate = rate
             order.exchange_rate_date = None
             order.status = data["status"]
             order.payment_status = data["payment_status"]
             order.paid_at = (order.paid_at or checkout.completed_at) if order.payment_status == Order.PaymentStatus.PAID else None
-            if order.status in (Order.Status.DELIVERED, Order.Status.CANCELLED):
+            if order.status in (Order.Status.DELIVERED, Order.Status.COMPLETED, Order.Status.CANCELLED):
                 order.concluded_at = order.concluded_at or timezone.now()
             else:
                 order.concluded_at = None
@@ -369,9 +393,57 @@ class Command(BaseCommand):
                         "quantity": quantity,
                         "product_name_at_purchase": product.name,
                         "original_unit_price": product.price,
-                        "price_at_purchase": product.price,
+                        "price_at_purchase": prices[product.pk],
                     },
                 )
+
+            if online:
+                self._seed_stripe_history(order, data)
+
+    def _seed_stripe_history(self, order, data):
+        """Record local payment fixtures and idempotent USD ledger entries.
+
+        Terminal attempts have no provider identifiers and cannot represent real
+        Stripe payments. Stable ledger keys prevent additional credits on reruns.
+        """
+        paid = data["payment_status"] == Order.PaymentStatus.PAID
+        checkout = order.checkout
+        attempt, _ = PaymentAttempt.objects.get_or_create(
+            checkout=checkout,
+            defaults={"amount": checkout.total_amount, "currency": checkout.currency,
+                      "status": "succeeded" if paid else "expired",
+                      "succeeded_at": order.paid_at if paid else None},
+        )
+        if (attempt.amount != checkout.total_amount or attempt.currency != checkout.currency
+                or attempt.status != ("succeeded" if paid else "expired")
+                or attempt.stripe_checkout_session_id or attempt.stripe_payment_intent_id):
+            raise CommandError("Seed payment history changed; use a new fixture key or disposable reset.")
+        if not paid:
+            return
+        wallet = create_wallet(store_id=order.store_id)
+        pending = wallet.accounts.get(bucket="pending")
+        treasury = get_treasury_account()
+        cents = int(checkout.total_amount * 100)
+        receipt = post_transaction(
+            operation_key=f"seed:payment:{checkout.reference}", operation_type="seed_payment_receipt",
+            postings=[Posting(treasury.pk, "debit", cents), Posting(pending.pk, "credit", cents)],
+        )
+        attempt.receipt = receipt
+        attempt.save()
+        if data.get("refunded"):
+            refund, _ = OrderRefund.objects.get_or_create(
+                order=order, defaults={"payment_attempt": attempt, "amount_cents": cents},
+            )
+            if refund.payment_attempt_id != attempt.pk or refund.amount_cents != cents or refund.stripe_refund_id:
+                raise CommandError("Seed refund history changed; use a new fixture key or disposable reset.")
+            refund.reversal = post_transaction(
+                operation_key=f"seed:refund:{checkout.reference}", operation_type="seed_order_refund",
+                postings=[Posting(pending.pk, "debit", cents), Posting(treasury.pk, "credit", cents)],
+            )
+            refund.status = "succeeded"
+            refund.save()
+        elif hasattr(order, "refund"):
+            raise CommandError("Seed refund cannot be removed; use a new fixture key or disposable reset.")
 
     def _seed_user(self, user_data, uploaded_files):
         """Create a seed user with a hashed password or refresh its profile."""
@@ -473,7 +545,6 @@ class Command(BaseCommand):
                     "description": data["description"],
                     "stock": int(data["stock"]),
                     "price": Decimal(data["price"]),
-                    "sold_count": int(data["sold_count"]),
                     "status": data["status"],
                 },
             )

@@ -55,11 +55,11 @@ class StoreCatalogTests(APITestCase):
         data = response.json()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(data["listed_product_count"], 1)
-        self.assertEqual(data["items_sold"], 2)
+        self.assertEqual(data["items_ordered"], 2)
         self.assertEqual(data["public_email"], "shop@example.com")
         self.assertEqual(data["address"]["address_line1"], "Public business address")
         self.assertEqual(data["categories"], [{"id": self.category.pk, "name": "Shoes", "product_count": 1}])
-        self.assertEqual(set(data), {"id", "name", "description", "profile_image", "banner_image", "created_at", "public_email", "public_phone", "address", "listed_product_count", "items_sold", "categories"})
+        self.assertEqual(set(data), {"id", "name", "description", "profile_image", "banner_image", "created_at", "public_email", "public_phone", "address", "listed_product_count", "items_ordered", "categories"})
         self.assertNotIn("private@example.com", response.content.decode())
         self.assertNotIn("Private home", response.content.decode())
 
@@ -70,9 +70,9 @@ class StoreCatalogTests(APITestCase):
         self.assertIsNone(data["address"])
         self.assertEqual(data["public_email"], "")
         self.assertEqual(data["public_phone"], "")
-        self.assertEqual(data["items_sold"], 0)
+        self.assertEqual(data["items_ordered"], 0)
         self.assertEqual(data["categories"], [])
-        self.assertEqual(self.client.get(self.url + "home/").json(), {"new_products": [], "trending_products": [], "best_sellers": []})
+        self.assertEqual(self.client.get(self.url + "home/").json(), {"new_products": [], "trending_products": [], "most_ordered": []})
 
     def test_search_sort_pagination_images_prices_and_visibility(self):
         products = [self.product(f"Running Shoes {i}") for i in range(12)]
@@ -130,12 +130,26 @@ class StoreCatalogTests(APITestCase):
         self.purchase(product, 7, age=31)
         self.purchase(product, 100, age=-1)
         scored = store_products(self.store, self.now).get(pk=product.pk)
-        self.assertEqual(scored.sales_recent, 18)
-        self.assertEqual(scored.sales_total, 25)
+        self.assertEqual(scored.ordered_recent, 318)
+        self.assertEqual(scored.ordered_total, 325)
         with patch("apps.store.services.catalog.timezone.now", return_value=self.now):
             home = self.client.get(self.url + "home/").json()
-        self.assertEqual(home["trending_products"][0]["sold_count"], 25)
-        self.assertEqual(self.client.get(self.url).json()["items_sold"], 25)
+        self.assertEqual(home["trending_products"][0]["ordered_count"], 325)
+        self.assertEqual(self.client.get(self.url).json()["items_ordered"], 325)
+        # Every browsing endpoint reports the same qualifying order quantities.
+        with patch("apps.ecommerce.views.get_display_rates", return_value={}):
+            with self.assertNumQueries(3):
+                catalog = self.client.get("/api/shop/products/").json()
+            with self.assertNumQueries(3):
+                detail = self.client.get(f"/api/shop/products/{product.pk}/").json()
+        self.assertEqual(catalog["results"][0]["ordered_count"], 325)
+        self.assertEqual(detail["ordered_count"], 325)
+        listed = self.client.get(self.url + "products/").json()
+        self.assertEqual(listed["results"][0]["ordered_count"], 325)
+        # Counts reflect later order changes on the next request.
+        Order.objects.filter(items__product=product, status="completed").update(status="cancelled")
+        with patch("apps.ecommerce.views.get_display_rates", return_value={}):
+            self.assertEqual(self.client.get(f"/api/shop/products/{product.pk}/").json()["ordered_count"], 320)
 
     def test_home_limits_ranking_ties_zero_sales_and_historical_totals(self):
         self.now = timezone.now()
@@ -156,9 +170,9 @@ class StoreCatalogTests(APITestCase):
         self.assertEqual(data["new_products"][0]["id"], no_sales.pk)
         self.assertEqual(data["trending_products"][0]["id"], products[1].pk)
         self.assertEqual(data["trending_products"][1]["id"], products[-1].pk)
-        self.assertEqual(data["best_sellers"][0]["id"], products[0].pk)
-        self.assertEqual(self.client.get(self.url).json()["items_sold"], 147)
-        for sort, first in [("popular", products[1]), ("best_sellers", products[0]), ("latest", no_sales)]:
+        self.assertEqual(data["most_ordered"][0]["id"], products[0].pk)
+        self.assertEqual(self.client.get(self.url).json()["items_ordered"], 147)
+        for sort, first in [("popular", products[1]), ("most_ordered", products[0]), ("latest", no_sales)]:
             self.assertEqual(self.client.get(self.url + "products/", {"sort": sort}).json()["results"][0]["id"], first.pk)
         self.assertNotIn(no_sales.pk, [p["id"] for p in data["trending_products"]])
 

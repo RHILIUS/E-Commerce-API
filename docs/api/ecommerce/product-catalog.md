@@ -32,29 +32,33 @@ are prefetched. Rankings may change between requests as orders change or age.
 
 ## Which products appear first
 
-Only active products appear, including those
-with zero stock. For authenticated users, categories rank by the sum of item
-quantities in that user's non-cancelled orders, including pending orders.
-Every product in a category receives the same score; unpurchased or missing
-categories receive zero. The four ordering priorities are:
+Only active products appear, including those with zero stock. Ranking and
+`ordered_count` count **units in every non-cancelled order**, regardless of payment
+or refund status. Pending, accepted, packed, shipment-arranged, shipped, delivered,
+and completed orders contribute. Successful refunds retain the original demand
+signal unless the order is cancelled. Future-dated orders do not contribute yet.
+One order containing three units contributes three, not one.
 
-1. Personal category quantity across all time, highest first.
-2. Product quantity ordered across all users during the rolling popularity window,
-   highest first.
+The four ordering priorities are:
+
+1. The viewer's lifetime ordered units in each product's current category.
+2. The product's ordered units across all users during the recent window.
 3. Product creation date, newest first.
 4. Product ID, highest first.
 
-Popularity uses non-cancelled orders whose creation time is between now minus
-`PRODUCT_POPULARITY_DAYS` and now (both inclusive). The setting defaults to 7 days
-and can be configured through the environment, for example 30 for a quieter store.
-Guests and users without qualifying history have zero category scores, so recent
-popularity determines their first priority. Missing popularity scores are zero.
-Previously purchased products remain eligible. Other users' orders contribute
-only to popularity, not personal preferences. Deleted products contribute nothing, and category
-changes affect preferences because ranking uses each product's current category.
-Scores are calculated in the database and are not included in the response.
-Normal Bearer authentication still applies when a token is supplied; invalid
-tokens return HTTP 401.
+Guests and users without counted history have zero category preference. Every
+product in a category receives the same preference score; uncategorized products
+receive zero preference but can rank by popularity. Deleted products contribute
+nothing to product/category ranking. Category changes affect preferences because
+ranking uses each product's current category.
+
+Popularity uses order placement between now minus `PRODUCT_POPULARITY_DAYS` and
+now, both inclusive. The default is seven days; configuration can change it.
+Personal preferences and displayed product counts use lifetime history. Cancelling
+an order removes its contribution on the next request. Payment, fulfillment and
+refund changes alone do not change eligibility. Scores are calculated in the
+database and are not included in responses. Bearer authentication still applies
+when supplied; invalid tokens return HTTP 401.
 
 ## Product fields
 
@@ -68,13 +72,23 @@ Each product contains:
 - `display_price`: `{ "amount": "5600.00", "currency": "PHP" }`, a display-only
   converted decimal string and ISO 4217 currency code. This example can represent
   a PHP 5600 product viewed by a Philippine user, without conversion.
-- `sold_count`: integer.
+- `ordered_count`: integer lifetime units in non-cancelled orders, including unpaid
+  and refunded purchases. Zero means no counted history. This is a demand metric,
+  not completed sales or revenue. Recent ranking uses a shorter time window.
 - `default_image`: `null` when no image is marked default; otherwise an object
   containing `image` (storage URL), `alt_text`, and `crop`.
 
 Local image URLs are made absolute using the request; cloud storage URLs are
 provided by the configured storage backend. If multiple images are marked
 default, the lowest image order and then ID determines the selected image.
+
+## Staff inspection
+
+Django admin shows **Units ordered** on the product list and saved-product form.
+It is a read-only lifetime total using the same non-cancelled-order calculation as browsing.
+The list supports sorting by this total; new products show no total until saved.
+Staff cannot directly edit sales totals. Order and payment records remain subject
+to their existing read-only admin restrictions.
 
 ## Store currencies and display conversion
 

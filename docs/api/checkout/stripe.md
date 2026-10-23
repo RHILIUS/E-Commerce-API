@@ -196,8 +196,9 @@ customer, checkout, attempt, products, stores and reservations, then:
    frozen purchased cart lines, links the receipt and completes the checkout.
 
 Any failure rolls back all local changes. Retries post once; a second webhook event
-for the same payment does not credit again. `sold_count` is unchanged because it
-means delivered units. Zero-value store shares do not produce zero-amount entries.
+for the same payment does not credit again. Browsing APIs calculate
+ordered units from non-cancelled order history. Orders contribute from placement,
+including before payment and after refunds; cancellation removes their contribution. Zero-value store shares do not produce zero-amount entries.
 
 Expiry/cancellation releases holds only after current Stripe state confirms an
 expired, unpaid session with no unsettled intent. A cancellation racing successful

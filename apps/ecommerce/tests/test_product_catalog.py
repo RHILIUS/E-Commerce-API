@@ -19,7 +19,7 @@ class ProductCatalogTests(APITestCase):
         """Create a catalog candidate without uploading files."""
         return Product.objects.create(
             store=self.store, name=name, short_description="Card description",
-            price="123.45", sold_count=7, status=status,
+            price="123.45", status=status,
         )
 
     def test_public_catalog_filters_and_orders_products_with_bounded_queries(self):
@@ -39,7 +39,7 @@ class ProductCatalogTests(APITestCase):
                 "short_description": "Card description", "price": "123.45",
                 "currency": "PHP",
                 "display_price": {"amount": "2.20", "currency": "USD"},
-                "sold_count": 7, "default_image": None,
+                "ordered_count": 0, "default_image": None,
             }
             for product in (second, first)
         ])

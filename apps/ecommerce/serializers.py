@@ -21,6 +21,10 @@ class CatalogImageSerializer(serializers.ModelSerializer):
 
 
 class ProductCatalogSerializer(serializers.ModelSerializer):
+    ordered_count = serializers.IntegerField(
+        source="ordered_total", read_only=True,
+        help_text="Lifetime units in non-cancelled orders, including unpaid and refunded purchases. Quantities measure demand, not completed sales.",
+    )
     currency = serializers.CharField(source="store.currency", read_only=True)
     default_image = serializers.SerializerMethodField()
     display_price = serializers.SerializerMethodField()
@@ -28,7 +32,7 @@ class ProductCatalogSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = ("id", "name", "short_description", "price",
-                  "currency", "display_price", "sold_count", "default_image")
+                  "currency", "display_price", "ordered_count", "default_image")
         extra_kwargs = {"price": {
             "help_text": "Original price in the store's currency; unchanged by display conversion."}}
 

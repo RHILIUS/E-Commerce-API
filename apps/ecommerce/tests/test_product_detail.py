@@ -19,7 +19,7 @@ class ProductDetailTests(APITestCase):
         cls.product = Product.objects.create(
             store=cls.store, name="Phone", short_description="Short summary",
             description="Full product description", stock=3, price="5600.00",
-            sold_count=12, status=Product.Status.ACTIVE,
+            status=Product.Status.ACTIVE,
         )
         cls.url = f"/api/shop/products/{cls.product.pk}/"
         cls.user = create_customer(
@@ -44,7 +44,7 @@ class ProductDetailTests(APITestCase):
         data = response.json()
         self.assertEqual(set(data), {
             "id", "name", "short_description", "description", "price", "currency",
-            "display_price", "sold_count", "default_image", "images", "stock",
+            "display_price", "ordered_count", "default_image", "images", "stock",
             "status", "archived_at", "store", "can_purchase",
         })
         self.assertEqual(data["description"], "Full product description")
@@ -54,7 +54,7 @@ class ProductDetailTests(APITestCase):
         self.assertEqual(data["display_price"], {
                          "amount": "100.00", "currency": "USD"})
         self.assertEqual(data["stock"], 3)
-        self.assertEqual(data["sold_count"], 12)
+        self.assertEqual(data["ordered_count"], 0)
         self.assertTrue(data["can_purchase"])
         self.assertEqual(data["images"], [])
         self.assertIsNone(data["default_image"])

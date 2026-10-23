@@ -16,6 +16,7 @@ from .serializers import (
 )
 from .services.display_prices import get_display_rates
 from .services.product_recommendations import rank_products_for_user
+from .services.order_quantities import with_ordered_totals
 
 User = get_user_model()
 
@@ -43,7 +44,7 @@ class ProductCatalogView(APIView):
             OpenApiParameter(
                 "page", int, description="Page number, starting at 1; twelve products per page."),
         ],
-        description="List active products. Signed-in users see preferred categories first; recent product popularity ranks ties and is the first signal for guests. price and currency describe the original store price. display_price converts to the account country's currency, or USD for guests. Unavailable conversions retain the original store currency. Conversion is for display only.",
+        description="List active products. Signed-in users see categories ranked by their lifetime ordered units first; recent ordered product units rank ties and are the first signal for guests. Both scores count non-cancelled orders regardless of payment or refund status. Recent popularity uses the configured rolling window by order placement, default seven days. price and currency describe the original store price. display_price converts to the account country's currency, or USD for guests. Unavailable conversions retain the original store currency. Conversion is for display only. ordered_count is lifetime units in non-cancelled orders, including unpaid and refunded purchases.",
         responses={200: PaginatedProductsSerializer, 401: dict, 404: dict},
     )
     def get(self, request):
@@ -57,7 +58,7 @@ class ProductCatalogView(APIView):
                     short_description__icontains=query)
             )
         products = rank_products_for_user(
-            products, request.user
+            with_ordered_totals(products), request.user
         ).prefetch_related(
             Prefetch(
                 "images",
@@ -89,7 +90,8 @@ class ProductDetailView(APIView):
             "can_purchase is true only for active products with stock. It is product "
             "eligibility, not checkout authorization or a stock reservation. Prices "
             "use the same display conversion as the catalog. Store listing count "
-            "includes active products only; created_at is store creation, not first sale."
+            "includes active products only; created_at is store creation, not first sale. "
+            "ordered_count uses the same non-cancelled lifetime units as the catalog and store pages."
         ),
         responses={200: ProductDetailSerializer, 401: dict, 404: dict},
     )
@@ -105,7 +107,7 @@ class ProductDetailView(APIView):
             Prefetch(
                 "images", queryset=ProductImage.objects.order_by("order", "pk"))
         )
-        product = get_object_or_404(products, pk=pk)
+        product = get_object_or_404(with_ordered_totals(products), pk=pk)
         serializer = ProductDetailSerializer(product, context={
             "request": request,
             "display_rates": get_display_rates(request.user, {product.store.currency}),

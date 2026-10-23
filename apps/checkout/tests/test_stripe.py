@@ -28,6 +28,7 @@ from apps.ecommerce.models import Cart, CartItem, Order, OrderItem, Product, Pro
 from apps.inventory.models import StockReservation
 from apps.store.models import Store
 from apps.wallet.models import LedgerAccount, LedgerTransaction
+from apps.ecommerce.services.order_quantities import with_ordered_totals
 from apps.wallet.services import account_balance
 
 CONFIG = dict(STRIPE_SECRET_KEY='sk_test_example', STRIPE_WEBHOOK_SECRET='whsec_example',
@@ -106,7 +107,7 @@ class StripeTests(StripeFixtures, APITestCase):
         self.assertEqual(LedgerTransaction.objects.count(), 1)
         self.assertEqual([account_balance(s.wallet.accounts.get(bucket='pending')) for s in self.stores], [6000,4000])
         self.assertEqual(account_balance(LedgerAccount.objects.get(bucket='treasury')), 10000)
-        self.assertEqual(list(Product.objects.values_list('sold_count', flat=True)), [0,0])
+        self.assertEqual(list(with_ordered_totals(Product.objects.order_by('pk')).values_list('ordered_total', flat=True)), [2,1])
         attempt.refresh_from_db()
         self.assertIsNotNone(attempt.receipt_id)
 
