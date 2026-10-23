@@ -35,27 +35,27 @@ class ProductAdminTests(TestCase):
         url = reverse("admin:ecommerce_product_changelist")
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Sold units")
+        self.assertContains(response, "Units ordered")
         results = response.context["cl"].result_list
-        self.assertEqual({p.pk: p.sales_total for p in results}, {self.product.pk: 3, self.unsold.pk: 0})
-        column = response.context["cl"].list_display.index("sold_units")
+        self.assertEqual({p.pk: p.ordered_total for p in results}, {self.product.pk: 103, self.unsold.pk: 0})
+        column = response.context["cl"].list_display.index("ordered_units")
         ordered = self.client.get(url, {"o": str(column)})
         self.assertEqual([p.pk for p in ordered.context["cl"].result_list], [self.unsold.pk, self.product.pk])
 
         response = self.client.get(reverse("admin:ecommerce_product_change", args=[self.product.pk]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '<div class="readonly">3</div>', html=True)
-        self.assertNotIn("sold_units", response.context["adminform"].form.fields)
-        self.assertNotIn("sold_count", response.context["adminform"].form.fields)
-        self.assertContains(response, "Sold units")
+        self.assertContains(response, '<div class="readonly">103</div>', html=True)
+        self.assertNotIn("ordered_units", response.context["adminform"].form.fields)
+        self.assertNotIn("ordered_count", response.context["adminform"].form.fields)
+        self.assertContains(response, "Units ordered")
         response = self.client.get(reverse("admin:ecommerce_product_add"))
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn("sold_units", response.context["adminform"].form.fields)
+        self.assertNotIn("ordered_units", response.context["adminform"].form.fields)
 
     def test_sales_display_uses_one_query_for_multiple_products(self):
         request = self.client.get(reverse("admin:index")).wsgi_request
         with self.assertNumQueries(1):
             products = list(self.model_admin.get_queryset(request))
-            totals = {p.pk: self.model_admin.sold_units(p) for p in products}
-        self.assertEqual(totals, {self.product.pk: 3, self.unsold.pk: 0})
-        self.assertIsNone(self.model_admin.sold_units(Product()))
+            totals = {p.pk: self.model_admin.ordered_units(p) for p in products}
+        self.assertEqual(totals, {self.product.pk: 103, self.unsold.pk: 0})
+        self.assertIsNone(self.model_admin.ordered_units(Product()))

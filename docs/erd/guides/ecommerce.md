@@ -138,9 +138,9 @@ A store-owned catalog listing, its current source price, inventory, publication 
 
 **Table:** `ecommerce_product`. **Model:** `ecommerce.Product`.
 
-Status defaults to draft. Sold quantities are calculated from qualifying order items
-and returned as `sold_count` by browsing APIs; they are not a product column or a
-financial accounting total. See the [catalog sales rules](../../api/ecommerce/product-catalog.md#product-fields). Saves lock an existing product and reject reducing stock below unresolved held quantities. Validation rejects store/category changes inconsistent with existing carts, order lines, or specifications. The model’s save() calls clean(), not full_clean().
+Status defaults to draft. Ordered quantities are calculated from non-cancelled order items
+and returned as `ordered_count` by browsing APIs; they are not a product column or a
+financial accounting total. See the [catalog ordered-unit rules](../../api/ecommerce/product-catalog.md#product-fields). Saves lock an existing product and reject reducing stock below unresolved held quantities. Validation rejects store/category changes inconsistent with existing carts, order lines, or specifications. The model’s save() calls clean(), not full_clean().
 
 | Field / column             | Meaning                                                                            | Constraints and behavior                                                                                                |
 | -------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |

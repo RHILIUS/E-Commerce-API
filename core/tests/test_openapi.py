@@ -78,7 +78,7 @@ class OpenAPITests(SimpleTestCase):
         self.assertEqual({p["name"] for p in store_catalog["parameters"]}, {"id", "page", "q", "sort", "category"})
         self.assertEqual(set(store_catalog["responses"]), {"200", "400", "401", "404"})
         public_store = schema["components"]["schemas"]["PublicStore"]["properties"]
-        self.assertTrue({"public_email", "public_phone", "items_sold"} <= set(public_store))
+        self.assertTrue({"public_email", "public_phone", "items_ordered"} <= set(public_store))
         self.assertNotIn("members", public_store)
 
         profile = schema["paths"]["/api/account/profile/"]

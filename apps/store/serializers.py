@@ -33,24 +33,24 @@ class StoreAddressSerializer(serializers.ModelSerializer):
 class PublicStoreSerializer(serializers.ModelSerializer):
     address = StoreAddressSerializer(read_only=True, allow_null=True)
     listed_product_count = serializers.IntegerField(read_only=True)
-    items_sold = serializers.IntegerField(read_only=True)
+    items_ordered = serializers.IntegerField(read_only=True)
     categories = StoreCategorySerializer(many=True, read_only=True)
 
     class Meta:
         model = Store
         fields = (
             "id", "name", "description", "profile_image", "banner_image", "created_at",
-            "public_email", "public_phone", "address", "listed_product_count", "items_sold", "categories",
+            "public_email", "public_phone", "address", "listed_product_count", "items_ordered", "categories",
         )
 
 
 class StoreHomeSerializer(serializers.Serializer):
     new_products = StoreProductSerializer(many=True)
     trending_products = StoreProductSerializer(many=True)
-    best_sellers = StoreProductSerializer(many=True)
+    most_ordered = StoreProductSerializer(many=True)
 
 
 class StoreProductQuerySerializer(serializers.Serializer):
     q = serializers.CharField(required=False, allow_blank=True, default="", max_length=200)
-    sort = serializers.ChoiceField(choices=["latest", "oldest", "popular", "best_sellers"], default="latest")
+    sort = serializers.ChoiceField(choices=["latest", "oldest", "popular", "most_ordered"], default="latest")
     category = serializers.IntegerField(required=False, min_value=1)

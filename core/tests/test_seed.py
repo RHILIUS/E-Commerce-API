@@ -7,7 +7,7 @@ from unittest.mock import patch
 from apps.account.models import RecipientInfo
 from apps.authentication.models import UserAddress
 from apps.checkout.models import Checkout, OrderRefund, PaymentAttempt
-from apps.ecommerce.services.sales import with_sales_totals
+from apps.ecommerce.services.order_quantities import with_ordered_totals
 from apps.wallet.models import LedgerEntry, LedgerTransaction
 from apps.wallet.services import account_balance
 from apps.checkout.services.snapshots import recipient_snapshot
@@ -271,10 +271,10 @@ class SeedTaxonomyTests(TestCase):
         self.assertEqual(item.product.stock, stock)
 
     @patch("core.management.commands.seed.attach_image_if_missing")
-    def test_seed_sales_totals_payment_snapshots_and_ledger_repeat(self, _):
+    def test_seed_ordered_totals_payment_snapshots_and_ledger_repeat(self, _):
         from apps.ecommerce.models import Order, OrderEvent
         expected = {data["name"]: 0 for data in PRODUCT_DATA}
-        expected.update({"Rhilius NovaPhone X1": 3, "Rhilius PulsePhone 5G": 3, "Rhilius TechPad 10": 4})
+        expected.update({"Rhilius NovaPhone X1": 3, "Rhilius PulsePhone 5G": 3, "Rhilius TechPad 10": 4, "Rhilius TitanPhone Pro": 11, "Rhilius VisionPhone Fold": 8})
         call_command("seed", stdout=StringIO())
         before = list(Order.objects.order_by("pk").values_list("pk", "created_at", "paid_at", "concluded_at"))
         events = OrderEvent.objects.count()
@@ -284,18 +284,18 @@ class SeedTaxonomyTests(TestCase):
         for repeat in range(2):
             if repeat:
                 call_command("seed", stdout=StringIO())
-            actual = dict(with_sales_totals(Product.objects.all()).values_list("name", "sales_total"))
+            actual = dict(with_ordered_totals(Product.objects.all()).values_list("name", "ordered_total"))
             self.assertEqual(actual, expected)
             client = APIClient()
             with patch("apps.ecommerce.views.get_display_rates", return_value={}), patch("apps.store.views.get_display_rates", return_value={}):
                 catalog = client.get("/api/shop/products/").json()
                 for row in catalog["results"]:
-                    self.assertEqual(row["sold_count"], expected[row["name"]])
+                    self.assertEqual(row["ordered_count"], expected[row["name"]])
                 store = Store.objects.get(name=STORES_DATA[0]["name"])
-                self.assertEqual(client.get(f"/api/shop/stores/{store.pk}/").json()["items_sold"], 10)
+                self.assertEqual(client.get(f"/api/shop/stores/{store.pk}/").json()["items_ordered"], 29)
                 for name in ("Rhilius NovaPhone X1", "Rhilius VisionPhone Fold", "Rhilius TitanPhone Pro"):
                     product = Product.objects.get(name=name)
-                    self.assertEqual(client.get(f"/api/shop/products/{product.pk}/").json()["sold_count"], expected[name])
+                    self.assertEqual(client.get(f"/api/shop/products/{product.pk}/").json()["ordered_count"], expected[name])
             self.assertEqual(list(Order.objects.order_by("pk").values_list("pk", "created_at", "paid_at", "concluded_at")), before)
             self.assertEqual(OrderEvent.objects.count(), events)
             self.assertEqual(list(PaymentAttempt.objects.order_by("pk").values_list("pk", "reference", "receipt_id", "succeeded_at")), attempts)

@@ -82,23 +82,23 @@ timestamp; other statuses have none.
 ### Sample sales totals
 
 The supplied eight orders cover delivered/completed COD, pending/cancelled COD,
-paid/unpaid Stripe, and a successful full refund. Sold counts come from the same
-[qualifying order history](../api/ecommerce/product-catalog.md#product-fields) as
+paid/unpaid Stripe, and a successful full refund. Ordered counts come from the same
+[non-cancelled order history](../api/ecommerce/product-catalog.md#product-fields) as
 normal browsing, rather than hardcoded product counters.
 
-| Product | Qualifying lifetime units | Explanation |
+| Product | Lifetime units ordered | Explanation |
 | --- | --- | --- |
 | Rhilius NovaPhone X1 | 3 | One delivered COD unit and two paid Stripe units |
 | Rhilius PulsePhone 5G | 3 | Completed COD |
 | Rhilius TechPad 10 | 4 | Paid Stripe |
-| Rhilius TitanPhone Pro | 0 | Pending COD and unpaid Stripe |
+| Rhilius TitanPhone Pro | 11 | Five pending COD and six unpaid Stripe units |
 | Rhilius AeroPhone Mini | 0 | Cancelled COD |
-| Rhilius VisionPhone Fold | 0 | Eight paid Stripe units fully refunded |
-| Remaining products | 0 | No qualifying order history |
+| Rhilius VisionPhone Fold | 8 | Fully refunded, non-cancelled Stripe order |
+| Remaining products | 0 | No non-cancelled order history |
 
-The store total is ten units. Extra manually created orders can change these
-totals. Products have no stored sold counter; browsing calculates totals directly
-from qualifying order items.
+The store total is 29 units. Extra manually created orders can change these
+totals. Products have no stored ordered counter; browsing calculates totals directly
+from non-cancelled order items.
 
 An existing fixture checkout or order belonging to another user causes the transaction to fail.
 Additional non-default recipients are matched by their complete address/contact

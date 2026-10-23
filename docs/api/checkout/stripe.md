@@ -197,8 +197,8 @@ customer, checkout, attempt, products, stores and reservations, then:
 
 Any failure rolls back all local changes. Retries post once; a second webhook event
 for the same payment does not credit again. Browsing APIs calculate
-sold units from qualifying order history, so these paid Stripe orders contribute
-immediately unless cancelled or successfully refunded in full. Zero-value store shares do not produce zero-amount entries.
+ordered units from non-cancelled order history. Orders contribute from placement,
+including before payment and after refunds; cancellation removes their contribution. Zero-value store shares do not produce zero-amount entries.
 
 Expiry/cancellation releases holds only after current Stripe state confirms an
 expired, unpaid session with no unsettled intent. A cancellation racing successful
