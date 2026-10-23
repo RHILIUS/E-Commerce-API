@@ -1,11 +1,15 @@
 import uuid
 from io import StringIO
 from copy import deepcopy
+from decimal import Decimal
 from unittest.mock import patch
 
 from apps.account.models import RecipientInfo
 from apps.authentication.models import UserAddress
-from apps.checkout.models import Checkout, PaymentAttempt
+from apps.checkout.models import Checkout, OrderRefund, PaymentAttempt
+from apps.ecommerce.services.sales import with_sales_totals
+from apps.wallet.models import LedgerEntry, LedgerTransaction
+from apps.wallet.services import account_balance
 from apps.checkout.services.snapshots import recipient_snapshot
 from apps.ecommerce.models import (
     Attribute,
@@ -75,6 +79,28 @@ class SeedDataTests(SimpleTestCase):
         ):
             with self.assertRaisesMessage(CommandError, "exactly one store"):
                 validate_seed_data()
+
+    def test_invalid_payment_fixtures_are_rejected(self):
+        stripe_index = next(i for i, o in enumerate(CUSTOMER_USER_DATA["orders"]) if o["payment_method"] == "stripe")
+        cases = [
+            (0, {"payment_method": "unknown"}, "payment method"),
+            (0, {"refunded": True}, "paid Stripe"),
+            (0, {"refunded": "yes"}, "boolean"),
+            (stripe_index, {"payment_status": "pending"}, "payment status"),
+            (stripe_index, {"exchange_rate": "NaN"}, "exchange_rate"),
+            (stripe_index, {"exchange_rate": "Infinity"}, "exchange_rate"),
+            (stripe_index, {"exchange_rate": "0"}, "exchange_rate"),
+            (stripe_index, {"exchange_rate": "-1"}, "exchange_rate"),
+            (stripe_index, {"exchange_rate": "0.0000000000001"}, "exchange_rate"),
+            (stripe_index, {"refunded": True, "payment_status": "unpaid"}, "paid Stripe"),
+        ]
+        for index, changes, message in cases:
+            with self.subTest(changes=changes):
+                customers = deepcopy(CUSTOMERS_DATA)
+                customers[0]["orders"][index].update(changes)
+                with patch("core.management.commands.seed.CUSTOMERS_DATA", customers):
+                    with self.assertRaisesMessage(CommandError, message):
+                        validate_seed_data()
 
     def test_seed_data_has_valid_products_and_images(self):
         product_images = validate_seed_data()
@@ -229,19 +255,82 @@ class SeedTaxonomyTests(TestCase):
         self.assertEqual(store.public_email, STORES_DATA[0]["public_email"])
         self.assertEqual(store.public_phone, STORES_DATA[0]["public_phone"])
         order.refresh_from_db()
-        self.assertEqual(Order.objects.count(), 1)
-        self.assertEqual(OrderItem.objects.count(), 1)
+        self.assertEqual(Order.objects.count(), len(CUSTOMER_USER_DATA["orders"]))
+        self.assertEqual(OrderItem.objects.count(), sum(len(o["order_items"]) for o in CUSTOMER_USER_DATA["orders"]))
         self.assertEqual(order.concluded_at, concluded_at)
         self.assertEqual(order.items.get().pk, item.pk)
         self.assertEqual(order.checkout_id, checkout_id)
         self.assertEqual(order.checkout.reference, checkout_reference)
         self.assertEqual(order.paid_at, paid_at)
-        self.assertEqual(Checkout.objects.count(), 1)
-        self.assertFalse(PaymentAttempt.objects.exists())
+        self.assertEqual(Checkout.objects.count(), len(CUSTOMER_USER_DATA["orders"]))
+        self.assertEqual(PaymentAttempt.objects.count(), 4)
+        self.assertEqual(OrderRefund.objects.count(), 1)
+        self.assertEqual(LedgerTransaction.objects.count(), 4)
+        self.assertEqual(LedgerEntry.objects.count(), 8)
         self.assertFalse(StockReservation.objects.exists())
         item.product.refresh_from_db()
         self.assertEqual(item.product.stock, stock)
         self.assertEqual(item.product.sold_count, sold_count)
+
+    @patch("core.management.commands.seed.attach_image_if_missing")
+    def test_seed_sales_totals_payment_snapshots_and_ledger_repeat(self, _):
+        from apps.ecommerce.models import Order, OrderEvent
+        expected = {data["name"]: 0 for data in PRODUCT_DATA}
+        expected.update({"Rhilius NovaPhone X1": 3, "Rhilius PulsePhone 5G": 3, "Rhilius TechPad 10": 4})
+        call_command("seed", stdout=StringIO())
+        before = list(Order.objects.order_by("pk").values_list("pk", "created_at", "paid_at", "concluded_at"))
+        events = OrderEvent.objects.count()
+        attempts = list(PaymentAttempt.objects.order_by("pk").values_list("pk", "reference", "receipt_id", "succeeded_at"))
+        refund_ids = list(OrderRefund.objects.values_list("pk", "reversal_id"))
+        journals = list(LedgerTransaction.objects.values_list("pk", flat=True))
+        for repeat in range(2):
+            if repeat:
+                call_command("seed", stdout=StringIO())
+            actual = dict(with_sales_totals(Product.objects.all()).values_list("name", "sales_total"))
+            self.assertEqual(actual, expected)
+            client = APIClient()
+            with patch("apps.ecommerce.views.get_display_rates", return_value={}), patch("apps.store.views.get_display_rates", return_value={}):
+                catalog = client.get("/api/shop/products/").json()
+                for row in catalog["results"]:
+                    self.assertEqual(row["sold_count"], expected[row["name"]])
+                store = Store.objects.get(name=STORES_DATA[0]["name"])
+                self.assertEqual(client.get(f"/api/shop/stores/{store.pk}/").json()["items_sold"], 10)
+                for name in ("Rhilius NovaPhone X1", "Rhilius VisionPhone Fold", "Rhilius TitanPhone Pro"):
+                    product = Product.objects.get(name=name)
+                    self.assertEqual(client.get(f"/api/shop/products/{product.pk}/").json()["sold_count"], expected[name])
+            self.assertEqual(list(Order.objects.order_by("pk").values_list("pk", "created_at", "paid_at", "concluded_at")), before)
+            self.assertEqual(OrderEvent.objects.count(), events)
+            self.assertEqual(list(PaymentAttempt.objects.order_by("pk").values_list("pk", "reference", "receipt_id", "succeeded_at")), attempts)
+            self.assertEqual(list(OrderRefund.objects.values_list("pk", "reversal_id")), refund_ids)
+            self.assertEqual(list(LedgerTransaction.objects.values_list("pk", flat=True)), journals)
+        for attempt in PaymentAttempt.objects.select_related("checkout", "receipt"):
+            self.assertEqual(attempt.currency, "USD")
+            self.assertEqual(attempt.amount, attempt.checkout.orders.get().get_total())
+            self.assertIsNone(attempt.stripe_checkout_session_id)
+            self.assertIsNone(attempt.stripe_payment_intent_id)
+            order = attempt.checkout.orders.get()
+            self.assertEqual(order.exchange_rate, Decimal("0.02"))
+            item = order.items.get()
+            self.assertEqual(item.price_at_purchase, (item.original_unit_price * Decimal("0.02")).quantize(Decimal("0.01")))
+            self.assertEqual(attempt.receipt_id is not None, attempt.status == "succeeded")
+        refund = OrderRefund.objects.get()
+        self.assertEqual(refund.status, "succeeded")
+        self.assertEqual(refund.amount_cents, int(refund.order.get_total() * 100))
+        self.assertIsNotNone(refund.reversal_id)
+        pending = store.wallet.accounts.get(bucket="pending")
+        # Only the two non-refunded Stripe fixtures remain in the simulated wallet.
+        self.assertEqual(account_balance(pending), 426230)
+        self.assertFalse(StockReservation.objects.exists())
+        # Changing a terminal payment fixture must roll back instead of rewriting money history.
+        customers = deepcopy(CUSTOMERS_DATA)
+        paid_fixture = next(o for o in customers[0]["orders"] if o["key"] == "stripe-paid-phone")
+        paid_fixture["payment_status"] = "unpaid"
+        with patch("core.management.commands.seed.CUSTOMERS_DATA", customers):
+            with self.assertRaisesMessage(CommandError, "Seed payment history changed"):
+                call_command("seed", stdout=StringIO())
+        self.assertEqual(list(PaymentAttempt.objects.order_by("pk").values_list("pk", "reference", "receipt_id", "succeeded_at")), attempts)
+        self.assertEqual(list(LedgerTransaction.objects.values_list("pk", flat=True)), journals)
+        self.assertEqual(account_balance(pending), 426230)
 
     @patch("core.management.commands.seed.attach_image_if_missing")
     def test_multiple_customers_stores_and_recipients(self, _):
@@ -249,7 +338,8 @@ class SeedTaxonomyTests(TestCase):
         second = deepcopy(customers[0])
         second.update(username="second", email="second@example.com",
                       phone_number="+639111111111")
-        second["orders"][0]["key"] = "second-customer-order"
+        for order in second["orders"]:
+            order["key"] = "second-" + order["key"]
         customers.append(second)
         extra = deepcopy(customers[0]["recipient_infos"][0])
         extra.update(is_default=False, address_line1="Another address")
@@ -264,10 +354,10 @@ class SeedTaxonomyTests(TestCase):
         ):
             call_command("seed", stdout=output)
             call_command("seed", stdout=output)
-        self.assertEqual(output.getvalue().count("Seed complete: 2 customers, 2 stores, 2 orders"), 2)
+        self.assertEqual(output.getvalue().count(f"Seed complete: 2 customers, 2 stores, {2 * len(CUSTOMER_USER_DATA['orders'])} orders"), 2)
         self.assertEqual(output.getvalue().count("New files uploaded: 0."), 2)
         from apps.ecommerce.models import Order
-        self.assertEqual(Order.objects.count(), 2)
+        self.assertEqual(Order.objects.count(), 2 * len(CUSTOMER_USER_DATA["orders"]))
         first_user = get_user_model().objects.get(email=customers[0]["email"])
         self.assertEqual(first_user.recipient_infos.count(), 2)
         self.assertEqual(Store.objects.filter(
