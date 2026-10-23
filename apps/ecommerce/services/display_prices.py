@@ -50,9 +50,9 @@ def _fetch_rates(target, now):
     return {"rates": rates, "fetched_at": now.timestamp()}
 
 
-def get_display_rates(user, source_currencies):
+def get_display_rates(user, source_currencies, *, target_currency=None):
     """Resolve a page's conversions in at most one HTTP call, falling back to source."""
-    target = default_currency_for_user(user if user.is_authenticated else None)
+    target = target_currency or default_currency_for_user(user if user.is_authenticated else None)
     conversions = {source: (source, Decimal(1)) for source in source_currencies}
     if not source_currencies or set(source_currencies) == {target}:
         return conversions

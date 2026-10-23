@@ -3,8 +3,8 @@ from rest_framework import serializers
 
 from apps.store.models import Store
 
-from .models import Product, ProductImage
-from .services.display_prices import convert_display_price
+from ..models import Product, ProductImage
+from ..services.display_prices import convert_display_price
 
 
 class DisplayPriceSerializer(serializers.Serializer):
@@ -103,3 +103,4 @@ class ProductDetailSerializer(ProductCatalogSerializer):
     def get_can_purchase(self, obj):
         """Report product eligibility; checkout must recheck stock and status."""
         return obj.status == Product.Status.ACTIVE and obj.stock > 0
+

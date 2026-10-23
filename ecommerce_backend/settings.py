@@ -23,6 +23,10 @@ env = environ.Env(
 )
 environ.Env.read_env(BASE_DIR / '.env')
 
+# None exposes all provider-supported browsing currencies. Set a tuple only to restrict choices.
+# Display availability never enables Stripe, COD, or seller payouts.
+DISPLAY_CURRENCY_ALLOWLIST = None
+
 # Catalog conversion retains the store currency if the daily-rate provider fails.
 CATALOG_FX_TIMEOUT_SECONDS = env.float("CATALOG_FX_TIMEOUT_SECONDS", default=2)
 

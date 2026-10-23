@@ -1,7 +1,7 @@
 """Explicit cart request and response contracts; prices stay decimal strings."""
 from rest_framework import serializers
 
-from .serializers import CatalogImageSerializer, DisplayPriceSerializer
+from .catalog import CatalogImageSerializer, DisplayPriceSerializer
 
 
 class CartQuantitySerializer(serializers.Serializer):

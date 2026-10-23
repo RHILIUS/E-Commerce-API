@@ -13,7 +13,7 @@ class OpenAPITests(SimpleTestCase):
             "/api/account/change-password/", "/api/account/change-password/verify/",
             "/api/account/change-password/request/", "/api/account/change-password/resend/", "/api/account/change-password/confirm/",
             "/api/account/profile/photo/", "/api/account/profile/", "/api/account/recipients/", "/api/account/recipients/{id}/",
-            "/api/shop/checkout/preview/",
+            "/api/shop/checkout/preview/", "/api/shop/currencies/",
             "/api/shop/orders/", "/api/shop/orders/{id}/cancel/", "/api/shop/orders/{id}/history/",
             "/api/shop/checkouts/", "/api/shop/checkouts/{reference}/",
             "/api/shop/checkouts/stripe/", "/api/shop/checkouts/{reference}/payment/",
@@ -53,14 +53,14 @@ class OpenAPITests(SimpleTestCase):
                          "amount", "currency"})
         self.assertEqual(
             {parameter["name"] for parameter in catalog["parameters"]},
-            {"page", "q"},
+            {"page", "q", "display_currency"},
         )
         self.assertEqual(
             catalog["responses"]["200"]["content"]["application/json"]["schema"],
             {"$ref": "#/components/schemas/PaginatedProducts"},
         )
         detail = schema["paths"]["/api/shop/products/{id}/"]["get"]
-        self.assertEqual(set(detail["responses"]), {"200", "401", "404"})
+        self.assertEqual(set(detail["responses"]), {"200", "400", "401", "404", "503"})
         self.assertIn({}, detail["security"])
         self.assertEqual(
             detail["responses"]["200"]["content"]["application/json"]["schema"],
@@ -75,8 +75,8 @@ class OpenAPITests(SimpleTestCase):
 
         store_catalog = schema["paths"]["/api/shop/stores/{id}/products/"]["get"]
         self.assertIn({}, store_catalog["security"])
-        self.assertEqual({p["name"] for p in store_catalog["parameters"]}, {"id", "page", "q", "sort", "category"})
-        self.assertEqual(set(store_catalog["responses"]), {"200", "400", "401", "404"})
+        self.assertEqual({p["name"] for p in store_catalog["parameters"]}, {"id", "page", "q", "sort", "category", "display_currency"})
+        self.assertEqual(set(store_catalog["responses"]), {"200", "400", "401", "404", "503"})
         public_store = schema["components"]["schemas"]["PublicStore"]["properties"]
         self.assertTrue({"public_email", "public_phone", "items_ordered"} <= set(public_store))
         self.assertNotIn("members", public_store)

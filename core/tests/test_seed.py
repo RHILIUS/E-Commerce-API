@@ -287,7 +287,7 @@ class SeedTaxonomyTests(TestCase):
             actual = dict(with_ordered_totals(Product.objects.all()).values_list("name", "ordered_total"))
             self.assertEqual(actual, expected)
             client = APIClient()
-            with patch("apps.ecommerce.views.get_display_rates", return_value={}), patch("apps.store.views.get_display_rates", return_value={}):
+            with patch("apps.ecommerce.views.catalog.get_display_rates", return_value={}), patch("apps.store.views.get_display_rates", return_value={}):
                 catalog = client.get("/api/shop/products/").json()
                 for row in catalog["results"]:
                     self.assertEqual(row["ordered_count"], expected[row["name"]])

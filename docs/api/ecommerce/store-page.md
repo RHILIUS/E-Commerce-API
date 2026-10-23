@@ -84,3 +84,9 @@ same eligibility rule with lifetime personal-category preference and a seven-day
 default recent window. Counts refresh on the next request.
 
 Frontend behavior: [Store Page](../../../../frontend/docs/ecommerce/store-page.md).
+
+## Browsing currency selection
+
+Store home and product lists accept optional `display_currency`. See
+[display currencies](currencies.md) for options, defaults, validation and
+source-price fallbacks. Store profile fields and checkout pricing are unchanged.

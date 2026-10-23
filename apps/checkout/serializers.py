@@ -1,7 +1,7 @@
 """Checkout preview inputs and the single-currency review response."""
 from rest_framework import serializers
 
-from apps.ecommerce.serializers import CatalogImageSerializer
+from apps.ecommerce.serializers.catalog import CatalogImageSerializer
 
 
 class PreviewRequestSerializer(serializers.Serializer):

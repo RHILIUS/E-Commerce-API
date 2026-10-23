@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.ecommerce.serializers import ProductCatalogSerializer
+from apps.ecommerce.serializers.catalog import ProductCatalogSerializer
 from .models import Store, StoreAddress
 
 
