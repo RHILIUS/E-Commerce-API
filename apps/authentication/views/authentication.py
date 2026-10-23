@@ -34,6 +34,7 @@ from apps.authentication.serializers import (
     UserPublicSerializer,
     VerifyOTPSerializer,
 )
+from apps.authentication.services.refresh_cookie import set_refresh_token_cookie
 from apps.authentication.services.otp_delivery import queue_registration_otp
 from apps.authentication.services.otp_service import OTPRateLimitExceeded
 from apps.authentication.services.registration_token_service import (
@@ -84,7 +85,7 @@ class LoginView(TokenObtainPairView):
 
     @extend_schema(
         tags=["Authentication"], request=LoginRequestSerializer, auth=[],
-        description="Return a Bearer access token and public user data. The refresh token is set in an HttpOnly cookie and is never returned in the body.",
+        description="Return a Bearer access token and public user data. The refresh token is set in a persistent HttpOnly cookie whose Max-Age matches the issued token's remaining validity, and is never returned in the body.",
         responses={200: LoginResponseSerializer,
                    401: DetailResponseSerializer},
     )
@@ -95,12 +96,8 @@ class LoginView(TokenObtainPairView):
 
         # Refresh token cookie
         if response.data.get("refresh"):
-            response.set_cookie(
-                key="refresh_token",
-                value=response.data["refresh"],
-                httponly=True,
-                secure=is_secure,        # False only if testing over plain http on localhost
-                samesite="Lax",
+            set_refresh_token_cookie(
+                response, response.data["refresh"], secure=is_secure,
             )
             del response.data["refresh"]
         return super().finalize_response(request, response, *args, **kwargs)
@@ -117,7 +114,7 @@ class RefreshView(TokenRefreshView):
             "refresh_token", str, location=OpenApiParameter.COOKIE, required=True,
             description="HttpOnly refresh-token cookie set by login or the previous refresh.",
         )],
-        description="Read the refresh_token HttpOnly cookie, validate the active user and authentication version, rotate it when configured, and return a new access token and public user data. No refresh token is accepted in the request body or returned in the response body.",
+        description="Read the refresh_token HttpOnly cookie, validate the active user and authentication version, rotate it when configured, and return a new access token and public user data. Rotation replaces the persistent HttpOnly cookie with Max-Age matching the new token's remaining validity. No refresh token is accepted in the request body or returned in the response body.",
         responses={200: RefreshResponseSerializer,
                    401: DetailResponseSerializer},
     )
@@ -170,13 +167,8 @@ class RefreshView(TokenRefreshView):
         # set it back as an HttpOnly cookie instead of returning it in the body
         new_refresh = serializer.validated_data.get("refresh")
         if new_refresh:
-            response.set_cookie(
-                key="refresh_token",
-                value=str(new_refresh),
-                httponly=True,
-                secure=is_secure,
-                samesite="Lax",
-                path="/",
+            set_refresh_token_cookie(
+                response, new_refresh, secure=is_secure,
             )
 
         return response

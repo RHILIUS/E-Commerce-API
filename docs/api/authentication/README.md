@@ -43,12 +43,19 @@ why an accepted request does not prove inbox delivery.
 Login checks the email and password. A successful response contains an access
 token and public account data, and sets the refresh cookie. The configured access
 token lifetime is 15 minutes; the refresh token lifetime is seven days. Token
-expiry and browser cookie retention are different: these refresh cookies do not
-set a persistent `Max-Age` or `Expires` value.
+expiry determines browser cookie retention: login and refresh set a persistent
+cookie with `Max-Age` calculated from the issued token's remaining validity.
+`SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]` remains the source of the token lifetime;
+the cookie does not have a separate hard-coded duration. Closing and reopening
+the browser can therefore preserve login while the cookie and token remain valid,
+unless browser privacy settings or the customer remove the cookie.
 
 Refresh reads the cookie. It checks the user and authentication version, rotates
 the refresh token, blacklists the previous token, and returns an access token and
-current public user data. Missing or invalid refresh credentials return 401;
+current public user data. Each rotation renews the token's configured lifetime
+and updates the cookie to match. With the current settings, the seven-day window
+runs from the latest successful rotation, rather than the original login.
+Missing or invalid refresh credentials return 401;
 invalid-token responses clear the cookie. A refresh token in the request body
 cannot replace the required cookie.
 
@@ -149,6 +156,7 @@ registered. Registration POST itself has no purchase-style idempotency key.
 | [Serializers](../../../apps/authentication/serializers/authentication.py)                  | Validate registration/code input, create account records, and return public user data |
 | [Token authentication](../../../apps/authentication/token_authentication.py)               | Check active users and session versions                                               |
 | [Code issuance](../../../apps/authentication/services/otp_service.py)                      | Generate hashed codes and enforce issuance limits                                     |
+| [Refresh cookies](../../../apps/authentication/services/refresh_cookie.py) | Set persistent login and rotated cookies from the issued token expiration |
 | [Registration tokens](../../../apps/authentication/services/registration_token_service.py) | Sign and validate the email-verification credential                                   |
 | [Settings](../../../ecommerce_backend/settings.py)                                         | Configure token lifetimes, code policies, and browser origins                         |
 
