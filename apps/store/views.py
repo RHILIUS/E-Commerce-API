@@ -9,7 +9,8 @@ from rest_framework.views import APIView
 
 from apps.ecommerce.models import Category, Product
 from apps.ecommerce.services.display_prices import get_display_rates
-from .services.catalog import SORT_FIELDS, qualifying_items, store_products
+from apps.ecommerce.services.sales import qualifying_items
+from .services.catalog import SORT_FIELDS, store_products
 from .models import Store
 from .serializers import PublicStoreSerializer, StoreHomeSerializer, StoreProductQuerySerializer, StoreProductsSerializer, StoreProductSerializer
 

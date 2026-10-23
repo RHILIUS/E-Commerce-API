@@ -136,6 +136,21 @@ class StoreCatalogTests(APITestCase):
             home = self.client.get(self.url + "home/").json()
         self.assertEqual(home["trending_products"][0]["sold_count"], 25)
         self.assertEqual(self.client.get(self.url).json()["items_sold"], 25)
+        # Every browsing endpoint uses order history even when the old counter differs.
+        Product.objects.filter(pk=product.pk).update(sold_count=999)
+        with patch("apps.ecommerce.views.get_display_rates", return_value={}):
+            with self.assertNumQueries(3):
+                catalog = self.client.get("/api/shop/products/").json()
+            with self.assertNumQueries(3):
+                detail = self.client.get(f"/api/shop/products/{product.pk}/").json()
+        self.assertEqual(catalog["results"][0]["sold_count"], 25)
+        self.assertEqual(detail["sold_count"], 25)
+        listed = self.client.get(self.url + "products/").json()
+        self.assertEqual(listed["results"][0]["sold_count"], 25)
+        # Counts reflect later order changes on the next request.
+        Order.objects.filter(items__product=product, status="completed").update(status="cancelled")
+        with patch("apps.ecommerce.views.get_display_rates", return_value={}):
+            self.assertEqual(self.client.get(f"/api/shop/products/{product.pk}/").json()["sold_count"], 20)
 
     def test_home_limits_ranking_ties_zero_sales_and_historical_totals(self):
         self.now = timezone.now()

@@ -68,7 +68,10 @@ Each product contains:
 - `display_price`: `{ "amount": "5600.00", "currency": "PHP" }`, a display-only
   converted decimal string and ISO 4217 currency code. This example can represent
   a PHP 5600 product viewed by a Philippine user, without conversion.
-- `sold_count`: integer.
+- `sold_count`: integer lifetime units from paid Stripe or delivered/completed COD
+  orders, excluding cancelled orders, successful full-order refunds, and future-dated
+  orders. Calculated from order-item quantities; no qualifying sales returns zero.
+  This display total is separate from the ranking scores described above.
 - `default_image`: `null` when no image is marked default; otherwise an object
   containing `image` (storage URL), `alt_text`, and `crop`.
 

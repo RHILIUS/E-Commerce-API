@@ -83,8 +83,10 @@ selected when multiple defaults exist. No per-product image or FX queries.
   tied to placement time; a COD order placed over 30 days ago cannot become Trending
   merely because it was delivered today.
 
-The landing catalog's existing ranking and stored Product.sold_count are unchanged.
-They can differ from store sales metrics. This is an explicit contract difference,
-not a backfill or a financial/accounting total.
+The landing catalog's existing ranking is unchanged. Catalog, product detail, and
+store responses share the qualifying lifetime sold count; the legacy stored
+Product.sold_count is not used by these responses.
+Landing ranking scores can differ from store sales metrics. Sold counts describe
+units, not a financial/accounting total.
 
 Frontend behavior: [Store Page](../../../../frontend/docs/ecommerce/store-page.md).

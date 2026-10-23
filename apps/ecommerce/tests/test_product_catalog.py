@@ -39,7 +39,7 @@ class ProductCatalogTests(APITestCase):
                 "short_description": "Card description", "price": "123.45",
                 "currency": "PHP",
                 "display_price": {"amount": "2.20", "currency": "USD"},
-                "sold_count": 7, "default_image": None,
+                "sold_count": 0, "default_image": None,
             }
             for product in (second, first)
         ])

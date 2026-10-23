@@ -21,6 +21,10 @@ class CatalogImageSerializer(serializers.ModelSerializer):
 
 
 class ProductCatalogSerializer(serializers.ModelSerializer):
+    sold_count = serializers.IntegerField(
+        source="sales_total", read_only=True,
+        help_text="Lifetime units from paid Stripe or delivered/completed COD orders, excluding cancellations and successful full refunds.",
+    )
     currency = serializers.CharField(source="store.currency", read_only=True)
     default_image = serializers.SerializerMethodField()
     display_price = serializers.SerializerMethodField()

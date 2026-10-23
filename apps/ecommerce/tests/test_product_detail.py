@@ -54,7 +54,7 @@ class ProductDetailTests(APITestCase):
         self.assertEqual(data["display_price"], {
                          "amount": "100.00", "currency": "USD"})
         self.assertEqual(data["stock"], 3)
-        self.assertEqual(data["sold_count"], 12)
+        self.assertEqual(data["sold_count"], 0)
         self.assertTrue(data["can_purchase"])
         self.assertEqual(data["images"], [])
         self.assertIsNone(data["default_image"])

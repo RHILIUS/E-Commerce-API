@@ -32,7 +32,9 @@ HTTP 200 returns an object with these fields:
   contract as the [catalog](product-catalog.md). Guests use USD; authenticated
   users use their account country currency. Failed conversion retains the original
   store currency. These are current product prices, not transaction snapshots.
-- `sold_count`, `stock`: integer counts.
+- `sold_count`: qualifying lifetime units, calculated with the same rules as the
+  [catalog](product-catalog.md#product-fields) and store pages.
+- `stock`: integer physical stock count.
 - `status`: `active`, `draft`, or `archived`; `archived_at`: nullable timestamp.
 - `can_purchase`: true only when status is active and stock is greater than zero.
   This describes product eligibility, not buyer authorization or reserved stock.

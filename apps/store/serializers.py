@@ -5,7 +5,6 @@ from .models import Store, StoreAddress
 
 
 class StoreProductSerializer(ProductCatalogSerializer):
-    sold_count = serializers.IntegerField(source="sales_total", read_only=True)
     stock = serializers.IntegerField(read_only=True)
 
     class Meta(ProductCatalogSerializer.Meta):
