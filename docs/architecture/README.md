@@ -81,6 +81,14 @@ apps, `urls` route requests, `views` coordinate them, `serializers` define data
 contracts, `services` own business mechanics, and `models` define persisted data.
 Some responsibilities are single files; larger ones use packages.
 
+Ecommerce groups HTTP handlers in [`views/`](../../apps/ecommerce/views/) and data
+contracts in [`serializers/`](../../apps/ecommerce/serializers/). Both packages
+contain `catalog.py`, `currencies.py`, `carts.py`, and `orders.py`; the existing
+test endpoint lives in `views/development.py`. Product list and detail remain
+together in catalog modules. Shared product-image serializers stay in
+`serializers/catalog.py`, including when checkout and store APIs reuse them.
+Import from the owning module; package initializers contain no eager exports.
+
 ## Account ownership and sign-in
 
 Protected API requests use an access token in `Authorization: Bearer ...`. A

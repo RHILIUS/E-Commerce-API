@@ -85,3 +85,9 @@ updates bypass model validation and must preserve those relationships.
 Cart admin is inspection-only so manual edits cannot bypass pending-payment
 freezes. [Checkout](../checkout/README.md), payments, and orders are implemented
 by their own services; delivery operations remain outside the cart workflow.
+
+## Browsing currency selection
+
+Optional `display_currency` selects an enabled provider-supported browsing currency. See
+[display currencies](currencies.md) for options, defaults, validation, and conversion
+fallbacks. It does not change checkout pricing.

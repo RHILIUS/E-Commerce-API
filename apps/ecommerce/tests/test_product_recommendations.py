@@ -20,7 +20,7 @@ from core.test_support import create_purchase
 
 class ProductRecommendationTests(APITestCase):
     def setUp(self):
-        rate_lookup = patch("apps.ecommerce.views.get_display_rates", return_value={})
+        rate_lookup = patch("apps.ecommerce.views.catalog.get_display_rates", return_value={})
         rate_lookup.start()
         self.addCleanup(rate_lookup.stop)
         self.user = create_customer(

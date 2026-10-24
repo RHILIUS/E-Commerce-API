@@ -1,36 +1,18 @@
-from django.contrib.auth import get_user_model
+"""Public catalog and product-detail HTTP handlers."""
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Product, ProductImage
-from .pagination import ProductCatalogPagination
-from .serializers import (
-    PaginatedProductsSerializer,
-    ProductCatalogSerializer,
-    ProductDetailSerializer,
-)
-from .services.display_prices import get_display_rates
-from .services.product_recommendations import rank_products_for_user
-from .services.order_quantities import with_ordered_totals
-
-User = get_user_model()
-
-
-class Test(APIView):
-    permission_classes = [AllowAny]
-
-    @extend_schema(tags=["Development"], responses={200: dict})
-    def get(self, request):
-
-        users = User.objects.all()
-        print(users)
-
-        return Response({"message": "hello"}, status=status.HTTP_200_OK)
+from ..models import Product, ProductImage
+from ..pagination import ProductCatalogPagination
+from ..serializers.catalog import PaginatedProductsSerializer, ProductCatalogSerializer, ProductDetailSerializer
+from ..serializers.currencies import DisplayCurrencyQuerySerializer, read_display_currency
+from ..services.display_prices import get_display_rates
+from ..services.product_recommendations import rank_products_for_user
+from ..services.order_quantities import with_ordered_totals
 
 
 class ProductCatalogView(APIView):
@@ -39,15 +21,17 @@ class ProductCatalogView(APIView):
     @extend_schema(
         tags=["Catalog"],
         parameters=[
+            DisplayCurrencyQuerySerializer,
             OpenApiParameter(
                 "q", str, description="Case-insensitive name or short-description search."),
             OpenApiParameter(
                 "page", int, description="Page number, starting at 1; twelve products per page."),
         ],
-        description="List active products. Signed-in users see categories ranked by their lifetime ordered units first; recent ordered product units rank ties and are the first signal for guests. Both scores count non-cancelled orders regardless of payment or refund status. Recent popularity uses the configured rolling window by order placement, default seven days. price and currency describe the original store price. display_price converts to the account country's currency, or USD for guests. Unavailable conversions retain the original store currency. Conversion is for display only. ordered_count is lifetime units in non-cancelled orders, including unpaid and refunded purchases.",
-        responses={200: PaginatedProductsSerializer, 401: dict, 404: dict},
+        description="List active products. Signed-in users see categories ranked by their lifetime ordered units first; recent ordered product units rank ties and are the first signal for guests. Both scores count non-cancelled orders regardless of payment or refund status. Recent popularity uses the configured rolling window by order placement, default seven days. price and currency describe the original store price. display_price uses display_currency when supplied, otherwise personal-address currency, supported verified-country currency, or USD. Unavailable conversions retain the original store currency. Conversion is for display only. ordered_count is lifetime units in non-cancelled orders, including unpaid and refunded purchases.",
+        responses={200: PaginatedProductsSerializer, 400: dict, 401: dict, 404: dict, 503: dict},
     )
     def get(self, request):
+        display_currency = read_display_currency(request)
         # Fetch products and use an algorithm that show the user prefered products in the catalog first
         products = Product.objects.filter(
             status=Product.Status.ACTIVE).select_related("store")
@@ -72,10 +56,9 @@ class ProductCatalogView(APIView):
         serializer = ProductCatalogSerializer(
             page, many=True, context={
                 "request": request,
-                "display_rates": get_display_rates(request.user, {product.store.currency for product in page}),
+                "display_rates": get_display_rates(request.user, {product.store.currency for product in page}, target_currency=display_currency),
             })
         return paginator.get_paginated_response(serializer.data)
-
 
 class ProductDetailView(APIView):
     permission_classes = [AllowAny]
@@ -93,9 +76,11 @@ class ProductDetailView(APIView):
             "includes active products only; created_at is store creation, not first sale. "
             "ordered_count uses the same non-cancelled lifetime units as the catalog and store pages."
         ),
-        responses={200: ProductDetailSerializer, 401: dict, 404: dict},
+        parameters=[DisplayCurrencyQuerySerializer],
+        responses={200: ProductDetailSerializer, 400: dict, 401: dict, 404: dict, 503: dict},
     )
     def get(self, request, pk):
+        display_currency = read_display_currency(request)
         # Show active and archived products to anyone
         visible = Q(status__in=[Product.Status.ACTIVE,
                     Product.Status.ARCHIVED])
@@ -110,7 +95,7 @@ class ProductDetailView(APIView):
         product = get_object_or_404(with_ordered_totals(products), pk=pk)
         serializer = ProductDetailSerializer(product, context={
             "request": request,
-            "display_rates": get_display_rates(request.user, {product.store.currency}),
+            "display_rates": get_display_rates(request.user, {product.store.currency}, target_currency=display_currency),
             "listed_product_count": product.store.products.filter(status=Product.Status.ACTIVE).count(),
         })
         return Response(serializer.data)

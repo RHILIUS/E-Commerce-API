@@ -29,8 +29,8 @@ HTTP 200 returns an object with these fields:
 
 - `id`, `name`, `short_description`, `description` (nullable).
 - `price`, `currency`, `display_price`: same decimal-string and display-conversion
-  contract as the [catalog](product-catalog.md). Guests use USD; authenticated
-  users use their account country currency. Failed conversion retains the original
+  contract as the [catalog](product-catalog.md). Explicit `display_currency` takes
+  priority; otherwise defaults use personal address, supported verified-country currency, then USD. Failed conversion retains the original
   store currency. These are current product prices, not transaction snapshots.
 - `ordered_count`: non-cancelled lifetime units, calculated with the same rules as the
   [catalog](product-catalog.md#product-fields) and store pages.
@@ -63,3 +63,9 @@ distinct: the existing OrderItem relation uses SET_NULL, so hard deletion remove
 the product link. Store deletion/archive workflows must retain product rows when
 historical detail URLs need to keep working. This endpoint does not implement
 soft deletion, an archive mutation API, or historical product snapshots.
+
+## Browsing currency selection
+
+Optional `display_currency` selects an enabled provider-supported browsing currency. See
+[display currencies](currencies.md) for options, defaults, validation, and conversion
+fallbacks. It does not change checkout pricing.

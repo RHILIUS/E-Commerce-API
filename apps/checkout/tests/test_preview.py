@@ -287,6 +287,15 @@ class CheckoutPricingTests(SimpleTestCase):
             with self.subTest(body=body[:20]), self.assertRaises(ConversionUnavailable):
                 checkout_rates(self.user, {'PHP'})
 
+    @patch('apps.checkout.services.pricing._fetch_json')
+    def test_target_override_keeps_stripe_usd_independent_of_address(self, fetch):
+        self.user.address.country_code = 'PH'
+        self.assertEqual(checkout_rates(self.user, {'PHP'}),
+                         ('PHP', {'PHP': {'rate': Decimal(1), 'date': None}}))
+        self.assertEqual(checkout_rates(self.user, {'USD'}, target_currency='USD'),
+                         ('USD', {'USD': {'rate': Decimal(1), 'date': None}}))
+        fetch.assert_not_called()
+
     def test_invalid_source_currency_is_never_relabelled(self):
         with self.assertRaises(ConversionUnavailable):
             checkout_rates(self.user, {'ZZZ'})

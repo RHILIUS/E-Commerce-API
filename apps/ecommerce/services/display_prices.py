@@ -11,7 +11,7 @@ from babel.numbers import get_currency_precision
 from django.conf import settings
 from django.core.cache import cache
 
-from core.common.currencies import currency_for_country
+from core.common.currencies import default_currency_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +50,9 @@ def _fetch_rates(target, now):
     return {"rates": rates, "fetched_at": now.timestamp()}
 
 
-def get_display_rates(user, source_currencies):
+def get_display_rates(user, source_currencies, *, target_currency=None):
     """Resolve a page's conversions in at most one HTTP call, falling back to source."""
-    address = getattr(user, "address", None) if user.is_authenticated else None
-    target = currency_for_country(address.country_code) if address else None
-    target = target or "USD"
+    target = target_currency or default_currency_for_user(user if user.is_authenticated else None)
     conversions = {source: (source, Decimal(1)) for source in source_currencies}
     if not source_currencies or set(source_currencies) == {target}:
         return conversions

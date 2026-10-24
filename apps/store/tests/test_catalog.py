@@ -137,7 +137,7 @@ class StoreCatalogTests(APITestCase):
         self.assertEqual(home["trending_products"][0]["ordered_count"], 325)
         self.assertEqual(self.client.get(self.url).json()["items_ordered"], 325)
         # Every browsing endpoint reports the same qualifying order quantities.
-        with patch("apps.ecommerce.views.get_display_rates", return_value={}):
+        with patch("apps.ecommerce.views.catalog.get_display_rates", return_value={}):
             with self.assertNumQueries(3):
                 catalog = self.client.get("/api/shop/products/").json()
             with self.assertNumQueries(3):
@@ -148,7 +148,7 @@ class StoreCatalogTests(APITestCase):
         self.assertEqual(listed["results"][0]["ordered_count"], 325)
         # Counts reflect later order changes on the next request.
         Order.objects.filter(items__product=product, status="completed").update(status="cancelled")
-        with patch("apps.ecommerce.views.get_display_rates", return_value={}):
+        with patch("apps.ecommerce.views.catalog.get_display_rates", return_value={}):
             self.assertEqual(self.client.get(f"/api/shop/products/{product.pk}/").json()["ordered_count"], 320)
 
     def test_home_limits_ranking_ties_zero_sales_and_historical_totals(self):

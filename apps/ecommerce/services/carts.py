@@ -9,7 +9,7 @@ from rest_framework.exceptions import APIException, NotFound
 
 from ..models import Cart, CartItem, Product, ProductImage
 from apps.inventory.models import StockReservation
-from ..serializers import CatalogImageSerializer
+from ..serializers.catalog import CatalogImageSerializer
 from .display_prices import convert_display_price, get_display_rates
 
 
@@ -18,13 +18,13 @@ class CartConflict(APIException):
     default_code = 'cart_conflict'
 
 
-def read_carts(request):
+def read_carts(request, *, display_currency=None):
     """Read saved store carts without creating records; redact unpublished products."""
     items = CartItem.objects.select_related('product').prefetch_related(
         Prefetch('product__images', queryset=ProductImage.objects.order_by('order', 'pk'))).order_by('pk')
     carts = list(Cart.objects.filter(user=request.user, items__isnull=False).distinct()
                  .select_related('store').prefetch_related(Prefetch('items', queryset=items)).order_by('pk'))
-    rates = get_display_rates(request.user, {cart.store.currency for cart in carts})
+    rates = get_display_rates(request.user, {cart.store.currency for cart in carts}, target_currency=display_currency)
     result = []
     for cart in carts:
         store = cart.store

@@ -28,7 +28,7 @@ class ProductDetailTests(APITestCase):
         )
 
     def setUp(self):
-        rates = patch("apps.ecommerce.views.get_display_rates",
+        rates = patch("apps.ecommerce.views.catalog.get_display_rates",
                       return_value={"PHP": ("USD", Decimal(56))})
         self.rates = rates.start()
         self.addCleanup(rates.stop)

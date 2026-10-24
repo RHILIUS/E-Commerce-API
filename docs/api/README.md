@@ -106,3 +106,8 @@ schema as well; schema generation cannot prove that business rules are correct.
 
 See [development commands](../development/docker.md#everyday-commands) and
 [pull request checks](../development/pull-request-checks.md) for the broader development workflow.
+
+## Browsing currency
+
+[Display currencies](ecommerce/currencies.md) explains supported options and the
+optional currency selection on product, store and cart responses.

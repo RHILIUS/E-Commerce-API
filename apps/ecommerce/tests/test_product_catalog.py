@@ -9,7 +9,7 @@ from apps.store.models import Store
 
 class ProductCatalogTests(APITestCase):
     def setUp(self):
-        rates = patch("apps.ecommerce.views.get_display_rates", return_value={"PHP": ("USD", Decimal(56))})
+        rates = patch("apps.ecommerce.views.catalog.get_display_rates", return_value={"PHP": ("USD", Decimal(56))})
         rates.start()
         self.addCleanup(rates.stop)
         self.store = Store.objects.create(

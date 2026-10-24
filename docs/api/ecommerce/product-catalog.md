@@ -106,9 +106,9 @@ with the same currency is allowed. Changing pricing currency requires a separate
 explicit price migration. Do not bypass this protection with bulk updates.
 Product admin shows the store currency beside each price.
 
-The catalog converts from each store's currency to the authenticated account's
-country currency. Guests and accounts without an unambiguous country currency
-use USD as their display target. For example, with an illustrative rate of
+Without an explicit display-currency selection, the catalog converts from each
+store's currency to the authenticated account's country currency. Without a usable address currency, a supported verified-country
+currency is used, then USD. Without a trusted country hint, guests still use USD. For example, with an illustrative rate of
 56 PHP/USD, a PHP-store price of 5600 displays as PHP 5600 for a Philippine user
 and USD 100 for a guest. The original `price` and `currency` stay unchanged.
 
@@ -133,9 +133,15 @@ may wait for one provider request up to the configured timeout.
 
 This feature only converts catalog display prices. The separate
 [checkout preview API](../checkout/preview.md) uses strict single-currency
-conversion and signed price snapshots. Placement remains pending. Mixed-currency
+conversion and signed price snapshots. Placement revalidates the accepted terms. Mixed-currency
 catalog or historical amounts must not be treated as a single-currency total.
 
 Viewer country now comes from `UserAddress.country_code`, rather than User.
-Accounts without a personal address use the existing USD target. Store source
+Without an explicit display selection, accounts without a personal address use a supported verified-country currency, then USD. Store source
 currency, recipient country and saved purchase amounts are unchanged.
+
+## Browsing currency selection
+
+Optional `display_currency` selects an enabled provider-supported browsing currency. See
+[display currencies](currencies.md) for options, defaults, validation, and conversion
+fallbacks. It does not change checkout pricing.

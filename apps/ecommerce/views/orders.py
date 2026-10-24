@@ -6,9 +6,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.checkout.services.refunds import reconcile_refund
-from .order_serializers import OrderFilterSerializer, UserOrderSerializer, UserOrderListSerializer, OrderHistorySerializer
-from .models import Order
-from .services.orders import TAB_STATUSES, cancel_order, customer_orders, serialize_order
+from ..serializers.orders import OrderFilterSerializer, UserOrderSerializer, UserOrderListSerializer, OrderHistorySerializer
+from ..models import Order
+from ..services.orders import TAB_STATUSES, cancel_order, customer_orders, serialize_order
 
 
 class UserOrderPagination(PageNumberPagination):
