@@ -30,7 +30,7 @@ HTTP 200 returns an object with these fields:
 - `id`, `name`, `short_description`, `description` (nullable).
 - `price`, `currency`, `display_price`: same decimal-string and display-conversion
   contract as the [catalog](product-catalog.md). Explicit `display_currency` takes
-  priority; otherwise guests use USD and authenticated users use their personal-address currency. Failed conversion retains the original
+  priority; otherwise defaults use personal address, supported verified-country currency, then USD. Failed conversion retains the original
   store currency. These are current product prices, not transaction snapshots.
 - `ordered_count`: non-cancelled lifetime units, calculated with the same rules as the
   [catalog](product-catalog.md#product-fields) and store pages.
